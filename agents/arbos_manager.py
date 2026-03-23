@@ -68,7 +68,9 @@ class ArbosManager:
             
             arbos_output = result.stdout.strip()
 
-            def real_llm_call(prompt): return self.compute.run_on_compute(prompt)
+    # Real LLM reflection with chosen Chutes model
+        def real_llm_call(prompt):
+            return self.compute.run_on_compute(prompt)  # Now automatically uses chutes_llm
 
             final_output, trace = reflect_and_improve(
                 task=challenge,
