@@ -1,8 +1,5 @@
 # Enigma Machine – Agentic Miner Starter Kit for SN63
 
-**The easiest way to build a winning miner for Enigma.**  
-Anyone posts capital and an “impossible” problem. Miners solve it in ≤4 hours on a single H200 GPU.
-
 **Powered by Arbos + real GitHub tools + Bittensor compute subnets.**  
 Everything is 100% optional and fully customizable via one file.
 
