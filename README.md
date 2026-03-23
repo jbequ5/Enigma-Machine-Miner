@@ -34,7 +34,7 @@ That’s it. The miner starts and Arbos begins solving challenges immediately.
 ### The Enigma Machine – Your Fully Tunable Agent Brain
 
 Arbos (Const’s recursive Ralph loop) is the conductor.  
-You give it a simple `GOAL.md` file. Arbos then recursively improves everything — code, strategy, tools, and output — until the challenge is solved or the 4h H200 limit is reached.
+You give it a simple `GOAL.md` file. Arbos then recursively improves everything — code, strategy, tools, and output — until the challenge is solved or the 4h H100 limit is reached.
 
 **Everything below is optional.**  
 You can enable, disable, or tune any pattern with **one line** in your GOAL.md.  
