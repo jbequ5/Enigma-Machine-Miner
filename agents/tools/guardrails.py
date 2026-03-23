@@ -1,10 +1,13 @@
 # agents/tools/guardrails.py
-# Guardrails - safety checks before submission
+# Hard safety checks before submission
 
 def apply_guardrails(solution: str, runtime_hours: float):
-    """Enforces quality, runtime, and validity"""
+    """Enforces all subnet rules"""
     if runtime_hours > 4.0:
-        return "REJECTED: Exceeds 4h H100 limit"
-    if len(solution) < 50:
+        return "REJECTED: Exceeds 4h H200 limit"
+    if len(solution) < 100:
         return "REJECTED: Solution too short"
-    return "PASSED"
+    if "error" in solution.lower() or "failed" in solution.lower():
+        return "REJECTED: Contains error messages"
+    print("✅ All guardrails passed")
+    return solution
