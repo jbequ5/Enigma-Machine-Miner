@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# FINAL UPGRADED VERSION - Smart Routing for GPD, ScienceClaw, AI-Researcher, HyperAgent
+# UPGRADED: HyperAgent used in Planning Phase + Smart Routing for all tools
 
 import os
 from agents.tools.reflection import reflect_and_improve
@@ -15,51 +15,60 @@ class ArbosManager:
     def __init__(self, goal_file="goals/killer_base.md"):
         self.goal_file = goal_file
         self.config = self._load_config()
-        print(f"✅ Arbos Manager with SMART ROUTING loaded (4 tools)")
+        print(f"✅ Arbos Manager with HyperAgent Planning + Smart Routing loaded")
 
     def _load_config(self):
-        config = {"reflection": 3, "exploration": False, "resource_aware": True, "guardrails": True}
+        config = {
+            "reflection": 3,
+            "hyper_planning": False,      # ← New toggle for HyperAgent in planning
+            "exploration": False,
+            "resource_aware": True,
+            "guardrails": True
+        }
         try:
             with open(self.goal_file, "r") as f:
                 for line in f:
                     line = line.strip().lower()
-                    if line.startswith("reflection:"): config["reflection"] = int(line.split(":")[1])
-                    elif line.startswith("exploration:"): config["exploration"] = "true" in line
-                    elif line.startswith("resource_aware:"): config["resource_aware"] = "true" in line
-                    elif line.startswith("guardrails:"): config["guardrails"] = "true" in line
+                    if line.startswith("reflection:"):
+                        config["reflection"] = int(line.split(":")[1])
+                    elif line.startswith("hyper_planning:"):
+                        config["hyper_planning"] = "true" in line
+                    elif line.startswith("exploration:"):
+                        config["exploration"] = "true" in line
+                    elif line.startswith("resource_aware:"):
+                        config["resource_aware"] = "true" in line
+                    elif line.startswith("guardrails:"):
+                        config["guardrails"] = "true" in line
         except:
             pass
         return config
 
     def _smart_route(self, challenge: str):
-        """Smart Routing Logic - decides best tools based on keywords"""
+        """Smart Routing: HyperAgent for planning when enabled or complex"""
         lower = challenge.lower()
         results = []
         tools_used = []
 
-        # HyperAgent - for complex self-improving orchestration
-        if any(k in lower for k in ["hyper", "meta", "self-improving", "complex", "orchestration", "multi-step"]):
-            results.append(run_hyperagent(challenge))
-            tools_used.append("HyperAgent")
+        # 1. HyperAgent Planning Phase (new logic)
+        if self.config.get("hyper_planning") or any(k in lower for k in ["complex", "multi-step", "orchestrate", "long-term", "strategy"]):
+            plan = run_hyperagent(challenge)          # Use HyperAgent for planning
+            results.append(f"HyperAgent Plan:\n{plan}")
+            tools_used.append("HyperAgent (Planning)")
 
-        
-        # AI-Researcher - for literature, papers, idea generation
-        if any(k in lower for k in ["research", "paper", "arxiv", "literature", "idea", "review", "survey"]):
-            results.append(run_ai_researcher(challenge))
-            tools_used.append("AI-Researcher")
-
-        # GPD - for physics, quantum, math, derivations
-        if any(k in lower for k in ["quantum", "circuit", "physics", "equation", "derivation", "math", "shor", "rsa"]):
+        # 2. Other tools execution
+        if any(k in lower for k in ["quantum", "circuit", "physics", "derivation", "math"]):
             results.append(run_gpd(challenge))
             tools_used.append("GPD")
 
-        # ScienceClaw - for discovery, biology, materials, novel structures
-        if any(k in lower for k in ["discover", "biology", "peptide", "material", "ceramic", "novel", "bio", "structure"]):
+        if any(k in lower for k in ["discover", "biology", "material", "novel", "bio", "structure"]):
             results.append(run_scienceclaw(challenge, 20))
             tools_used.append("ScienceClaw")
 
+        if any(k in lower for k in ["research", "paper", "literature", "idea", "review"]):
+            results.append(run_ai_researcher(challenge))
+            tools_used.append("AI-Researcher")
 
-        # Default: Use the two most powerful tools
+        # Default fallback
         if not results:
             results.append(run_ai_researcher(challenge))
             results.append(run_scienceclaw(challenge, 15))
@@ -68,14 +77,15 @@ class ArbosManager:
         return "\n\n".join(results), tools_used
 
     def run(self, challenge: str):
-        print(f"🔀 Smart Routing challenge: {challenge[:100]}...")
+        print(f"🔀 Smart Routing (with HyperAgent Planning): {challenge[:100]}...")
 
         tool_results, tools_used = self._smart_route(challenge)
 
+        # Final Reflection pass
         final_output, trace = reflect_and_improve(
             task=challenge,
             output=tool_results,
-            llm_call=lambda x: f"Refined version: {x}",
+            llm_call=lambda x: f"Refined: {x}",
             max_iterations=self.config.get("reflection", 3)
         )
 
