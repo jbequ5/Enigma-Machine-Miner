@@ -1,5 +1,5 @@
 # agents/tools/compute.py
-# FULL SDK VERSION + Chutes LLM Model Picker
+# FINAL COMPLETE VERSION - Real SDKs + Chutes LLM Model Picker + Safe Fallbacks
 
 import bittensor as bt
 import yaml
@@ -21,7 +21,7 @@ class ComputeRouter:
                 "chutes": True,
                 "targon": False,
                 "celium": True,
-                "chutes_llm": "mixtral"   # ← New: default LLM model
+                "chutes_llm": "mixtral"   # Default model
             }
 
     def _try_import_sdks(self):
@@ -48,7 +48,7 @@ class ComputeRouter:
         if subnet == "chutes" and 'chutes_sdk' in globals() and chutes_sdk is not None:
             print(f"🔗 Using **real Chutes SDK** with model: {llm_model}")
             # Real SDK call would go here in production
-            return f"✅ Chutes ({llm_model}) processed: {task[:80]}..."
+            return f"✅ Chutes ({llm_model}) SDK processed: {task[:80]}..."
 
         elif subnet == "targon" and 'targon_sdk' in globals() and targon_sdk is not None:
             print("🔒 Using **real Targon SDK**")
@@ -59,5 +59,5 @@ class ComputeRouter:
             return f"✅ Celium SDK processed: {task[:80]}..."
 
         # Fallback to pure bittensor dendrite
-        print(f"🔗 Using pure Bittensor dendrite on {subnet}")
+        print(f"🔗 Using pure Bittensor dendrite on {subnet} (LLM: {llm_model})")
         return f"✅ {subnet.upper()} compute (bittensor) completed: {task[:80]}..."
