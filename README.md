@@ -1,7 +1,3 @@
-**✅ Here is the complete README.md** in one single copyable box.
-
-Just click anywhere inside the box below, press **Ctrl+A** (or Cmd+A on Mac) to select all, then **Ctrl+C** (or Cmd+C) to copy. Paste it directly into your GitHub README editor.
-
 ```markdown
 # Enigma Machine – Agentic Miner Starter Kit for SN63
 
