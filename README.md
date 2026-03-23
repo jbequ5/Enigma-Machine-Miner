@@ -102,4 +102,10 @@ celium: true
 Ready to dominate Enigma?  
 Fork the repo, create your first custom GOAL.md, and start competing.
 
+### How to Run the Real Miner
+
+```bash
+chmod +x scripts/run_miner.sh
+./scripts/run_miner.sh
+
 $TAO 🚀
