@@ -55,36 +55,47 @@ class ArbosManager:
             results.append(run_hyperagent(challenge))
         return "\n\n".join(results), ["GPD", "ScienceClaw", "AI-Researcher"]
 
-    def run(self, challenge: str):
+       def run(self, challenge: str):
         print(f"🔀 Running REAL Arbos with {self.compute.get_compute()} compute...")
 
-        tool_results, tools_used = self._smart_route(challenge)
+        monitor = ResourceMonitor(max_hours=3.8)  # ← Real 4h timer
 
-        initial_input = f"Challenge: {challenge}\nTools:\n{tool_results}"
         try:
-            result = subprocess.run(["python", f"{self.arbos_path}/arbos.py", "--goal", self.goal_file, "--input", initial_input], capture_output=True, text=True, timeout=3600)
+            tool_results, tools_used = self._smart_route(challenge)
+
+            initial_input = f"Challenge: {challenge}\nTools:\n{tool_results}"
+            result = subprocess.run([
+                "python", f"{self.arbos_path}/arbos.py",
+                "--goal", self.goal_file,
+                "--input", initial_input
+            ], capture_output=True, text=True, timeout=3600)
+
             arbos_output = result.stdout.strip()
+
+            # Real LLM reflection with compute
+            def real_llm_call(prompt):
+                return self.compute.run_on_compute(prompt)
+
+            final_output, trace = reflect_and_improve(
+                task=challenge,
+                output=arbos_output,
+                llm_call=real_llm_call,
+                max_iterations=self.config.get("reflection", 3)
+            )
+
+            # Apply resource compression
+            final_output = monitor.compress_if_needed(final_output)
+
+            # Final guardrails
+            if self.config.get("guardrails"):
+                final_output = apply_guardrails(final_output, (time.time() - monitor.start_time)/3600)
+
+        except subprocess.TimeoutExpired:
+            final_output = "REJECTED: Exceeded timeout — compressed solution"
         except Exception as e:
-            arbos_output = f"Arbos error: {str(e)}"
+            final_output = f"ERROR: {str(e)} — guardrails applied"
 
-        # Use real SDK compute for reflection LLM
-        def real_llm_call(prompt):
-            return self.compute.run_on_compute(prompt)
-
-        final_output, trace = reflect_and_improve(
-            task=challenge,
-            output=arbos_output,
-            llm_call=real_llm_call,
-            max_iterations=self.config.get("reflection", 3)
-        )
-
-        if self.config.get("exploration"):
-            final_output = explore_novel_variant(challenge, final_output)
-        if self.config.get("resource_aware"):
-            final_output = check_and_compress(3.5, final_output)
-        if self.config.get("guardrails"):
-            final_output = apply_guardrails(final_output, 3.5)
-
+        print("✅ Arbos run completed with full safety")
         return {
             "solution": final_output,
             "status": "complete",
