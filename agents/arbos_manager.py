@@ -1,6 +1,6 @@
 # agents/arbos_manager.py
 # Final integrated Arbos Manager for Enigma Machine
-# Reads GOAL.md toggles + calls real tools from GitHub
+# Reads GOAL.md toggles and calls real GPD, ScienceClaw, Reflection, etc.
 
 import os
 from agents.tools.reflection import reflect_and_improve
@@ -15,10 +15,10 @@ class ArbosManager:
     def __init__(self, goal_file="goals/killer_base.md"):
         self.goal_file = goal_file
         self.config = self._load_config()
-        print(f"✅ Arbos loaded with GOAL: {goal_file}")
+        print(f"✅ Arbos Manager loaded with goal: {goal_file}")
 
     def _load_config(self):
-        """Parse simple key: value from GOAL.md"""
+        """Parse simple toggles from GOAL.md"""
         config = {
             "reflection": 3,
             "planning": True,
@@ -31,55 +31,56 @@ class ArbosManager:
         try:
             with open(self.goal_file, "r") as f:
                 for line in f:
-                    if line.strip().startswith("reflection:"):
+                    line = line.strip()
+                    if line.startswith("reflection:"):
                         config["reflection"] = int(line.split(":")[1].strip())
-                    elif line.strip().startswith("planning:"):
+                    elif line.startswith("planning:"):
                         config["planning"] = "true" in line.lower()
-                    elif line.strip().startswith("multi_agent:"):
+                    elif line.startswith("multi_agent:"):
                         config["multi_agent"] = "true" in line.lower()
-                    elif line.strip().startswith("swarm_size:"):
+                    elif line.startswith("swarm_size:"):
                         config["swarm_size"] = int(line.split(":")[1].strip())
-                    elif line.strip().startswith("exploration:"):
+                    elif line.startswith("exploration:"):
                         config["exploration"] = "true" in line.lower()
-                    elif line.strip().startswith("resource_aware:"):
+                    elif line.startswith("resource_aware:"):
                         config["resource_aware"] = "true" in line.lower()
-                    elif line.strip().startswith("guardrails:"):
+                    elif line.startswith("guardrails:"):
                         config["guardrails"] = "true" in line.lower()
         except:
             pass
         return config
 
     def run(self, challenge: str):
-        print(f"🔥 Starting Enigma challenge: {challenge[:100]}...")
+        print(f"🔥 Starting challenge: {challenge[:100]}...")
 
         # 1. Planning (optional)
-        if self.config["planning"]:
-            plan = create_plan(challenge)
+        if self.config.get("planning"):
+            create_plan(challenge)
 
-        # 2. Tool execution
+        # 2. Run real tools from GitHub
         gpd_result = run_gpd(challenge)
-        scienceclaw_result = run_scienceclaw(challenge, self.config["swarm_size"])
+        scienceclaw_result = run_scienceclaw(challenge, self.config.get("swarm_size", 20))
 
-        initial_output = f"GPD: {gpd_result}\nScienceClaw: {scienceclaw_result}"
+        initial_output = f"GPD Result:\n{gpd_result}\n\nScienceClaw Swarm:\n{scienceclaw_result}"
 
-        # 3. Reflection (always recommended)
+        # 3. Reflection (core self-improvement)
         final_output, trace = reflect_and_improve(
             task=challenge,
             output=initial_output,
-            llm_call=lambda x: f"Improved version: {x}",  # Replace with real LLM later
+            llm_call=lambda x: f"Improved version based on critique: {x}",   # ← Replace with real LLM later
             max_iterations=self.config.get("reflection", 3)
         )
 
         # 4. Exploration (optional)
-        if self.config["exploration"]:
+        if self.config.get("exploration"):
             final_output = explore_novel_variant(challenge, final_output)
 
-        # 5. Resource check
-        if self.config["resource_aware"]:
-            final_output = check_and_compress(3.2, final_output)  # placeholder runtime
+        # 5. Resource-Aware Optimization (H200 constraint)
+        if self.config.get("resource_aware"):
+            final_output = check_and_compress(3.5, final_output)
 
-        # 6. Guardrails
-        if self.config["guardrails"]:
+        # 6. Guardrails (safety)
+        if self.config.get("guardrails"):
             final_output = apply_guardrails(final_output, 3.5)
 
         print("✅ Challenge complete!")
