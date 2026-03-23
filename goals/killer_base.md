@@ -15,7 +15,7 @@ GOAL: Solve the sponsor challenge with maximum novelty and verifier score while 
 
 **exploration: true**              #Generate truly novel variants (big prize potential)
 
-**resource_aware: true**           #Auto-compress to enforce 4h H200 limit (highly recommended)
+**resource_aware: true**           #Auto-compress to enforce 4h H100 limit (highly recommended)
 
 **guardrails: true**               #Safety checks before final submission
 
