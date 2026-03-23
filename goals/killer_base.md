@@ -1,6 +1,6 @@
 GOAL: Solve the sponsor challenge with maximum novelty and verifier score while staying under 3.8h on H100.
 
-# ============== CORE TOGGLES ==============
+# CORE TOGGLES 
 # Edit these lines to customize how Arbos behaves. All are optional.
 
 **reflection: 4**                   #Self-critique iterations (higher = better quality, slower)
@@ -19,7 +19,7 @@ GOAL: Solve the sponsor challenge with maximum novelty and verifier score while 
 
 **guardrails: true**               #Safety checks before final submission
 
-# ============== RALPH LOOP STEPS ==============
+# RALPH LOOP STEPS 
 # You can reorder or customize these steps
 
 Steps per Ralph loop:
