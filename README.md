@@ -1,17 +1,18 @@
 # Enigma Machine – Agentic Miner Starter Kit for SN63
 
-**The easiest way to build a winning miner for Enigma** — the decentralized innovation engine where anyone posts capital and “impossible” problems, and miners compete to solve them in ≤4 hours on a single H200 GPU.
+**The easiest way to build a winning miner for Enigma.**  
+Anyone can post capital and an “impossible” problem. Miners compete to solve it in ≤4 hours on a single H200 GPU.
 
-**Powered by Arbos + 8 proven agentic patterns** (from Antonio Gulli’s *Agentic Design Patterns*).  
-Everything is **100% optional** and miner-customizable. No black boxes. No forced settings.
+**Powered by Arbos + 8 proven agentic patterns.**  
+Everything is **100% optional**. You control everything.
 
-### Two Modes – Your Choice
-- **Optimal Mode** → One-click team-curated best stack (great for beginners)  
-- **Self-Built Mode** → Full control — tune or disable anything (where top miners create their edge)
+### Two Modes – Choose What Works for You
+- **Optimal Mode** → Use the team’s recommended settings (best for beginners)  
+- **Self-Built Mode** → Full control: turn features on/off and tune everything
 
 ---
 
-### Quickstart (5 minutes)
+### Quickstart (Takes 5 Minutes)
 
 ```bash
 git clone https://github.com/YOUR-USERNAME/enigma-machine.git
@@ -19,60 +20,52 @@ cd enigma-machine
 pip install -e .
 ```
 
-1. Edit `config/miner.yaml` (your wallet + subnet details)  
-2. Choose mode in `config/arbos.yaml`:
-   ```yaml
-   mode: optimal          # or "self-built"
-   ```
-3. Pick or create a GOAL.md (see templates below)  
+1. Edit `config/miner.yaml` (add your wallet)  
+2. Choose mode in `config/arbos.yaml` (`optimal` or `self-built`)  
+3. Create or edit a GOAL.md file  
 4. Run: `./scripts/run_miner.sh`
 
-That’s it. The miner starts and Arbos begins solving challenges immediately.
+---
+
+### How to Customize (Super Simple)
+
+You control the miner by editing **one file**: your GOAL.md.
+
+All settings are optional. Turn anything off if you don’t want it.
+
+### The 8 Core Patterns – All Optional
+
+| Pattern                        | What it does                                      | When to use it                              | One-line toggle in GOAL.md               | Default |
+|--------------------------------|---------------------------------------------------|---------------------------------------------|------------------------------------------|---------|
+| Reflection                     | Self-critiques and improves output                | Almost always (big quality boost)           | `reflection: 4` (or `false`)             | 3       |
+| Planning                       | Breaks challenge into clear steps                 | Most challenges                             | `planning: true` (or `false`)            | true    |
+| HyperAgent Planning            | Uses advanced self-improving planning             | Very complex or multi-step challenges       | `hyper_planning: true` (or `false`)      | false   |
+| Multi-Agent                    | Runs parallel swarm of agents                     | Discovery & creative problems               | `multi_agent: true` + `swarm_size: 20`   | true    |
+| Tool Use                       | Calls GPD, AI-Researcher, etc.                    | Most challenges                             | `tool_use: true` (or `false`)            | true    |
+| Resource-Aware                 | Keeps everything under 4h H200                    | Required for prize eligibility              | `resource_aware: true` (or `false`)      | true    |
+| Exploration & Discovery        | Creates truly novel solutions                     | Big prize challenges                        | `exploration: true` (or `false`)         | false   |
+| Guardrails                     | Safety checks before submission                   | Always recommended                          | `guardrails: true` (or `false`)          | true    |
+
+### Where to Edit (No Mysteries)
+
+| What you want to change               | Where to edit it                          | How to do it                  |
+|---------------------------------------|-------------------------------------------|-------------------------------|
+| Turn patterns on/off or change numbers| `goals/your_strategy.md`                  | Just edit the text file       |
+| Change default values                 | `config/arbos.yaml`                       | One line change               |
+| Modify tool behavior                  | `agents/tools/*.py`                       | Edit Python (optional)        |
 
 ---
 
-### The Enigma Machine – Your Fully Tunable Agent Brain
+### Killer GOAL.md Template (Copy & Customize)
 
-Arbos (Const’s recursive Ralph loop) is the conductor.  
-You give it a simple `GOAL.md` file. Arbos then recursively improves everything — code, strategy, tools, and output — until the challenge is solved or the 4h H100 limit is reached.
-
-**Everything below is optional.**  
-You can enable, disable, or tune any pattern with **one line** in your GOAL.md.  
-If you don’t like it, just turn it off — no code changes needed.
-
-### The 8 Core Patterns – All Optional & Easy to Tune
-
-| Pattern                        | What it does for you                                      | Impact if enabled                              | One-line toggle in GOAL.md          | Default |
-|--------------------------------|-----------------------------------------------------------|------------------------------------------------|-------------------------------------|---------|
-| **Reflection**                 | Agent self-critiques and improves its own output          | +3–5× quality & prize win rate                 | `reflection: 4` (or `false`)       | 3      |
-| **Planning**                   | Breaks challenge into smart sub-tasks                     | Fewer wasted loops, better efficiency          | `planning: true` (or `false`)      | true   |
-| **Multi-Agent**                | Runs ScienceClaw-style swarm of specialized agents        | Massive parallel breakthroughs                 | `multi_agent: true` + `swarm_size: 20` | true   |
-| **Tool Use**                   | Smartly calls GPD, simulators, ScienceClaw, etc.         | Better tool selection & fewer errors           | `tool_use: true` (or `false`)      | true   |
-| **Resource-Aware Optimization**| Tracks time & auto-compresses to stay under 4h H200     | **Required for prize eligibility**             | `resource_aware: true` (or `false`)| true   |
-| **Exploration & Discovery**    | Generates truly novel variants others miss                | Higher novelty = bigger prize wins             | `exploration: true` (or `false`)   | false  |
-| **Guardrails**                 | Hard safety checks (runtime, quality, verifier score)     | Prevents disqualification                      | `guardrails: true` (or `false`)    | true   |
-| **Human-in-the-Loop**          | Your domain expertise guides the agent                    | You stay in control with simple edits          | `human_in_loop: true`              | true   |
-
-### Where to Edit – Super Simple Breakdown
-
-| What you want to change                  | Where you edit it                              | How easy?          |
-|------------------------------------------|------------------------------------------------|--------------------|
-| Toggle patterns on/off or change numbers | `goals/your_strategy.md` (your GOAL.md file)   | Just edit text     |
-| Change default values for new GOALs      | `config/arbos.yaml`                            | One line change    |
-| Modify how a tool works                  | `agents/tools/*.py`                            | Edit Python (optional) |
-| Deep changes to Arbos core (very rare)   | `agents/arbos/` (vendored copy)                | Only if you really want to |
-
----
-
-### How to Create Killer GOAL.md Files (Super Simple)
-
-**Ready-to-use Killer Base Template** (copy this into `goals/killer_base.md` later):
+Copy this into `goals/killer_base.md`:
 
 ```markdown
 GOAL: Solve the sponsor challenge with maximum novelty and verifier score while staying under 3.8h on H200.
 
 reflection: 4
 planning: true
+hyper_planning: false          # Turn ON for very hard or multi-step challenges
 multi_agent: true
 swarm_size: 20
 exploration: true
@@ -80,45 +73,19 @@ resource_aware: true
 guardrails: true
 
 Steps per Ralph loop:
-1. Plan the attack
-2. Execute with tool swarm
+1. Plan the attack (HyperAgent if hyper_planning: true)
+2. Execute with smart tool routing
 3. Reflect and improve
 4. Explore one novel variant
 5. Resource check + compress if needed
 ```
 
-**Pro Tips from Winning Miners**:
-- Add your domain knowledge at the top (e.g., “Prioritize stabilizer formalism and error mitigation”)
-- For small prizes → turn `exploration: false` and lower `swarm_size` to save TAO
-- For big prizes → turn `exploration: true` and increase reflection iterations
-- Create 5–10 different GOAL.md files and switch between them
-
----
-
-### Optimal Subnet Integrations (All Plug-and-Play)
-
-- **Chutes** — Private, fast LLM inference (default)  
-- **Targon** — Secure TEE GPUs  
-- **Celium** — Heavy parallel compute  
-
----
-
-### Philosophy: Your Machine, Your Rules
-
-This repo is built so **you** stay in full control:
-- Use the Optimal stack if you want speed
-- Turn off any pattern you don’t like
-- Add your own secret sauce in Self-Built mode
-- Edit GOAL.md anytime — no restarts needed beyond the current loop
-
-Top miners separate themselves by experimenting with these toggles and building their own signature strategies.
-
-**This is designed to feel like a transparent machine you can fine-tune — no mysteries, no black boxes.**
+**Pro Tip**: Create multiple GOAL.md files (one for quantum, one for biology, one for speed, etc.) and switch between them.
 
 ---
 
 Ready to dominate Enigma?  
-Fork the repo, create your first custom GOAL.md, and start competing.
+Fork the repo, create your first GOAL.md, and start competing.
 
 $TAO 🚀
 ```
