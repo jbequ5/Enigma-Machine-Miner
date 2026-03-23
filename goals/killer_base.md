@@ -3,24 +3,36 @@ GOAL: Solve the sponsor challenge with maximum novelty and verifier score while 
 # CORE TOGGLES 
 # Edit these lines to customize how Arbos behaves. All are optional.
 
-**reflection: 4**                   #Self-critique iterations (higher = better quality, slower)
+reflection: 4
 
-**planning: true**                 #Break challenge into structured sub-tasks
+planning: true
 
-**hyper_planning: true**          #Use HyperAgent for intelligent self-improving planning (powerful but heavier - turn on for hard challenges)
+hyper_planning: false
 
-**multi_agent: true**              #ScienceClaw swarm for parallel discovery
+multi_agent: true
 
-**swarm_size: 20**                 #Number of agents in swarm (lower = faster, higher = more creative)
+swarm_size: 20
 
-**exploration: true**              #Generate truly novel variants (big prize potential)
+exploration: true
 
-**resource_aware: true**           #Auto-compress to enforce 4h H100 limit (highly recommended)
+resource_aware: true
 
-**guardrails: true**               #Safety checks before final submission
+guardrails: true
+
+# Compute subnets
+
+chutes: true
+
+targon: false
+
+celium: true
+
+# LLM Model Picker for Chutes (new)
+
+chutes_llm: mixtral     # Options: mixtral, llama3, gemma2, qwen2, etc.
 
 # RALPH LOOP STEPS 
-# You can reorder or customize these steps
+- # You can reorder or customize these steps
 
 Steps per Ralph loop:
 1. Plan the attack (uses HyperAgent if hyper_planning: true)
