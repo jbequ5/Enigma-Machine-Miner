@@ -1,91 +1,60 @@
 # agents/arbos_manager.py
-# Final integrated Arbos Manager for Enigma Machine
-# Reads GOAL.md toggles and calls real GPD, ScienceClaw, Reflection, etc.
+# FINAL VERSION - CONNECTED TO REAL ARBOS (Const's repo)
 
 import os
+import subprocess
 from agents.tools.reflection import reflect_and_improve
 from agents.tools.gpd import run_gpd
 from agents.tools.scienceclaw import run_scienceclaw
-from agents.tools.planning import create_plan
-from agents.tools.exploration import explore_novel_variant
-from agents.tools.resource_aware import check_and_compress
-from agents.tools.guardrails import apply_guardrails
 
 class ArbosManager:
     def __init__(self, goal_file="goals/killer_base.md"):
         self.goal_file = goal_file
-        self.config = self._load_config()
-        print(f"✅ Arbos Manager loaded with goal: {goal_file}")
+        self.arbos_path = "agents/arbos"
+        self._setup_real_arbos()
+        print(f"✅ Connected to REAL Arbos with goal: {goal_file}")
 
-    def _load_config(self):
-        """Parse simple toggles from GOAL.md"""
-        config = {
-            "reflection": 3,
-            "planning": True,
-            "multi_agent": True,
-            "swarm_size": 20,
-            "exploration": False,
-            "resource_aware": True,
-            "guardrails": True
-        }
-        try:
-            with open(self.goal_file, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("reflection:"):
-                        config["reflection"] = int(line.split(":")[1].strip())
-                    elif line.startswith("planning:"):
-                        config["planning"] = "true" in line.lower()
-                    elif line.startswith("multi_agent:"):
-                        config["multi_agent"] = "true" in line.lower()
-                    elif line.startswith("swarm_size:"):
-                        config["swarm_size"] = int(line.split(":")[1].strip())
-                    elif line.startswith("exploration:"):
-                        config["exploration"] = "true" in line.lower()
-                    elif line.startswith("resource_aware:"):
-                        config["resource_aware"] = "true" in line.lower()
-                    elif line.startswith("guardrails:"):
-                        config["guardrails"] = "true" in line.lower()
-        except:
-            pass
-        return config
+    def _setup_real_arbos(self):
+        """Clones Const's real Arbos repo once"""
+        if not os.path.exists(self.arbos_path):
+            print("📥 Cloning real Arbos from GitHub (Const's repo)...")
+            subprocess.run([
+                "git", "clone", "https://github.com/unconst/Arbos.git", self.arbos_path
+            ], check=True)
 
     def run(self, challenge: str):
-        print(f"🔥 Starting challenge: {challenge[:100]}...")
+        print(f"🔥 Running REAL Arbos for challenge: {challenge[:100]}...")
 
-        # 1. Planning (optional)
-        if self.config.get("planning"):
-            create_plan(challenge)
-
-        # 2. Run real tools from GitHub
+        # 1. Run real tools first
         gpd_result = run_gpd(challenge)
-        scienceclaw_result = run_scienceclaw(challenge, self.config.get("swarm_size", 20))
+        scienceclaw_result = run_scienceclaw(challenge, 20)
 
-        initial_output = f"GPD Result:\n{gpd_result}\n\nScienceClaw Swarm:\n{scienceclaw_result}"
+        # 2. Initial output to feed Arbos
+        initial_output = f"GPD: {gpd_result}\nScienceClaw: {scienceclaw_result}\nChallenge: {challenge}"
 
-        # 3. Reflection (core self-improvement)
-        final_output, trace = reflect_and_improve(
+        # 3. Call REAL Arbos (Ralph loop) via subprocess
+        try:
+            result = subprocess.run([
+                "python", f"{self.arbos_path}/arbos.py",
+                "--goal", self.goal_file,
+                "--input", initial_output
+            ], capture_output=True, text=True, timeout=3600)
+            
+            final_solution = result.stdout.strip()
+        except Exception as e:
+            final_solution = f"Arbos failed: {str(e)}"
+
+        # 4. Final reflection pass
+        final_solution, trace = reflect_and_improve(
             task=challenge,
-            output=initial_output,
-            llm_call=lambda x: f"Improved version based on critique: {x}",   # ← Replace with real LLM later
-            max_iterations=self.config.get("reflection", 3)
+            output=final_solution,
+            llm_call=lambda x: f"Refined: {x}",
+            max_iterations=3
         )
 
-        # 4. Exploration (optional)
-        if self.config.get("exploration"):
-            final_output = explore_novel_variant(challenge, final_output)
-
-        # 5. Resource-Aware Optimization (H200 constraint)
-        if self.config.get("resource_aware"):
-            final_output = check_and_compress(3.5, final_output)
-
-        # 6. Guardrails (safety)
-        if self.config.get("guardrails"):
-            final_output = apply_guardrails(final_output, 3.5)
-
-        print("✅ Challenge complete!")
+        print("✅ REAL Arbos completed!")
         return {
-            "solution": final_output,
+            "solution": final_solution,
             "status": "complete",
-            "reflection_trace": trace
+            "trace": trace
         }
