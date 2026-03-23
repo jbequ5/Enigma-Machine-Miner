@@ -1,10 +1,10 @@
 # agents/tools/reflection.py
-# Full Reflection pattern - self-critique and iterative improvement
+# Full Reflection Pattern - self-critique and iterative improvement
 
 def reflect_and_improve(task: str, output: str, llm_call, max_iterations: int = 4):
     """
-    Reflection Pattern (Chapter 4 from Agentic Design Patterns book)
-    Agent generates → self-critiques → revises → loops until good.
+    Reflection Pattern (from Agentic Design Patterns book)
+    Generates → critiques → revises → loops until APPROVED.
     """
     current = output
     trace = []
@@ -12,24 +12,18 @@ def reflect_and_improve(task: str, output: str, llm_call, max_iterations: int = 
     for i in range(max_iterations):
         critique = llm_call(f"""
             Task: {task}
-            Current Output: {current}
+            Output: {current}
             
-            Critique this output for:
-            - Accuracy & correctness
-            - Completeness
-            - Logical gaps or hallucinations
-            - Clarity & structure
-            - Runtime feasibility (must stay under 4h H200)
-            
+            Critique for: accuracy, completeness, logic, hallucinations, clarity, and H200 runtime.
             Reply ONLY with "APPROVED" if perfect, otherwise list specific fixes.
         """)
         
-        trace.append({"iteration": i+1, "critique": critique[:200]})
+        trace.append({"iteration": i+1, "critique": critique[:300]})
 
         if "APPROVED" in critique.upper():
             return current, trace
         
-        # Revise based on critique
-        current = llm_call(f"Improve the previous output based on this critique:\nCritique: {critique}\nOriginal: {current}")
+        # Revise
+        current = llm_call(f"Improve based on critique:\nCritique: {critique}\nOriginal: {current}")
     
     return current, trace
