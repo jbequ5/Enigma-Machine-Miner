@@ -13,7 +13,6 @@ from agents.tools.exploration import explore_novel_variant
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
 from agents.tools.compute import ComputeRouter
-from agents.tools.get_physics_done import run_gpd    
 
 class ArbosManager:
     def __init__(self, goal_file="goals/killer_base.md"):
