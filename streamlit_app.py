@@ -5,7 +5,7 @@ import json
 st.set_page_config(page_title="ENIGMA 3D — SN63 Miner", page_icon="🔑", layout="wide")
 
 st.markdown('<h1 style="text-align:center; color:#ffcc00;">🔑 ENIGMA MACHINE 3D — SUBNET 63 MINER</h1>', unsafe_allow_html=True)
-st.markdown("**Sequential Tool Chain with Cumulative program.md and Human Review**")
+st.markdown("**Sequential Tool Chain with Cumulative program.md**")
 
 # Session State
 if "challenge" not in st.session_state:
@@ -27,21 +27,18 @@ if "tool_configs" not in st.session_state:
     }
 
 st.subheader("1. Enter the Challenge")
-challenge = st.text_area("Main challenge for today's miner", value=st.session_state.challenge, height=100)
+challenge = st.text_area("Main challenge", value=st.session_state.challenge, height=100)
 
 if st.button("Generate Plan with HyperAgent"):
     if not challenge:
         st.error("Please enter a challenge.")
     else:
         st.session_state.challenge = challenge
-        with st.spinner("HyperAgent creating structured plan..."):
+        with st.spinner("Generating plan..."):
             try:
                 from agents.tools.hyperagent import run as run_hyperagent
                 cfg = st.session_state.tool_configs.get("HyperAgent", {})
-                result = run_hyperagent(
-                    task=f"Create detailed execution plan for: {challenge}",
-                    parallel_tasks=cfg.get("parallel_tasks", 5)
-                )
+                result = run_hyperagent(task=f"Create detailed plan for: {challenge}", parallel_tasks=cfg.get("parallel_tasks", 5))
                 st.session_state.current_plan = result.get("output", "")
                 st.session_state.program_md = f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{st.session_state.current_plan}\n\n"
                 st.success("Plan generated!")
@@ -50,18 +47,25 @@ if st.button("Generate Plan with HyperAgent"):
 
 if st.session_state.current_plan:
     st.subheader("2. Review & Edit Plan")
-    edited_plan = st.text_area("HyperAgent Plan (edit if needed)", value=st.session_state.current_plan, height=350)
+    edited_plan = st.text_area("Plan (edit if needed)", value=st.session_state.current_plan, height=350)
     if st.button("✅ Approve Plan"):
         st.session_state.current_plan = edited_plan
         st.session_state.program_md = f"# Execution Program\n\n## Challenge\n{st.session_state.challenge}\n\n## Approved Plan\n{edited_plan}\n\n"
-        st.success("Plan approved. Ready for sequential tool chain.")
+        st.success("Plan approved.")
 
-# Tool Configurations
-st.subheader("3. Personal Tool Configurations")
-
+# Tool Configs (example for AutoResearch and GPD)
+st.subheader("3. Tool Configurations")
 col1, col2 = st.columns(2)
-
 with col1:
+    if st.button("Save AutoResearch"):
+        depth = st.selectbox("Depth", ["shallow", "medium", "deep"], key="ar_depth")
+        iterations = st.number_input("Iterations", min_value=1, max_value=8, value=3, key="ar_iter")
+        st.session_state.tool_configs["AutoResearch"] = {"depth": depth, "iterations": iterations}
+        if "AutoResearch" not in st.session_state.hooked_tools:
+            st.session_state.hooked_tools.append("AutoResearch")
+        st.success("AutoResearch saved")
+
+with col2:
     if st.button("Save GPD"):
         profile = st.selectbox("GPD Profile", ["deep-theory", "numerical", "exploratory", "review", "paper-writing"], key="gpd_profile")
         tier = st.selectbox("GPD Tier", ["1", "2", "3"], key="gpd_tier")
@@ -69,17 +73,6 @@ with col1:
         if "GPD" not in st.session_state.hooked_tools:
             st.session_state.hooked_tools.append("GPD")
         st.success("GPD saved")
-
-with col2:
-    if st.button("Save AutoResearch"):
-        depth = st.selectbox("AutoResearch Depth", ["shallow", "medium", "deep"], key="ar_depth")
-        iterations = st.number_input("Iterations", min_value=1, max_value=8, value=3, key="ar_iter")
-        st.session_state.tool_configs["AutoResearch"] = {"depth": depth, "iterations": iterations}
-        if "AutoResearch" not in st.session_state.hooked_tools:
-            st.session_state.hooked_tools.append("AutoResearch")
-        st.success("AutoResearch saved")
-
-# Other tools can be added similarly
 
 def build_goal_md():
     text = "# Enigma Machine — SN63 Miner Goal\n\n"
@@ -96,8 +89,7 @@ if st.button("Update GOAL.md"):
     Path("goals/GOAL.md").write_text(build_goal_md())
     st.success("GOAL.md updated")
 
-st.text_area("Current program.md (cumulative context for AutoResearch)", 
-             st.session_state.program_md, height=300)
+st.text_area("Current program.md (cumulative for AutoResearch)", st.session_state.program_md, height=300)
 
 if st.button("🚀 LAUNCH SEQUENTIAL TOOL CHAIN", type="primary"):
     if not st.session_state.current_plan:
@@ -105,7 +97,5 @@ if st.button("🚀 LAUNCH SEQUENTIAL TOOL CHAIN", type="primary"):
     else:
         Path("goals/GOAL.md").write_text(build_goal_md())
         Path("program.md").write_text(st.session_state.program_md)
-        st.success("Tool chain launched! AutoResearch will use and update program.md cumulatively.")
+        st.success("Tool chain launched! AutoResearch will use and update program.md.")
         st.balloons()
-
-st.caption("AutoResearch is now fully integrated with cumulative program.md. Each tool builds on the previous one's output.")
