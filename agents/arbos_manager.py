@@ -44,50 +44,89 @@ class ArbosManager:
         return config
 
 def _smart_route(self, challenge: str, approved_plan: str = ""):
-    """Final routing using approved HyperAgent plan to craft detailed prompts."""
+    """
+    Final sequential routing with cumulative prompt redesign.
+    Tools build on each other using previous results.
+    """
+    lower = challenge.lower()
     results = []
     used_tools = []
+    previous_results = ""   # For cumulative prompting
 
     plan_context = approved_plan[:800] if approved_plan else "No detailed plan provided."
 
-    # GPD
-    if any(k in challenge.lower() for k in ["quantum", "physics", "circuit", "theory", "particle", "gravity"]):
+    # 1. AI-Researcher (broad search)
+    if any(k in lower for k in ["research", "literature", "paper", "review", "survey", "state-of-the-art"]):
+        try:
+            from agents.tools.ai_researcher import run as run_ai_researcher
+            cfg = self.config.get("AI-Researcher", {})
+            mode = cfg.get("search_mode", "deep")
+
+            detailed_task = f"Challenge: {challenge}\n\nPlan context: {plan_context}\n\nPrevious results: {previous_results or 'None'}\n\nPerform broad, high-quality search and return key findings."
+
+            result = run_ai_researcher(task=detailed_task, search_mode=mode)
+            output = result.get("output", result.get("error", ""))
+            results.append(f"[AI-Researcher — {mode} mode]\n{output}")
+            used_tools.append("AI-Researcher")
+            previous_results = output
+        except Exception as e:
+            results.append(f"[AI-Researcher Error] {str(e)}")
+
+    # 2. AutoResearch (deep iterative synthesis - new)
+    if any(k in lower for k in ["research", "literature", "paper", "review", "survey", "state-of-the-art", "explore"]):
+        try:
+            from agents.tools.autoresearch import run as run_autoresearch
+            cfg = self.config.get("AutoResearch", {})
+            depth = cfg.get("depth", "medium")
+            iterations = cfg.get("iterations", 3)
+
+            detailed_task = f"Challenge: {challenge}\n\nPlan context: {plan_context}\n\nPrevious results from AI-Researcher: {previous_results or 'None'}\n\nPerform deep, iterative literature review and synthesis. Build directly on previous findings."
+
+            result = run_autoresearch(task=detailed_task, depth=depth, iterations=iterations)
+            output = result.get("output", result.get("error", ""))
+            results.append(f"[AutoResearch — depth:{depth}, iterations:{iterations}]\n{output}")
+            used_tools.append("AutoResearch")
+            previous_results = output
+        except Exception as e:
+            results.append(f"[AutoResearch Error] {str(e)}")
+
+    # 3. GPD (Get Physics Done)
+    if any(k in lower for k in ["quantum", "physics", "circuit", "theory", "particle", "gravity", "field"]):
         try:
             from agents.tools.get_physics_done import run as run_gpd
             cfg = self.config.get("GPD", {})
-            detailed_task = f"Challenge: {challenge}\n\nPlan context: {plan_context}\n\nSolve this physics task with high rigor using the plan."
-            result = run_gpd(task=detailed_task, profile=cfg.get("profile", "deep-theory"), tier=cfg.get("tier", "1"))
-            results.append(f"[GPD — {cfg.get('profile')} / Tier {cfg.get('tier')}] {result.get('output', result.get('error'))}")
+            profile = cfg.get("profile", "deep-theory")
+            tier = cfg.get("tier", "1")
+
+            detailed_task = f"Challenge: {challenge}\n\nPlan context: {plan_context}\n\nPrevious results: {previous_results or 'None'}\n\nSolve this physics task with high rigor, building on all previous findings."
+
+            result = run_gpd(task=detailed_task, profile=profile, tier=tier)
+            output = result.get("output", result.get("error", ""))
+            results.append(f"[GPD — {profile} / Tier {tier}]\n{output}")
             used_tools.append("GPD")
+            previous_results = output
         except Exception as e:
             results.append(f"[GPD Error] {str(e)}")
 
-    # ScienceClaw
-    if any(k in challenge.lower() for k in ["research", "paper", "data", "science", "analyze"]):
+    # 4. ScienceClaw (final deep analysis)
+    if any(k in lower for k in ["research", "analyze", "experiment", "data", "science"]):
         try:
             from agents.tools.scienceclaw import run as run_scienceclaw
             cfg = self.config.get("ScienceClaw", {})
-            detailed_task = f"Challenge: {challenge}\n\nPlan: {plan_context}\n\nPerform deep research and analysis."
-            result = run_scienceclaw(task=detailed_task, search_intensity=cfg.get("search_intensity", "high"), max_sources=cfg.get("max_sources", 15))
-            results.append(f"[ScienceClaw] {result.get('output', result.get('error'))}")
+            intensity = cfg.get("search_intensity", "high")
+            max_src = cfg.get("max_sources", 15)
+
+            detailed_task = f"Challenge: {challenge}\n\nPlan context: {plan_context}\n\nPrevious results: {previous_results or 'None'}\n\nPerform final deep analysis and synthesis."
+
+            result = run_scienceclaw(task=detailed_task, search_intensity=intensity, max_sources=max_src)
+            output = result.get("output", result.get("error", ""))
+            results.append(f"[ScienceClaw — {intensity} intensity]\n{output}")
             used_tools.append("ScienceClaw")
         except Exception as e:
             results.append(f"[ScienceClaw Error] {str(e)}")
 
-    # AI-Researcher
-    if any(k in challenge.lower() for k in ["literature", "web", "search", "news"]):
-        try:
-            from agents.tools.ai_researcher import run as run_ai_researcher
-            cfg = self.config.get("AI-Researcher", {})
-            detailed_task = f"Challenge: {challenge}\n\nPlan: {plan_context}\n\nConduct thorough research."
-            result = run_ai_researcher(task=detailed_task, search_mode=cfg.get("search_mode", "deep"))
-            results.append(f"[AI-Researcher] {result.get('output', result.get('error'))}")
-            used_tools.append("AI-Researcher")
-        except Exception as e:
-            results.append(f"[AI-Researcher Error] {str(e)}")
-
     if not results:
-        results.append("No specialized tool matched. Using default reasoning.")
+        results.append("No specialized tool matched. Using default Arbos reasoning.")
         used_tools.append("Arbos Core")
 
     return "\n\n".join(results), used_tools
