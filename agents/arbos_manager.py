@@ -26,7 +26,7 @@ class ArbosManager:
     def _setup_real_arbos(self):
         if not os.path.exists(self.arbos_path):
             print("📥 Cloning real Arbos...")
-            subprocess.run(["git", "clone", "https://github.com/unconst/Arbos.git", self.arbos_path], check=True)
+            subprocess.run(["git", "clone", "https://github.com/unarbos/arbos.git", self.arbos_path], check=True)
 
     def _load_config(self):
         config = {"reflection": 3, "hyper_planning": False, "exploration": False, "resource_aware": True, "guardrails": True}
