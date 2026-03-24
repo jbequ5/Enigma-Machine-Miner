@@ -26,24 +26,39 @@ st.subheader("1. Enter Your Challenge")
 challenge = st.text_area("What is the main challenge or task for today's miner?", 
                         value=st.session_state.challenge, height=100)
 
-if st.button("Generate Plan with HyperAgent"):
+if st.button("Generate Detailed Plan with HyperAgent"):
     if not challenge:
         st.error("Please enter a challenge first.")
     else:
         st.session_state.challenge = challenge
-        with st.spinner("HyperAgent is creating a detailed plan..."):
+        with st.spinner("HyperAgent is creating a detailed structured plan..."):
             try:
                 from agents.tools.hyperagent import run as run_hyperagent
                 cfg = st.session_state.tool_configs.get("HyperAgent", {})
+                
+                plan_task = f"""Create a detailed execution plan for this challenge: {challenge}
+
+Requirements:
+- Break down the challenge into clear steps
+- Decide which tools to use (GPD, ScienceClaw, AI-Researcher, HyperAgent, Chutes) and in what order
+- For each tool, write a specific, well-crafted prompt that should be sent to it
+- Include reasoning for why each tool is chosen
+
+Output format:
+1. Overall Strategy
+2. Tool Sequence
+3. Detailed Prompts for each tool
+4. Expected Output from each tool"""
+
                 result = run_hyperagent(
-                    task=f"Create a detailed, step-by-step plan to solve: {challenge}",
+                    task=plan_task,
                     parallel_tasks=cfg.get("parallel_tasks", 5)
                 )
+                
                 st.session_state.current_plan = result.get("output", "No plan generated.")
-                st.success("Plan generated!")
+                st.success("Structured plan generated!")
             except Exception as e:
-                st.error(f"HyperAgent failed: {e}")
-                st.session_state.current_plan = f"Error generating plan: {e}"
+                st.error(f"Plan generation failed: {e}")
 
 # Show and edit plan
 if st.session_state.current_plan:
