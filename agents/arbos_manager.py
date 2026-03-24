@@ -43,61 +43,63 @@ class ArbosManager:
             pass
         return config
 
-    def _smart_route(self, challenge: str):
-    """
-    Smart routing with real Get Physics Done integration.
-    Uses the user's personal config from GOAL.md / UI.
-    """
+def _smart_route(self, challenge: str):
+    """Final smart routing with all real tools using user's personal config."""
     lower = challenge.lower()
     results = []
     used_tools = []
 
-    # === GPD (Get Physics Done) Routing ===
+    # GPD (Get Physics Done)
     if any(k in lower for k in ["quantum", "physics", "circuit", "theory", "particle", "gravity", "field"]):
         try:
             from agents.tools.get_physics_done import run as run_gpd
-            
-            # Get user's personal GPD config (from GOAL.md or session)
-            gpd_config = self.config.get("GPD", {}) if isinstance(self.config, dict) else {}
-            profile = gpd_config.get("profile", "deep-theory")
-            tier = gpd_config.get("tier", "1")
-
-            gpd_result = run_gpd(
-                task=challenge,
-                profile=profile,
-                tier=tier
-            )
-
-            if gpd_result.get("success"):
-                results.append(f"[GPD - {profile} / Tier {tier}]\n{gpd_result['output']}")
-            else:
-                results.append(f"[GPD Error] {gpd_result.get('error', 'Unknown error')}")
-            
+            cfg = self.config.get("GPD", {})
+            result = run_gpd(task=challenge, profile=cfg.get("profile", "deep-theory"), tier=cfg.get("tier", "1"))
+            results.append(f"[GPD — {cfg.get('profile')} / Tier {cfg.get('tier')}] {result.get('output', result.get('error'))}")
             used_tools.append("GPD")
-            
         except Exception as e:
-            results.append(f"[GPD Exception] {str(e)}")
-            used_tools.append("GPD (failed)")
+            results.append(f"[GPD Error] {str(e)}")
 
-    # === Other tools (keep your existing logic) ===
-    if any(k in lower for k in ["discover", "biology", "material", "chemistry"]):
-        results.append(run_scienceclaw(challenge, 20))
-        used_tools.append("ScienceClaw")
+    # ScienceClaw
+    if any(k in lower for k in ["research", "paper", "data", "science", "analyze"]):
+        try:
+            from agents.tools.scienceclaw import run as run_scienceclaw
+            cfg = self.config.get("ScienceClaw", {})
+            result = run_scienceclaw(task=challenge, search_intensity=cfg.get("search_intensity", "high"), max_sources=cfg.get("max_sources", 15))
+            results.append(f"[ScienceClaw] {result.get('output', result.get('error'))}")
+            used_tools.append("ScienceClaw")
+        except Exception as e:
+            results.append(f"[ScienceClaw Error] {str(e)}")
 
-    if any(k in lower for k in ["research", "paper", "literature", "review"]):
-        results.append(run_ai_researcher(challenge))
-        used_tools.append("AI-Researcher")
+    # AI-Researcher
+    if any(k in lower for k in ["literature", "review", "web", "search"]):
+        try:
+            from agents.tools.ai_researcher import run as run_ai_researcher
+            cfg = self.config.get("AI-Researcher", {})
+            result = run_ai_researcher(task=challenge, search_mode=cfg.get("search_mode", "deep"))
+            results.append(f"[AI-Researcher] {result.get('output', result.get('error'))}")
+            used_tools.append("AI-Researcher")
+        except Exception as e:
+            results.append(f"[AI-Researcher Error] {str(e)}")
 
+    # HyperAgent
     if self.config.get("hyper_planning", False):
-        results.append(run_hyperagent(challenge))
-        used_tools.append("HyperAgent")
+        try:
+            from agents.tools.hyperagent import run as run_hyperagent
+            cfg = self.config.get("HyperAgent", {})
+            result = run_hyperagent(task=challenge, parallel_tasks=cfg.get("parallel_tasks", 5))
+            results.append(f"[HyperAgent] {result.get('output', result.get('error'))}")
+            used_tools.append("HyperAgent")
+        except Exception as e:
+            results.append(f"[HyperAgent Error] {str(e)}")
 
-    # Fallback if nothing matched
     if not results:
         results.append("No specialized tool matched. Using default Arbos reasoning.")
         used_tools.append("Arbos Core")
 
     return "\n\n".join(results), used_tools
+
+    
     def run(self, challenge: str):
         monitor = ResourceMonitor(max_hours=3.8)
         print(f"🔀 Running REAL Arbos with {self.compute.get_compute()} compute...")
