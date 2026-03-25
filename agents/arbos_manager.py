@@ -55,13 +55,12 @@ class ArbosManager:
             pass
         return config
 
-    def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
+        def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
         """
-        FINAL CLEAN INTELLIGENT _smart_route
-        - Arbos decides which tools to use dynamically
-        - Uses Tool Study profiles for high-fidelity mimicking
-        - All execution routed through ComputeRouter (with dynamic override)
-        - No old tool wrappers
+        FINAL UPGRADED _smart_route
+        - Uses vector retrieval from studied tool profiles
+        - Self-refined profiles with improvement evaluation
+        - Dynamic tool selection + dynamic compute override
         """
         from agents.tool_study import tool_study
 
@@ -70,19 +69,19 @@ class ArbosManager:
         used_tools = []
         cumulative_context = approved_plan[:1500] if approved_plan else ""
 
-        # Long-term memory retrieval
+        # Long-term memory
         past_knowledge = memory.query(challenge, n_results=4)
         if past_knowledge:
-            cumulative_context += "\n\nRelevant past knowledge from previous runs:\n" + "\n---\n".join(past_knowledge)
+            cumulative_context += "\n\nRelevant past knowledge:\n" + "\n---\n".join(past_knowledge)
 
-        # Initialize program.md
         program_path = Path("program.md")
         if not program_path.exists():
             program_path.write_text(f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{approved_plan}\n\n")
 
-        # Reflection helper using tool profiles
         def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
-            tool_profile = tool_study.load_profile(next_tool)
+            # Vector retrieval of relevant profile chunks
+            relevant_profile = tool_study.load_relevant_profile(next_tool, query=cumulative_context + " " + last_output)
+
             try:
                 task = f"""You are Arbos, a highly intelligent conductor.
 
@@ -90,8 +89,8 @@ Previous tool output: {last_output}
 Overall goal: {challenge}
 Next tool: {next_tool}
 
-Tool Profile:
-{tool_profile}
+Relevant Tool Profile:
+{relevant_profile}
 
 Using this profile, mimic the real {next_tool} tool as closely and intelligently as possible.
 Create a high-quality prompt that behaves like the real tool would.
@@ -114,11 +113,9 @@ Recommended Compute: [chutes/targon/celium/local]"""
 
         last_output = ""
 
-        # Tool sequence - Arbos decides dynamically which tools to use
         tool_sequence = ["AI-Researcher", "AutoResearch", "GPD", "ScienceClaw"]
 
         for tool_name in tool_sequence:
-            # Arbos decides if this tool is relevant
             decide_task = f"""Challenge: {challenge}
 Cumulative context so far: {cumulative_context[:800]}
 
@@ -132,7 +129,6 @@ Reply with only YES or NO, followed by a very short reason."""
                 task = redesign["prompt"]
                 compute_override = redesign.get("compute_override")
 
-                # Execute via ComputeRouter (respects Arbos dynamic override)
                 result = self.compute.run_on_compute(task, override_compute=compute_override)
                 output = result
 
@@ -154,7 +150,7 @@ Reply with only YES or NO, followed by a very short reason."""
             used_tools.append("Arbos Core")
 
         return "\n\n".join(results), used_tools
-
+        
     def run(self, challenge: str):
         """Main entry point"""
         print(f"🚀 Starting Arbos for challenge: {challenge[:80]}...")
