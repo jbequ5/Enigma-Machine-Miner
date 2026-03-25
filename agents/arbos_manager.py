@@ -45,18 +45,19 @@ class ArbosManager:
 
 def _smart_route(self, challenge: str, approved_plan: str = ""):
     """
-    Full sequential cumulative routing with proper prompt hand-off.
-    Each tool receives the evolving context from previous tools.
+    Sequential cumulative routing with planning phase BETWEEN every tool.
+    Arbos reconstructs the output of the last tool into next steps for the following tool.
+    Overall goal and evaluation criteria are maintained.
     """
     lower = challenge.lower()
     results = []
     used_tools = []
     cumulative_context = approved_plan[:800] if approved_plan else ""
 
-    # Initialize program.md for AutoResearch
+    # Initialize program.md
     program_path = Path("program.md")
     if not program_path.exists():
-        program_path.write_text(f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{approved_plan}\n\n")
+        program_path.write_text(f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Initial Plan\n{approved_plan}\n\n")
 
     # 1. AI-Researcher
     if any(k in lower for k in ["research", "literature", "paper", "review", "survey"]):
@@ -65,18 +66,31 @@ def _smart_route(self, challenge: str, approved_plan: str = ""):
             cfg = self.config.get("AI-Researcher", {})
             mode = cfg.get("search_mode", "deep")
 
-            task = f"Challenge: {challenge}\nPlan context: {cumulative_context}\nPerform broad, high-quality search and return key findings."
+            task = f"Challenge: {challenge}\nOverall Goal: Maintain high novelty and verifier score.\nPlan context: {cumulative_context}\nPerform broad search and return key findings."
 
             result = run_ai_researcher(task=task, search_mode=mode)
             output = result.get("output", result.get("error", ""))
             results.append(f"[AI-Researcher — {mode}]\n{output}")
             used_tools.append("AI-Researcher")
-
             cumulative_context += f"\n\n[AI-Researcher Output]\n{output}"
-            with open(program_path, "a") as f:
-                f.write(f"\n\n## AI-Researcher Output\n{output}\n")
         except Exception as e:
             results.append(f"[AI-Researcher Error] {str(e)}")
+
+    # Arbos Reflection + Planning for next tool
+    # (This is the new planning phase between tools)
+    try:
+        from agents.tools.hyperagent import run as run_hyperagent
+        planning_task = f"""Previous tool output: {output if 'output' in locals() else 'None'}
+Overall goal: {challenge}
+Evaluation criteria: high novelty, verifier score, rigor.
+
+Reconstruct the previous output into specific next steps for the next tool.
+Write the exact prompt that should be sent to the next tool (AutoResearch or GPD)."""
+        plan_result = run_hyperagent(task=planning_task, parallel_tasks=3)
+        next_prompt = plan_result.get("output", "No next prompt generated.")
+        cumulative_context += f"\n\n[Arbos Planning for Next Tool]\n{next_prompt}"
+    except Exception:
+        next_prompt = "Continue with previous context."
 
     # 2. AutoResearch
     if any(k in lower for k in ["research", "literature", "paper", "review", "explore", "synthesize"]):
@@ -86,24 +100,17 @@ def _smart_route(self, challenge: str, approved_plan: str = ""):
             depth = cfg.get("depth", "medium")
             iterations = cfg.get("iterations", 3)
 
-            task = f"Build on all previous findings. Focus: {challenge}\nPlan: {cumulative_context}"
+            task = next_prompt  # Use the reconstructed prompt from Arbos planning
 
-            result = run_autoresearch(
-                task=task,
-                depth=depth,
-                iterations=iterations,
-                program_md_path=str(program_path)
-            )
-
+            result = run_autoresearch(task=task, depth=depth, iterations=iterations, program_md_path=str(program_path))
             output = result.get("output", result.get("error", ""))
             results.append(f"[AutoResearch — depth:{depth}, iterations:{iterations}]\n{output}")
             used_tools.append("AutoResearch")
-
             cumulative_context += f"\n\n[AutoResearch Output]\n{output}"
         except Exception as e:
             results.append(f"[AutoResearch Error] {str(e)}")
 
-    # 3. GPD
+    # 3. GPD (Get Physics Done)
     if any(k in lower for k in ["quantum", "physics", "circuit", "theory", "particle", "gravity", "field"]):
         try:
             from agents.tools.get_physics_done import run as run_gpd
@@ -111,18 +118,18 @@ def _smart_route(self, challenge: str, approved_plan: str = ""):
             profile = cfg.get("profile", "deep-theory")
             tier = cfg.get("tier", "1")
 
-            task = f"Challenge: {challenge}\nPlan: {cumulative_context}\nPrevious findings: {cumulative_context}\nSolve with high rigor."
+            # Reconstruct prompt again for GPD
+            task = f"Challenge: {challenge}\nPrevious findings: {cumulative_context}\nSolve with high rigor."
 
             result = run_gpd(task=task, profile=profile, tier=tier)
             output = result.get("output", result.get("error", ""))
             results.append(f"[GPD — {profile} / Tier {tier}]\n{output}")
             used_tools.append("GPD")
-
             cumulative_context += f"\n\n[GPD Output]\n{output}"
         except Exception as e:
             results.append(f"[GPD Error] {str(e)}")
 
-    # 4. ScienceClaw
+    # 4. ScienceClaw (final deep analysis)
     if any(k in lower for k in ["analyze", "experiment", "data", "science", "conclude"]):
         try:
             from agents.tools.scienceclaw import run as run_scienceclaw
@@ -130,7 +137,7 @@ def _smart_route(self, challenge: str, approved_plan: str = ""):
             intensity = cfg.get("search_intensity", "high")
             max_src = cfg.get("max_sources", 15)
 
-            task = f"Challenge: {challenge}\nPlan: {cumulative_context}\nAll previous findings: {cumulative_context}\nPerform final deep analysis and synthesis."
+            task = f"Challenge: {challenge}\nAll previous findings: {cumulative_context}\nPerform final deep analysis and synthesis."
 
             result = run_scienceclaw(task=task, search_intensity=intensity, max_sources=max_src)
             output = result.get("output", result.get("error", ""))
