@@ -1,16 +1,12 @@
-# ENIGMA MACHINE — Agentic Miner for Bittensor Subnet 63
+# THE ENIGMA MACHINE — Agentic Miner for Bittensor Subnet 63
 
-**A high-performance, human + agentic problem solving engine** 
+### Core Philosophy
+The miner uses **Arbos** as the intelligent conductor, dynamically decides which open source tools to use, reflects after every step, and repeats loop until solution or a max defined by the miner.
 
-Powered by Arbos + Sequential tool chaining + Reflection after every tool.
+Everything is optional and controlled from `GOAL.md`.  
 
 ![Enigma](https://img.shields.io/badge/Status-Production_Ready-brightgreen)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-
-### Core Philosophy
-Everything is optional and controlled from `GOAL.md`.  
-
-The miner uses **Arbos** as the intelligent conductor, dynamically decides which open source tools to use, reflects after every step, repeats loop until solution or compute limits are met.
 
 ### How the Ralph Loop Works
 
@@ -18,23 +14,23 @@ The miner uses **Arbos** as the intelligent conductor, dynamically decides which
 2. File goes to HyperAgent for Planning - Must be Approved by Miner
 3. Arbos decides which tools to run
 4. Arbos decides which compute option to use for execution
-5. **Reflects and Redesigns** the prompt for the next tool
-6. **ScienceClaw** agent swarm runs at the end of the chain with cumulative context
-7. **Optional** Miner Review before Looping again
-8. **Final Arbos Critique** — if the solution needs improvement, loop back to replanning
-9. Final Miner Review before Submission
-10. Results saved to long-term memory for future challenges.
+5. **Reflects and Redesigns** the prompt between tools
+6. **ScienceClaw** agent swarm runs at the end of the chain with cumulative contex
+7. **End of Loop Arbos Critique** — if the solution needs improvement, restart loop
+      - **Optional** Miner Review before Looping again
+8. **If Solution Accepted** - Final Miner Review before Submission
+9. Results saved to long-term memory for future challenges.
 
 This tight loop makes the miner highly adaptive and capable of continuous self-improvement.
 
 ### Key Features
 
-- Sequential Tool Chain with reflection + prompt redesign **after every tool**
-- Tool Study + Vector Retrieval for High-Fidelity Tool Mimicking
+- Sequential Tool Chain with Reflection & Dynamic Prompt Redesign
+- Tool Study + Vector Retrieval for High-Fidelity Tool Mimicking **(See Below)**
 - Cumulative Context via `program.md`
 - Dynamic Reflection Depth based on Cost/Token Awareness
 - Resource-Aware Guardrails + Auto-Compression
-- Exploration Module For Deeper and more Novel Ideas
+- Exploration Module Optional For Deeper and more Novel Ideas
 
 ### Tool Study & Tool Replication Strategy
 
@@ -112,7 +108,7 @@ streamlit run streamlit_app.py
 - Debug/Trace Mode (shows reflection steps, profiles used, compute chosen)
 - Automatic GOAL.md generation
 
-### Killer GOAL.md Template
+### Starter GOAL.md Template
 
 ```markdown
 GOAL: Solve the sponsor challenge with maximum novelty and verifier score while staying under 3.8h on H100.
@@ -127,7 +123,7 @@ guardrails: true
 # Compute
 chutes: true
 targon: false
-celium: true
+celium: false
 chutes_llm: User Choice
 ```
 
