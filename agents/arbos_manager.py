@@ -58,9 +58,9 @@ class ArbosManager:
     def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
         """
         FINAL UPGRADED _smart_route
-        - Uses vector retrieval from studied tool profiles
-        - Self-refined profiles with improvement evaluation
-        - Dynamic tool selection + dynamic compute override
+        - Dynamic Reflection Depth based on time left and quality
+        - Cost / Token Awareness in reflection and compute decisions
+        - Vector retrieval from studied tool profiles
         - REAL ScienceClaw at the end of every loop
         """
         from agents.tool_study import tool_study
@@ -70,20 +70,24 @@ class ArbosManager:
         used_tools = []
         cumulative_context = approved_plan[:1500] if approved_plan else ""
 
-        # Long-term memory retrieval
+        # Long-term memory
         past_knowledge = memory.query(challenge, n_results=4)
         if past_knowledge:
             cumulative_context += "\n\nRelevant past knowledge from previous runs:\n" + "\n---\n".join(past_knowledge)
 
-        # Initialize program.md
         program_path = Path("program.md")
         if not program_path.exists():
             program_path.write_text(f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{approved_plan}\n\n")
 
-        # Reflection helper using vector retrieval
+        # Resource monitor for dynamic decisions
+        monitor = ResourceMonitor(max_hours=3.8)
+        elapsed = monitor.elapsed_hours()
+        remaining_hours = 3.8 - elapsed
+        reflection_depth = 3 if remaining_hours > 2.0 else 2 if remaining_hours > 1.0 else 1
+
+        # Reflection helper using vector retrieval + cost awareness
         def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
-            # Get most relevant chunks from the tool profile
-            relevant_profile = tool_study.load_relevant_profile(next_tool, query=cumulative_context + " " + last_output)
+            tool_profile = tool_study.load_relevant_profile(next_tool, query=cumulative_context + " " + last_output)
 
             try:
                 task = f"""You are Arbos, a highly intelligent conductor.
@@ -91,12 +95,14 @@ class ArbosManager:
 Previous tool output: {last_output}
 Overall goal: {challenge}
 Next tool: {next_tool}
+Time remaining on H100: {remaining_hours:.2f} hours
+Current reflection depth: {reflection_depth}
 
-Relevant Tool Profile (most relevant parts):
-{relevant_profile}
+Tool Profile (relevant parts):
+{tool_profile}
 
 Using this profile, mimic the real {next_tool} tool as closely and intelligently as possible.
-Create a high-quality prompt that behaves like the real tool would.
+Consider cost and token usage when choosing depth and compute.
 
 Reply in this exact format:
 Prompt: [the full prompt to send]
@@ -122,6 +128,7 @@ Recommended Compute: [chutes/targon/celium/local]"""
         for tool_name in tool_sequence:
             decide_task = f"""Challenge: {challenge}
 Cumulative context so far: {cumulative_context[:800]}
+Time remaining: {remaining_hours:.2f} hours
 
 Should we use the {tool_name} tool at this stage?
 Reply with only YES or NO, followed by a very short reason."""
@@ -133,7 +140,6 @@ Reply with only YES or NO, followed by a very short reason."""
                 task = redesign["prompt"]
                 compute_override = redesign.get("compute_override")
 
-                # Execute via ComputeRouter
                 result = self.compute.run_on_compute(task, override_compute=compute_override)
                 output = result
 
