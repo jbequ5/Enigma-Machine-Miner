@@ -21,7 +21,6 @@ from agents.tools.compute import ComputeRouter
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
 from agents.tools.exploration import explore_novel_variant
-from agents.tools.reflection import reflect_and_improve   # optional if you want to use it more
 
 class ArbosManager:
     def __init__(self, goal_file: str = "goals/killer_base.md"):
@@ -33,13 +32,11 @@ class ArbosManager:
         print("✅ REAL Arbos + Long-term Memory + Reflection Loop loaded")
 
     def _setup_real_arbos(self):
-        """Clone real Arbos if not present"""
         if not os.path.exists(self.arbos_path):
             print("Cloning real Arbos...")
             subprocess.run(["git", "clone", "https://github.com/unarbos/arbos.git", self.arbos_path], check=True)
 
     def _load_config(self):
-        """Load settings from GOAL.md"""
         config = {
             "reflection": 4,
             "hyper_planning": True,
@@ -66,7 +63,6 @@ class ArbosManager:
         return config
 
     def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
-        """Full sequential routing with reflection + prompt redesign AFTER EVERY TOOL"""
         lower = challenge.lower()
         results = []
         used_tools = []
@@ -77,7 +73,7 @@ class ArbosManager:
         if past_knowledge:
             cumulative_context += "\n\nRelevant past knowledge from previous runs:\n" + "\n---\n".join(past_knowledge)
 
-        # Initialize program.md for AutoResearch
+        # Initialize program.md
         program_path = Path("program.md")
         if not program_path.exists():
             program_path.write_text(f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{approved_plan}\n\n")
@@ -166,7 +162,7 @@ Write the exact prompt that should be sent to the next tool."""
             except Exception as e:
                 results.append(f"[ScienceClaw Error] {str(e)}")
 
-        # Save final results to long-term memory
+        # Save to long-term memory
         if results:
             memory.add(
                 text="\n\n".join(results),
@@ -180,19 +176,17 @@ Write the exact prompt that should be sent to the next tool."""
         return "\n\n".join(results), used_tools
 
     def run(self, challenge: str):
-        """Main entry point for the miner"""
+        """Main entry point"""
         print(f"🚀 Starting Arbos for challenge: {challenge[:80]}...")
 
         monitor = ResourceMonitor(max_hours=3.8)
 
-        # Run the full smart route
         tool_results, tools_used = self._smart_route(challenge)
 
-        # Final guardrails and optional exploration
-        final_output = apply_guardrails(tool_results)
+        final_output = apply_guardrails(tool_results, monitor)
 
         if self.config.get("exploration", True):
-            final_output = explore_novel_variant(final_output, challenge)
+            final_output = explore_novel_variant(challenge, final_output)
 
         print(f"✅ Completed with tools: {tools_used}")
         return final_output
