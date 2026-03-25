@@ -5,7 +5,7 @@ import json
 st.set_page_config(page_title="ENIGMA 3D — SN63 Miner", page_icon="🔑", layout="wide")
 
 st.markdown('<h1 style="text-align:center; color:#ffcc00;">🔑 ENIGMA MACHINE 3D — SUBNET 63 MINER</h1>', unsafe_allow_html=True)
-st.markdown("**Sequential Tool Chain with Cumulative program.md**")
+st.markdown("**Sequential Tool Chain with Strategic Planning & Human Review**")
 
 # Session State
 if "challenge" not in st.session_state:
@@ -27,35 +27,56 @@ if "tool_configs" not in st.session_state:
     }
 
 st.subheader("1. Enter the Challenge")
-challenge = st.text_area("Main challenge", value=st.session_state.challenge, height=100)
+challenge = st.text_area("Main challenge for today's miner", value=st.session_state.challenge, height=100)
 
-if st.button("Generate Plan with HyperAgent"):
+if st.button("Generate Strategic Plan with HyperAgent"):
     if not challenge:
         st.error("Please enter a challenge.")
     else:
         st.session_state.challenge = challenge
-        with st.spinner("Generating plan..."):
+        with st.spinner("HyperAgent creating strategic plan with tool parameters..."):
             try:
                 from agents.tools.hyperagent import run as run_hyperagent
                 cfg = st.session_state.tool_configs.get("HyperAgent", {})
-                result = run_hyperagent(task=f"Create detailed plan for: {challenge}", parallel_tasks=cfg.get("parallel_tasks", 5))
+                
+                plan_task = f"""Create a detailed execution plan for this challenge: {challenge}
+
+Requirements:
+- Break down the challenge into clear steps
+- Decide the exact sequence of tools: AI-Researcher → AutoResearch → GPD → ScienceClaw
+- For each tool, specify the exact parameters to use:
+  - AutoResearch: depth (shallow/medium/deep) and iterations (1-8)
+  - GPD: profile (deep-theory, numerical, etc.) and tier (1,2,3)
+  - ScienceClaw: search_intensity (high/medium/fast) and max_sources (5-50)
+- Write the specific prompt that should be sent to each tool, taking into account previous tool outputs where possible
+
+Output format:
+1. Overall Strategy
+2. Tool Sequence with specific parameters for each tool
+3. Specific Prompt for each tool
+
+Be strategic about how much compute each tool should use."""
+
+                result = run_hyperagent(task=plan_task, parallel_tasks=cfg.get("parallel_tasks", 5))
                 st.session_state.current_plan = result.get("output", "")
-                st.session_state.program_md = f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{st.session_state.current_plan}\n\n"
-                st.success("Plan generated!")
+                st.session_state.program_md = f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Strategic Plan\n{st.session_state.current_plan}\n\n"
+                st.success("Strategic plan generated!")
             except Exception as e:
                 st.error(f"HyperAgent failed: {e}")
 
 if st.session_state.current_plan:
-    st.subheader("2. Review & Edit Plan")
-    edited_plan = st.text_area("Plan (edit if needed)", value=st.session_state.current_plan, height=350)
+    st.subheader("2. Review & Edit Strategic Plan")
+    edited_plan = st.text_area("Strategic Plan (edit if needed)", value=st.session_state.current_plan, height=400)
     if st.button("✅ Approve Plan"):
         st.session_state.current_plan = edited_plan
-        st.session_state.program_md = f"# Execution Program\n\n## Challenge\n{st.session_state.challenge}\n\n## Approved Plan\n{edited_plan}\n\n"
-        st.success("Plan approved.")
+        st.session_state.program_md = f"# Execution Program\n\n## Challenge\n{st.session_state.challenge}\n\n## Strategic Plan\n{edited_plan}\n\n"
+        st.success("Plan approved. Ready for sequential tool chain.")
 
-# Tool Configs (example for AutoResearch and GPD)
-st.subheader("3. Tool Configurations")
+# Tool Configurations
+st.subheader("3. Personal Tool Configurations")
+
 col1, col2 = st.columns(2)
+
 with col1:
     if st.button("Save AutoResearch"):
         depth = st.selectbox("Depth", ["shallow", "medium", "deep"], key="ar_depth")
@@ -77,7 +98,7 @@ with col2:
 def build_goal_md():
     text = "# Enigma Machine — SN63 Miner Goal\n\n"
     text += f"## Challenge\n{st.session_state.challenge}\n\n"
-    text += f"## Approved Plan\n{st.session_state.current_plan}\n\n"
+    text += f"## Strategic Plan\n{st.session_state.current_plan}\n\n"
     text += "## Core Settings\nreflection: 4\nplanning: true\nhyper_planning: true\nmulti_agent: true\nswarm_size: 20\nexploration: true\nresource_aware: true\nguardrails: true\n\n"
     text += "## Personal Tool Instances\n"
     for tool, cfg in st.session_state.tool_configs.items():
@@ -89,7 +110,7 @@ if st.button("Update GOAL.md"):
     Path("goals/GOAL.md").write_text(build_goal_md())
     st.success("GOAL.md updated")
 
-st.text_area("Current program.md (cumulative for AutoResearch)", st.session_state.program_md, height=300)
+st.text_area("Current program.md (cumulative context)", st.session_state.program_md, height=300)
 
 if st.button("🚀 LAUNCH SEQUENTIAL TOOL CHAIN", type="primary"):
     if not st.session_state.current_plan:
@@ -97,5 +118,5 @@ if st.button("🚀 LAUNCH SEQUENTIAL TOOL CHAIN", type="primary"):
     else:
         Path("goals/GOAL.md").write_text(build_goal_md())
         Path("program.md").write_text(st.session_state.program_md)
-        st.success("Tool chain launched! AutoResearch will use and update program.md.")
+        st.success("Tool chain launched! AutoResearch and all tools will use the strategic plan and evolving program.md.")
         st.balloons()
