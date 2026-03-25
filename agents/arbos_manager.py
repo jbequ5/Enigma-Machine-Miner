@@ -62,74 +62,61 @@ class ArbosManager:
             pass
         return config
 
-    def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
+   def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
         """
-        FINAL OPERATIONAL _smart_route
-        - Reflection + prompt redesign AFTER EVERY TOOL
-        - Arbos dynamically recommends compute backend per tool
-        - Long-term memory + program.md cumulative context
+        FINAL REALISTIC _smart_route
+        - Uses the actual tool wrappers we just created
+        - Reflection + prompt redesign after every tool
+        - Long-term memory + program.md
         """
         lower = challenge.lower()
         results = []
         used_tools = []
         cumulative_context = approved_plan[:1500] if approved_plan else ""
 
-        # Long-term memory retrieval
+        # Long-term memory
         past_knowledge = memory.query(challenge, n_results=4)
         if past_knowledge:
-            cumulative_context += "\n\nRelevant past knowledge from previous runs:\n" + "\n---\n".join(past_knowledge)
+            cumulative_context += "\n\nRelevant past knowledge:\n" + "\n---\n".join(past_knowledge)
 
-        # Initialize program.md
         program_path = Path("program.md")
         if not program_path.exists():
             program_path.write_text(f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{approved_plan}\n\n")
 
-        # Helper: Arbos reflection + prompt redesign WITH COMPUTE OVERRIDE
+        # Reflection helper
         def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
             try:
                 task = f"""Previous tool output: {last_output}
 Overall goal: {challenge}
 Next tool: {next_tool}
 
-Reconstruct the previous output into a specific, high-quality prompt for the next tool.
-Also recommend the best compute backend for this step (chutes, targon, celium, or local) based on complexity, time remaining, and cost.
-
-Reply in this exact format:
-Prompt: [the full prompt to send to the next tool]
+Reconstruct into a specific prompt for the next tool.
+Reply in this format:
+Prompt: [full prompt]
 Recommended Compute: [chutes/targon/celium/local]"""
-
                 result = run_hyperagent(task=task, parallel_tasks=3)
                 response = result.get("output", "")
 
                 prompt_part = response.split("Prompt:")[-1]
+                compute_override = None
                 if "Recommended Compute:" in prompt_part:
                     prompt = prompt_part.split("Recommended Compute:")[0].strip()
                     compute_override = prompt_part.split("Recommended Compute:")[-1].strip().lower()
                 else:
                     prompt = prompt_part.strip()
-                    compute_override = None
 
                 return {"prompt": prompt, "compute_override": compute_override}
             except Exception:
-                return {
-                    "prompt": f"Continue with previous findings: {last_output[:600]}",
-                    "compute_override": None
-                }
+                return {"prompt": f"Continue with previous findings.", "compute_override": None}
 
         # 1. AI-Researcher
         if any(k in lower for k in ["research", "literature", "paper", "review", "survey"]):
             try:
-                cfg = self.config.get("AI-Researcher", {})
-                mode = cfg.get("search_mode", "deep")
-
-                task = f"Challenge: {challenge}\nPlan context: {cumulative_context}\nPerform broad search."
-
-                result = run_ai_researcher(task=task, search_mode=mode)
-                output = result.get("output", result.get("error", ""))
-                results.append(f"[AI-Researcher — {mode}]\n{output}")
+                result = run_ai_researcher(task=f"Research: {challenge}\nContext: {cumulative_context}")
+                output = result.get("output", result.get("error", "No output"))
+                results.append(f"[AI-Researcher]\n{output}")
                 used_tools.append("AI-Researcher")
                 cumulative_context += f"\n\n[AI-Researcher Output]\n{output}"
-
                 redesign = reflect_and_redesign(output, "AutoResearch")
                 cumulative_context += "\n\n[Arbos Reflection] " + redesign["prompt"]
             except Exception as e:
@@ -138,16 +125,10 @@ Recommended Compute: [chutes/targon/celium/local]"""
         # 2. AutoResearch
         if any(k in lower for k in ["research", "literature", "paper", "review", "explore", "synthesize"]):
             try:
-                cfg = self.config.get("AutoResearch", {})
-                depth = cfg.get("depth", "medium")
-                iterations = cfg.get("iterations", 3)
-
                 redesign = reflect_and_redesign(output if 'output' in locals() else "", "AutoResearch")
-                task = redesign["prompt"]
-
-                result = run_autoresearch(task=task, depth=depth, iterations=iterations, program_md_path=str(program_path))
-                output = result.get("output", result.get("error", ""))
-                results.append(f"[AutoResearch — depth:{depth}, iterations:{iterations}]\n{output}")
+                result = run_autoresearch(task=redesign["prompt"])
+                output = result.get("output", result.get("error", "No output"))
+                results.append(f"[AutoResearch]\n{output}")
                 used_tools.append("AutoResearch")
                 cumulative_context += f"\n\n[AutoResearch Output]\n{output}"
                 cumulative_context += "\n\n[Arbos Reflection] " + redesign["prompt"]
@@ -157,16 +138,10 @@ Recommended Compute: [chutes/targon/celium/local]"""
         # 3. GPD
         if any(k in lower for k in ["quantum", "physics", "circuit", "theory", "particle", "gravity", "field"]):
             try:
-                cfg = self.config.get("GPD", {})
-                profile = cfg.get("profile", "deep-theory")
-                tier = cfg.get("tier", "1")
-
                 redesign = reflect_and_redesign(output if 'output' in locals() else "", "GPD")
-                task = redesign["prompt"]
-
-                result = run_gpd(task=task, profile=profile, tier=tier)
-                output = result.get("output", result.get("error", ""))
-                results.append(f"[GPD — {profile} / Tier {tier}]\n{output}")
+                result = run_gpd(task=redesign["prompt"], profile="deep-theory")
+                output = result.get("output", result.get("error", "No output"))
+                results.append(f"[GPD]\n{output}")
                 used_tools.append("GPD")
                 cumulative_context += f"\n\n[GPD Output]\n{output}"
                 cumulative_context += "\n\n[Arbos Reflection] " + redesign["prompt"]
@@ -176,16 +151,10 @@ Recommended Compute: [chutes/targon/celium/local]"""
         # 4. ScienceClaw
         if any(k in lower for k in ["analyze", "experiment", "data", "science", "conclude"]):
             try:
-                cfg = self.config.get("ScienceClaw", {})
-                intensity = cfg.get("search_intensity", "high")
-                max_src = cfg.get("max_sources", 15)
-
                 redesign = reflect_and_redesign(output if 'output' in locals() else "", "ScienceClaw")
-                task = redesign["prompt"]
-
-                result = run_scienceclaw(task=task, search_intensity=intensity, max_sources=max_src)
-                output = result.get("output", result.get("error", ""))
-                results.append(f"[ScienceClaw — {intensity}]\n{output}")
+                result = run_scienceclaw(task=redesign["prompt"])
+                output = result.get("output", result.get("error", "No output"))
+                results.append(f"[ScienceClaw]\n{output}")
                 used_tools.append("ScienceClaw")
             except Exception as e:
                 results.append(f"[ScienceClaw Error] {str(e)}")
