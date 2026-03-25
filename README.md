@@ -1,31 +1,61 @@
-# Enigma Machine Miner — Bittensor SN63
+# Enigma Machine Miner — Bittensor Subnet 63
 
-**A beautiful, controllable, agentic miner for Subnet 63 (Enigma)**
+**A highly controllable, agentic solving system for Enigma (SN63)**
 
-Powered by **real Arbos** + **sequential tool chain** + **reflection after every tool** + **long-term memory**.
+Built with **real Arbos**, **sequential tool chaining**, **reflection after every tool**, and **long-term memory**.
 
 ---
 
-### Core Features
+### Core Philosophy
 
-- **Human-in-the-Loop Strategic Planning**: HyperAgent creates a detailed plan → you review and approve
-- **Reflection + Prompt Redesign after every tool**: Arbos critiques output and rebuilds the prompt for the next tool
-- **Cumulative Memory**: `program.md` is updated after each tool and passed forward
-- **Long-term Memory**: Persistent knowledge base across runs (Chroma)
-- **Strategic Tool Control**: The plan decides how much compute each tool gets (depth, iterations, profile, tier, etc.)
-- **Real Compute Guardrails**: Runtime monitoring + auto-compression before a set compute limit
-- **Real Compute Routing**: Chutes + Targon + Celium with Chutes LLM picker
-- **Enigma-themed Streamlit UI**: Feels like operating a real WWII Enigma machine
+Everything is **optional** and controlled from a single `GOAL.md` file.  
+
+The miner uses a **cumulative, reflective** workflow where each tool builds directly on the previous one through Arbos critique and prompt redesign.
+
+### Key Features
+
+- **Human-in-the-Loop Strategic Planning** — HyperAgent generates a plan → you review, edit, and approve
+- **Reflection + Prompt Redesign after EVERY tool** — Arbos critiques output and rebuilds the prompt for the next tool
+- **Dynamic Compute Routing** — Arbos recommends the best backend (Chutes / Targon / Celium / local) per tool
+- **Cumulative Context** — `program.md` maintains running memory within a run
+- **Long-term Memory** — Persistent knowledge base across multiple challenges (Chroma)
+- **H100 Guardrails** — Real runtime monitoring + auto-compression before 4-hour limit
+- **Real Compute Subnets** — Chutes + Targon + Celium with Chutes LLM picker
+- **Enigma-themed Streamlit UI** — Feels like operating a real WWII Enigma machine
 
 ### Tool Chain (Sequential & Cumulative)
 
-1. **AI-Researcher** — Broad search and discovery
+1. **AI-Researcher** — Broad search and discovery  
 2. **AutoResearch** (karpathy) — Deep iterative literature synthesis 
-3. **GPD** (Get Physics Done) — Rigorous physics / theoretical modeling
-4. **ScienceClaw** — Final deep analysis and cross-referencing
+3. **GPD** (Get Physics Done) — Rigorous physics and theoretical modeling  
+4. **ScienceClaw** — Final deep analysis and synthesis  
 
-**After each tool**, Arbos performs reflection and redesigns the prompt for the next tool while preserving the original goal.
+**After each tool**, Arbos performs reflection, redesigns the prompt, and can recommend optimal compute.
 
+### How the Tools Work Together
+The miner follows a **sequential, cumulative** workflow with strong Arbos reflection:
+
+```mermaid
+flowchart TD
+    A[1. Challenge Input to GOAL.md] --> B[2. HyperAgent Strategic Planning]
+    B --> C[3. Human Review & Edit Plan]
+    C -->|Approve| D[4. Start Tool Chain]
+
+    D --> E[AI-Researcher]
+    E --> F[Arbos Reflection + Prompt Redesign]
+    F --> G[AutoResearch]
+    G --> H[Arbos Reflection + Prompt Redesign]
+    H --> I[Get Physics Done]
+    I --> J[Arbos Reflection + Prompt Redesign]
+    J --> K[ScienceClaw]
+    K --> L[Arbos Evaluation Reflection Loop]
+
+    L -->|Results Good?| M[Guardrail Check + Optional Further Exploration]
+    L -->|Needs Improvement?| B[HyperAgent Strategic Planning]
+
+    M --> N[Save to Long-term Memory]
+    N --> O[Winning Solution]
+```
 ### Quick Start
 
 ```bash
@@ -47,32 +77,6 @@ streamlit run streamlit_app.py
 
 ```bash
 python -m agents.arbos_manager
-```
-
-### How the Patterns Work Together
-
-The miner follows a **sequential, cumulative** workflow with strong Arbos reflection:
-
-```mermaid
-flowchart TD
-    A[1. Challenge Input] --> B[2. HyperAgent Strategic Planning]
-    B --> C[3. Human Review & Edit Plan]
-    C -->|Approve| D[4. Start Tool Chain]
-
-    D --> E[AI-Researcher]
-    E --> F[Arbos Reflection + Prompt Redesign]
-    F --> G[AutoResearch + program.md]
-    G --> H[Arbos Reflection + Prompt Redesign]
-    H --> I[GPD]
-    I --> J[Arbos Reflection + Prompt Redesign]
-    J --> K[ScienceClaw]
-    K --> L[Arbos Final Reflection Loop]
-
-    L -->|Results Good?| M[Check Guardrails + Optional Exploration]
-    L -->|Needs Improvement?| B[Replan with HyperAgent]
-
-    M --> N[Save to Long-term Memory]
-    N --> O[Winning Solution]
 ```
 
 ### Folder Structure
