@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# FINAL STRENGTHENED VERSION WITH ADAPTIVE QUALITY GATE + SMART RE-LOOP
+# PRIMARY SOLVER VERSION - Arbos is the main intelligence, tools are optional boosters
 
 import os
 import subprocess
@@ -21,7 +21,7 @@ class ArbosManager:
         self.config = self._load_config()
         self.extra_context = self._load_extra_context()
         self._setup_real_arbos()
-        print("✅ Arbos with Adaptive Quality Gate + Smart Re-Loop loaded")
+        print("✅ Arbos Primary Solver Mode loaded - Arbos is the main intelligence")
 
     def _setup_real_arbos(self):
         if not os.path.exists(self.arbos_path):
@@ -35,11 +35,9 @@ class ArbosManager:
             "resource_aware": True,
             "guardrails": True,
             "miner_review_after_loop": False,
-            "max_loops": 4,
+            "max_loops": 5,
             "miner_review_final": True,
             "chutes": True,
-            "targon": False,
-            "celium": False,
             "chutes_llm": "mixtral"
         }
         try:
@@ -62,10 +60,6 @@ class ArbosManager:
                         config["miner_review_final"] = "true" in stripped
                     elif stripped.startswith("chutes:"):
                         config["chutes"] = "true" in stripped
-                    elif stripped.startswith("targon:"):
-                        config["targon"] = "true" in stripped
-                    elif stripped.startswith("celium:"):
-                        config["celium"] = "true" in stripped
                     elif stripped.startswith("chutes_llm:"):
                         config["chutes_llm"] = line.split(":")[1].strip()
         except Exception:
@@ -82,17 +76,14 @@ class ArbosManager:
         except Exception:
             return ""
 
-    def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str], bool]:
+    def _smart_route(self, challenge: str) -> Tuple[str, List[str], bool]:
         from agents.tool_study import tool_study
         import streamlit as st
 
         full_context = f"""GOAL: {challenge}
 
-MINER STRATEGY (HIGH PRIORITY - FOLLOW CLOSELY):
-{self.extra_context}
-
-APPROVED PLAN:
-{approved_plan}""".strip()
+MINER STRATEGY (HIGH PRIORITY):
+{self.extra_context}""".strip()
 
         results = []
         used_tools = []
@@ -101,128 +92,108 @@ APPROVED PLAN:
 
         past = memory.query(challenge, n_results=6)
         if past:
-            cumulative_context += "\n\nPrevious loop knowledge:\n" + "\n---\n".join(past)
+            cumulative_context += "\n\nPast knowledge:\n" + "\n---\n".join(past)
 
         monitor = ResourceMonitor(max_hours=3.8)
         remaining_hours = 3.8 - monitor.elapsed_hours()
-        reflection_depth = 3 if remaining_hours > 2.0 else 2 if remaining_hours > 1.0 else 1
 
-        trace_log.append(f"Time left: {remaining_hours:.2f}h | Depth: {reflection_depth}")
+        trace_log.append(f"Starting Primary Solver | Time left: {remaining_hours:.2f}h")
 
-        def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
-            tool_profile = tool_study.load_relevant_profile(next_tool, query=cumulative_context)
-            few_shot = {
-                "GPD": "Real GPD breaks problems into deep theory → numerical validation → experimental implications.",
-                "AutoResearch": "Real AutoResearch writes, executes, debugs, and iterates code until the goal is met.",
-                "AI-Researcher": "Real AI-Researcher finds cross-domain papers and synthesizes novel connections.",
-                "ScienceClaw": "Real ScienceClaw performs rigorous scientific analysis and proposes concrete experiments."
-            }
-
-            try:
-                task = f"""You are Arbos.
+        def arbos_reflect(current_solution: str, stage: str) -> dict:
+            task = f"""You are Arbos, the primary solver.
 
 GOAL: {challenge}
-MINER STRATEGY (FOLLOW VERY CLOSELY):
+
+MINER STRATEGY:
 {self.extra_context}
 
-Previous output: {last_output}
-Next tool: {next_tool}
+Current solution:
+{current_solution}
+
+Stage: {stage}
 Time left: {remaining_hours:.2f}h
 
-How the real {next_tool} behaves:
-{few_shot.get(next_tool, "Act with high intelligence.")}
+Critique rigorously for:
+- Alignment with miner strategy
+- Novelty
+- Verifier score potential
+- Completeness
+- Weaknesses
 
-Tool Profile: {tool_profile}
-
-Think step-by-step and produce output that strongly aligns with miner strategy.
+Then decide:
+- Finalize?
+- Improve?
+- Call a tool? (ScienceClaw, GPD, AI-Researcher, AutoResearch)
 
 Reply exactly:
-Prompt: [full prompt]
-Recommended Compute: [chutes/targon/celium/local]"""
+Critique: [detailed]
+Decision: [Finalize / Improve / Call Tool: TOOLNAME]
+Next Action: [what to do]
+Improved Solution: [if improving]"""
 
-                response = self.compute.run_on_compute(task)
-                prompt_part = response.split("Prompt:")[-1] if "Prompt:" in response else response
-                compute_override = response.split("Recommended Compute:")[-1].strip().lower() if "Recommended Compute:" in response else None
+            response = self.compute.run_on_compute(task)
+            trace_log.append(f"Arbos Reflection ({stage}): {response[:200]}...")
 
-                trace_log.append(f"[{next_tool}] Strong mimic | Compute: {compute_override or 'default'}")
-                return {"prompt": prompt_part.strip(), "compute_override": compute_override}
-            except Exception:
-                trace_log.append(f"[{next_tool}] Fallback")
-                return {"prompt": f"Continue with previous findings using {next_tool}.", "compute_override": None}
+            decision = "Improve"
+            tool_to_call = None
+            if "Finalize" in response:
+                decision = "Finalize"
+            elif "Call Tool:" in response:
+                tool_to_call = response.split("Call Tool:")[-1].split()[0].strip()
 
-        last_output = ""
-        max_loops = self.config.get("max_loops", 4)
+            return {
+                "decision": decision,
+                "tool_to_call": tool_to_call,
+                "response": response
+            }
 
-        for loop in range(max_loops):
-            trace_log.append(f"--- Loop {loop+1}/{max_loops} ---")
+        last_solution = "No solution yet."
 
-            for tool_name in ["AI-Researcher", "AutoResearch", "GPD", "ScienceClaw"]:
-                decide = self.compute.run_on_compute(f"Given miner strategy, should we use {tool_name} now?")
-                if "YES" in decide.upper():
-                    redesign = reflect_and_redesign(last_output, tool_name)
-                    result = self.compute.run_on_compute(redesign["prompt"], override_compute=redesign.get("compute_override"))
-                    output = result
+        for loop in range(self.config.get("max_loops", 5)):
+            trace_log.append(f"--- Arbos Primary Loop {loop+1} ---")
 
-                    results.append(f"[{tool_name}]\n{output}")
-                    used_tools.append(tool_name)
-                    cumulative_context += f"\n\n[{tool_name}]\n{output}"
-                    last_output = output
+            reflection = arbos_reflect(last_solution, f"Loop {loop+1}")
 
-            # Real ScienceClaw
-            if any(k in lower for k in ["analyze", "experiment", "data", "science", "conclude"]):
-                redesign = reflect_and_redesign(last_output, "ScienceClaw")
-                result = run_scienceclaw(task=redesign["prompt"])
-                output = result.get("output", result.get("error", "No output"))
-                results.append(f"[ScienceClaw - REAL]\n{output}")
-                used_tools.append("ScienceClaw")
-                cumulative_context += f"\n\n[ScienceClaw REAL]\n{output}"
+            if reflection["decision"] == "Finalize":
+                trace_log.append("Arbos decided to finalize")
+                break
 
-            memory.add(text="\n\n".join(results), metadata={"loop": loop+1})
+            if reflection["tool_to_call"]:
+                tool_name = reflection["tool_to_call"]
+                if tool_name == "ScienceClaw":
+                    result = run_scienceclaw(task=reflection["response"])
+                    output = result.get("output", result.get("error", "No output"))
+                else:
+                    # Mimic for other tools
+                    output = self.compute.run_on_compute(f"Continue solving using {tool_name} style. Current solution: {last_solution[:800]}")
+
+                results.append(f"[{tool_name}]\n{output}")
+                used_tools.append(tool_name)
+                cumulative_context += f"\n\n[{tool_name}]\n{output}"
+                last_solution = output
+            else:
+                # Pure Arbos improvement
+                last_solution = reflection["response"]
+
+            memory.add(text=last_solution, metadata={"loop": loop+1})
 
             if self.config.get("miner_review_after_loop", False):
                 break
 
-        # === ADAPTIVE QUALITY GATE ===
-        critique_task = f"""Evaluate the current solution:
-
-Goal: {challenge}
-Miner Strategy: {self.extra_context}
-
-Current Solution:
-{last_output}
-
-Score on a scale of 1-10 for:
-- Novelty
-- Verifier Score Potential
-- Alignment with Miner Strategy
-- Completeness
-- Feasibility under remaining time
-
-Then decide:
-Should we do another loop? Reply with:
-Score: [numbers]
-Decision: [YES/NO - Re-loop or Finalize]
-Reason: [short reason]"""
-
-        critique = self.compute.run_on_compute(critique_task)
-        trace_log.append(f"Quality Gate Critique: {critique[:300]}...")
-
-        should_reloop = "YES" in critique.upper() and not self.config.get("miner_review_after_loop", False)
-
         st.session_state.trace_log = trace_log
-        return "\n\n".join(results), used_tools, should_reloop
+        return last_solution, used_tools, self.config.get("miner_review_after_loop", False)
 
     def run(self, challenge: str):
-        print(f"🚀 Starting Arbos for challenge: {challenge[:80]}...")
+        print(f"🚀 Starting Arbos Primary Solver for: {challenge[:80]}...")
 
         monitor = ResourceMonitor(max_hours=3.8)
 
-        tool_results, tools_used, should_reloop = self._smart_route(challenge)
+        final_solution, tools_used, should_reloop = self._smart_route(challenge)
 
-        final_output = apply_guardrails(tool_results, monitor)
+        final_output = apply_guardrails(final_solution, monitor)
 
         if self.config.get("exploration", True):
             final_output = explore_novel_variant(challenge, final_output)
 
-        print(f"✅ Completed with tools: {tools_used} | Re-loop decision: {should_reloop}")
+        print(f"✅ Completed with tools: {tools_used}")
         return final_output, should_reloop
