@@ -1,61 +1,85 @@
-# Enigma Machine Miner — Bittensor Subnet 63
+# ENIGMA MACHINE — Agentic Miner for Bittensor Subnet 63
 
-**A highly controllable, agentic solving system for Enigma (SN63)**
+**A high-performance, human + agentic problem solving engine** 
 
-Built with **real Arbos**, **sequential tool chaining**, **reflection after every tool**, and **long-term memory**.
+Powered by Arbos + Sequential tool chaining + Reflection after every tool.
 
----
+![Enigma](https://img.shields.io/badge/Status-Production_Ready-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 
 ### Core Philosophy
+Everything is optional and controlled from `GOAL.md`.  
 
-Everything is **optional** and controlled from a single `GOAL.md` file.  
+The miner uses **Arbos** as the intelligent conductor, dynamically decides which open source tools to use, reflects after every step, repeats loop until solution or compute limits are met.
 
-The miner uses a **cumulative, reflective** workflow where each tool builds directly on the previous one through Arbos critique and prompt redesign.
+### How the Ralph Loop Works
+
+1. Arbos decides which tools to run
+2. Arbos decides which compute option to use for execution
+3. **Reflects and Redesigns** the prompt for the next tool
+4. **ScienceClaw** agent swarm runs at the end of the chain with cumulative context
+5. **Final Arbos Critique** — if the solution needs improvement, loop back to replanning
+6. Results saved to long-term memory for future challenges.
+
+This tight loop makes the miner highly adaptive and capable of continuous self-improvement.
 
 ### Key Features
 
-- **Human-in-the-Loop Strategic Planning** — HyperAgent generates a plan → you review, edit, and approve
-- **Reflection + Prompt Redesign after EVERY tool** — Arbos critiques output and rebuilds the prompt for the next tool
-- **Dynamic Compute Routing** — Arbos recommends the best backend (Chutes / Targon / Celium / local) per tool
-- **Cumulative Context** — `program.md` maintains running memory within a run
-- **Long-term Memory** — Persistent knowledge base across multiple challenges (Chroma)
-- **H100 Guardrails** — Real runtime monitoring + auto-compression before 4-hour limit
-- **Real Compute Subnets** — Chutes + Targon + Celium with Chutes LLM picker
-- **Enigma-themed Streamlit UI** — Feels like operating a real WWII Enigma machine
+- Sequential Tool Chain with reflection + prompt redesign **after every tool**
+- Tool Study + Vector Retrieval for High-Fidelity Tool Mimicking
+- Cumulative Context via `program.md`
+- Dynamic Reflection Depth based on Cost/Token Awareness
+- Resource-Aware Guardrails + Auto-Compression
+- Exploration Module For Deeper and more Novel Ideas
 
-### Tool Chain (Sequential & Cumulative)
+### Tool Study & Tool Replication Strategy
 
-1. **AI-Researcher** (facebookresearch)— Broad search and discovery  
-2. **AutoResearch** (Karpathy) — Deep iterative literature synthesis 
-3. **GPD** (Get Physics Done) — Rigorous physics and theoretical modeling  
-4. **ScienceClaw** (MIT) — Final deep analysis and synthesis  
+**Why we use Tool Study + Mimic instead of direct wrappers:**
 
-**After each tool**, Arbos performs reflection, redesigns the prompt, and can recommend optimal compute.
+Many of the powerful open-source tools (AI-Researcher, AutoResearch, GPD, HyperAgent) are complex, have heavy dependencies, or are not designed for reliable repeated calls inside a tight miner loop.
 
-### How the Tools Work Together
-The miner follows a **sequential, cumulative** workflow with strong Arbos reflection:
+Instead of fragile direct wrappers that often break or slow down the system, we do the following:
+
+1. **One-time Tool Study Phase** — Arbos reads each tool’s repository, extracts its purpose, workflow, strengths, and limitations.
+2. **2-Pass Self-Refinement** — The initial profile is critiqued and improved with a focus on “Improvement Potential for Enigma Miner.”
+3. **Vector Storage** — Profiles are chunked and stored in a ChromaDB vector database.
+4. **Real-time Retrieval** — During runtime, Arbos pulls only the *most relevant* parts of each profile based on current context.
+
+**Benefits:**
+- Keeps the main reflection loop extremely tight and fast
+- Avoids dependency hell and runtime errors from external CLIs
+- Allows Arbos to intelligently mimic the unique strengths of each tool
+- Enables dynamic, context-aware behavior without breaking the 4-hour H100 limit
+- Real ScienceClaw is still called directly at the end of every loop for maximum scientific depth
+
+This hybrid approach (mimic first three tools + real ScienceClaw) gives us the best of both worlds: reliability + performance + true tool capability.
+
+### Architecture Overview
 
 ```mermaid
-flowchart TD
-    A[1. Challenge Input to GOAL.md] --> B[2. HyperAgent Strategic Planning]
-    B --> C[3. Human Review & Edit Plan]
-    C -->|Approve| D[4. Start Tool Chain]
-
-    D --> E[AI-Researcher]
-    E --> F[Arbos Reflection + Prompt Redesign]
-    F --> G[AutoResearch]
-    G --> H[Arbos Reflection + Prompt Redesign]
-    H --> I[Get Physics Done]
-    I --> J[Arbos Reflection + Prompt Redesign]
-    J --> K[ScienceClaw]
-    K --> L[Arbos Evaluation Reflection Loop]
-
-    L -->|Results Good?| M[Guardrail Check + Optional Further Exploration]
-    L -->|Needs Improvement?| B[HyperAgent Strategic Planning]
-
-    M --> N[Save to Long-term Memory]
-    N --> O[Winning Solution]
+graph TD
+    A[Miner's Custom GOAL.md] --> B[HyperAgent Planning<br>With Miner Approval]
+    B --> C[Dynamic Tool Decision]
+    C --> D[AI-Researcher]
+    D --> E[Arbos Reflection + Prompt Redesign]
+    E --> F[AutoResearch]
+    F --> E
+    E --> G[GPD]
+    G --> E
+    E --> H[ScienceClaw Swarm]
+    H --> I[Arbos Final Reflection & Critique]
+    
+    I -->|Solution Good & Complete?| J[Final Synthesis + Exploration]
+    I -->|Needs Improvement or Not Finished?| K[Replan / Loop Back]
+    
+    K --> B[HyperAgent Planning]
+    J --> L[Check Resource Guardrails]
+    L --> M[Final Solution]
+    
+    style I fill:#1a1408,stroke:#ffcc00,color:#ffcc00
+    style K fill:#2a1f12,stroke:#ffaa00,color:#ffaa00
 ```
+
 ### Quick Start
 
 ```bash
@@ -65,39 +89,26 @@ pip install -e .
 cp .env.example .env
 ```
 
-Edit `.env` with your API keys (OpenAI, Anthropic, etc.).
+#### One-time Setup
+```bash
+# Build intelligent tool profiles (run once)
+python -c "from agents.tool_study import tool_study; tool_study.study_all_tools()"
+```
 
-**Launch the UI:**
-
+#### Launch the Miner
 ```bash
 streamlit run streamlit_app.py
 ```
 
-**Or run headless:**
+### Streamlit UI Highlights
 
-```bash
-python -m agents.arbos_manager
-```
+- Challenge input + HyperAgent planning
+- Human-in-the-loop plan approval
+- One-click **"Run Tool Study Phase"** button
+- Debug/Trace Mode (shows reflection steps, profiles used, compute chosen)
+- Automatic GOAL.md generation
 
-### Folder Structure
-
-```
-agents/
-├── arbos_manager.py          # Core conductor
-├── memory.py                 # Long-term memory (Chroma)
-└── tools/
-    ├── autoresearch/
-    ├── hyperagent/
-    ├── get_physics_done/
-    ├── ai_researcher/
-    ├── scienceclaw/
-    ├── compute.py
-    ├── resource_aware.py
-    ├── guardrails.py
-    └── exploration.py
-```
-
-### GOAL.md Template (Killer Base)
+### Killer GOAL.md Template
 
 ```markdown
 GOAL: Solve the sponsor challenge with maximum novelty and verifier score while staying under 3.8h on H100.
@@ -105,26 +116,19 @@ GOAL: Solve the sponsor challenge with maximum novelty and verifier score while 
 reflection: 4
 planning: true
 hyper_planning: true
-multi_agent: true
-swarm_size: 20
 exploration: true
 resource_aware: true
 guardrails: true
 
-# Compute + LLM
+# Compute
 chutes: true
 targon: false
 celium: true
-chutes_llm: mixtral
+chutes_llm: User Choice
 ```
 
-Everything is controlled from this file.
+### Ready to Dominate SN63?
 
----
+Fork the repo, run the Tool Study, launch the UI, and start winning.
 
-**Ready to dominate Enigma?**
-
-Fork the repo, customize your `GOAL.md`, approve plans in the UI, and let the reflection loop + long-term memory turn your miner into a compounding intelligence.
-
-$TAO 🚀
-```
+**$TAO 🚀**
