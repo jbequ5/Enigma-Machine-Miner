@@ -6,16 +6,22 @@ import subprocess
 from pathlib import Path
 from typing import Tuple, List
 
+# Core imports
 from agents.memory import memory
+
+# Tool imports (all using subfolder __init__.py structure)
 from agents.tools.hyperagent import run_hyperagent
 from agents.tools.ai_researcher import run_ai_researcher
 from agents.tools.autoresearch import run_autoresearch
 from agents.tools.get_physics_done import run_gpd
 from agents.tools.scienceclaw import run_scienceclaw
+
+# Supporting tools
 from agents.tools.compute import ComputeRouter
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
-from agents.tools.exploration import explore_novel_variant   # optional
+from agents.tools.exploration import explore_novel_variant
+from agents.tools.reflection import reflect_and_improve   # optional if you want to use it more
 
 class ArbosManager:
     def __init__(self, goal_file: str = "goals/killer_base.md"):
