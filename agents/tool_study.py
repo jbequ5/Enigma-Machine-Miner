@@ -1,7 +1,6 @@
 # agents/tool_study.py
-# Tool Study Phase - Arbos learns the real tools and builds mimic profiles
+# Tool Study Phase - Arbos learns each tool deeply and builds mimic profiles
 
-import os
 from pathlib import Path
 from agents.tools.hyperagent import run_hyperagent
 
@@ -11,33 +10,35 @@ class ToolStudy:
         self.profiles_dir.mkdir(exist_ok=True)
 
     def study_all_tools(self):
-        """Study all tools and save profiles"""
+        """Study all tools and save detailed profiles"""
         tools = {
             "AutoResearch": "https://github.com/karpathy/autoresearch",
             "GPD": "https://github.com/psi-oss/get-physics-done",
             "ScienceClaw": "https://github.com/lamm-mit/scienceclaw",
-            "AI-Researcher": "https://github.com/HKUDS/AI-Researcher"
+            "AI-Researcher": "https://github.com/HKUDS/AI-Researcher",
+            "HyperAgent": "https://github.com/facebookresearch/HyperAgents"
         }
 
         for tool_name, repo_url in tools.items():
-            print(f"Studying {tool_name}...")
+            print(f"🔬 Studying {tool_name}...")
             profile = self._study_tool(tool_name, repo_url)
             self._save_profile(tool_name, profile)
             print(f"✅ Profile for {tool_name} saved")
 
     def _study_tool(self, tool_name: str, repo_url: str):
         study_task = f"""
-You are Arbos, a highly intelligent agent conductor.
-Study the tool "{tool_name}" at {repo_url}.
+You are Arbos, a highly intelligent conductor.
+Carefully study the tool "{tool_name}" at {repo_url}.
 
-Extract and summarize:
+Extract and summarize in detail:
 - Core purpose and unique strengths
-- How it actually works (workflow, iteration style, memory usage)
-- What makes it special compared to a generic LLM call
-- Key behaviors, limitations, and ideal use cases
-- How to best mimic its behavior using a strong LLM prompt
+- Exact workflow and how it iterates
+- How it uses memory or persistent state
+- What makes it different from a generic LLM call
+- Ideal prompting style to mimic its behavior
+- Key limitations and how to compensate for them
 
-Be detailed and precise. Focus on what makes this tool valuable for novelty and intelligence.
+Be precise and comprehensive. Focus on what makes this tool valuable for novelty and intelligence.
 """
 
         result = run_hyperagent(task=study_task, parallel_tasks=3)
@@ -51,7 +52,7 @@ Be detailed and precise. Focus on what makes this tool valuable for novelty and 
         path = self.profiles_dir / f"{tool_name.lower()}.md"
         if path.exists():
             return path.read_text()
-        return f"No profile found for {tool_name}. Using generic reasoning."
+        return f"No profile found for {tool_name}. Using generic high-intelligence reasoning."
 
 # Global instance
 tool_study = ToolStudy()
