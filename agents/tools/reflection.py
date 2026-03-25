@@ -14,7 +14,7 @@ def reflect_and_improve(task: str, output: str, llm_call, max_iterations: int = 
             Task: {task}
             Output: {current}
             
-            Critique for: accuracy, completeness, logic, hallucinations, clarity, and H200 runtime.
+            Critique for: accuracy, completeness, logic, hallucinations, clarity, and H100 runtime.
             Reply ONLY with "APPROVED" if perfect, otherwise list specific fixes.
         """)
         
