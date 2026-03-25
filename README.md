@@ -1,59 +1,19 @@
-# The Enigma Machine — Agentic Miner for Bittensor Subnet 63
+# ENIGMA MACHINE — Agentic Miner for Bittensor Subnet 63
 
-**A high-performance, reflective agentic miner** powered by real Arbos with full miner control and adaptive looping.
+**A high-performance reflective miner** powered by Arbos with strong miner control and adaptive looping.
 
-![Enigma](https://img.shields.io/badge/Status-Production_Ready-brightgreen)
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+### What Makes It Special
 
-### Core Features
-
-- Real Arbos as the intelligent conductor with tight reflection loops
-- Full GOAL.md strategy/context is read and strongly used in every decision
+- Full GOAL.md strategy/context is read and **strongly injected** into every reflection and tool call
 - Adaptive Quality Gate — Arbos scores novelty, verifier potential, and alignment before deciding to re-loop
-- Smart auto-reloop when `miner_review_after_loop: false`
-- MIT's ScienceClaw agent swarm executed at the end of each loop with refined context
-- Long-term memory via ChromaDB
-- Resource-aware guardrails with auto-compression
-- Exploration module for novel variants
+- Smart auto-reloop when `miner_review_after_loop: false` (up to `max_loops`)
+- MIT's ScienceClaw executed at the end of each loop
+- Long-term memory via ChromaDB + resource-aware guardrails
+- Uses Bittensor native compute and inference by default (Chutes, Targon, Lium)
 - Professional Streamlit UI with plan approval and final miner review
 
 ### How the Ralph Loop Works
 
-1. Miner Customizes GOAL.md File with Challenge + Strategy
-2. File goes to HyperAgent for Planning - Must be Approved by Miner
-3. Arbos decides which tools to run
-4. Arbos decides which compute option to use for execution
-5. Reflects and Redesigns the prompt between tools
-6. **End of Loop Arbos Critique** — if the solution needs improvement, restart loop
-      - *Optional*: Miner Review before Looping again
-7. **If Solution Accepted** - Final Miner Review before Submission
-8. Results saved to long-term memory for future challenges.
-
-This tight loop makes the miner highly adaptive and capable of continuous self-improvement.
-
-### Tool Study & Tool Replication Strategy
-
-**Why we use Tool Study + Mimic instead of direct wrappers:**
-
-Many of the powerful open-source tools (AI-Researcher, AutoResearch, GPD, HyperAgent) are complex, have heavy dependencies, or are not designed for reliable repeated calls inside a tight miner loop.
-
-Instead of fragile direct wrappers that often break or slow down the system, we do the following:
-
-1. **One-time Tool Study Phase** — Arbos reads each tool’s repository, extracts its purpose, workflow, strengths, and limitations.
-2. **2-Pass Self-Refinement** — The initial profile is critiqued and improved with a focus on “Improvement Potential for Enigma Miner.”
-3. **Vector Storage** — Profiles are chunked and stored in a ChromaDB vector database.
-4. **Real-time Retrieval** — During runtime, Arbos pulls only the *most relevant* parts of each profile based on current context.
-
-**Benefits:**
-- Keeps the main reflection loop extremely tight and fast
-- Avoids dependency hell and runtime errors from external CLIs
-- Allows Arbos to intelligently mimic the unique strengths of each tool
-- Enables dynamic, context-aware behavior without breaking compute limits
-- Real ScienceClaw is still called directly at the end of every loop for maximum scientific depth
-
-This hybrid approach (mimic first three tools + real ScienceClaw) gives us the best of both worlds: reliability + performance + true tool capability.
-
-### Architecture Overview
 ```mermaid
 graph TD
     A[Miner's Custom GOAL.md] --> B[HyperAgent Planning<br>With Miner Approval]
@@ -77,29 +37,22 @@ graph TD
     style I fill:#1a1408,stroke:#ffcc00,color:#ffcc00
     style K fill:#2a1f12,stroke:#ffaa00,color:#ffaa00
 ```
-**How it works:**
-- **Adaptive Quality Gate** — Arbos scores the solution and decides whether another loop adds value
+
+**Key Mechanics:**
 - When `miner_review_after_loop: false` → Arbos runs multiple loops automatically and uses the quality gate to decide when to stop.
 - When `miner_review_after_loop: true` → Miner reviews after every loop.
 - Final review screen is **always** shown before submission.
 
-### Current Strengths vs Single Tool
+### Tool Study & Mimicking Strategy
 
-Better than running one tool alone when you:
-- Provide rich strategy/context in GOAL.md
-- Want multiple angles + reflection
-- Need human review gates
-- Want adaptive iteration without manual babysitting
-
-Still evolving — mimicking quality remains the main area for future gains.
+Complex tools are studied once by Arbos and stored as vector profiles. Arbos retrieves only the most relevant parts at runtime and mimics them intelligently. This keeps the loop fast and reliable. **ScienceClaw** is still called directly at the end of every loop for maximum scientific depth using the full context of the previous 3 tools output.
 
 ### Streamlit UI Highlights
 
-- Challenge input + HyperAgent planning
-- Human-in-the-loop plan approval
-- One-click **"Run Tool Study Phase"** button
-- Debug/Trace Mode (shows reflection steps, profiles used, compute chosen)
-- Automatic GOAL.md generation
+- Challenge input + editable HyperAgent plan
+- One-click "Run Tool Study Phase" button
+- Debug/Trace mode
+- Final miner review before submission
 
 ### Quick Start
 
@@ -110,13 +63,12 @@ pip install -e .
 cp .env.example .env
 ```
 
-#### One-time Setup
+**One-time Setup**
 ```bash
-# Build intelligent tool profiles (run once)
 python -c "from agents.tool_study import tool_study; tool_study.study_all_tools()"
 ```
 
-#### Launch the Miner
+**Launch**
 ```bash
 streamlit run streamlit_app.py
 ```
@@ -124,36 +76,30 @@ streamlit run streamlit_app.py
 ### Starter GOAL.md Template
 
 ```markdown
-**GOAL:** Solve the sponsor challenge with maximum novelty and verifier score while staying under *DESIRED COMPUTE LIMIT*
+GOAL: Solve the sponsor challenge with maximum novelty and verifier score while staying under 3.8h on H100.
 
-**STRATEGY/CONTEXT:** *Miner Customizes*
+STRATEGY/CONTEXT: [Your custom strategy, constraints, and success criteria here]
 
-**CORE TOGGLES (Actively Used)**
+# Core Toggles
 reflection: 4
 exploration: true
 resource_aware: true
 guardrails: true
 
-**Miner Input**
-miner_review_after_loop: false     **#true = review after every loop**
-max_loops: 4                       **#max automatic loops when review is off**
-miner_review_final: true        **#always review final output**
+# Miner Control
+miner_review_after_loop: false     # true = review after every loop
+max_loops: 4
+miner_review_final: true
 
-**Compute + LLM**
+# Compute
 chutes: true
 targon: false
 celium: false
 chutes_llm: mixtral
-
-**Optional: Steps description (for documentation only)**
-1. Dynamic tool routing + reflection
-2. Real ScienceClaw at end of each loop
-3. Auto-reloop if needed (when miner_review_after_loop = false)
-4. Final miner review before submission
 ```
 
-### Ready to Dominate SN63?
+Ready to dominate SN63?
 
-Fork the repo, run the Tool Study, launch the UI, and start winning.
+Fork the repo, run the Tool Study, write your strategy in GOAL.md, and start winning.
 
 **$TAO 🚀**
