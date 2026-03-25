@@ -9,7 +9,7 @@ from typing import Tuple, List
 # Core imports
 from agents.memory import memory
 
-# Supporting tools only (no old run_xxx wrappers)
+# Supporting tools only
 from agents.tools.compute import ComputeRouter
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
@@ -57,7 +57,11 @@ class ArbosManager:
 
     def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
         """
-        FINAL CLEAN VERSION - Mimic first three tools + REAL ScienceClaw at the end
+        FINAL CLEAN INTELLIGENT _smart_route
+        - Arbos decides which tools to use dynamically
+        - Uses Tool Study profiles for high-fidelity mimicking
+        - All execution routed through ComputeRouter (with dynamic override)
+        - REAL ScienceClaw at the end of every loop
         """
         from agents.tool_study import tool_study
 
@@ -71,11 +75,12 @@ class ArbosManager:
         if past_knowledge:
             cumulative_context += "\n\nRelevant past knowledge from previous runs:\n" + "\n---\n".join(past_knowledge)
 
+        # Initialize program.md
         program_path = Path("program.md")
         if not program_path.exists():
             program_path.write_text(f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{approved_plan}\n\n")
 
-        # Reflection helper
+        # Reflection helper using tool profiles
         def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
             tool_profile = tool_study.load_profile(next_tool)
             try:
@@ -161,7 +166,7 @@ Reply with only YES or NO, followed by a very short reason."""
             used_tools.append("Arbos Core")
 
         return "\n\n".join(results), used_tools
-        
+
     def run(self, challenge: str):
         """Main entry point"""
         print(f"🚀 Starting Arbos for challenge: {challenge[:80]}...")
