@@ -1,15 +1,15 @@
+Updated agents/arbos_manager.pyReplace your entire arbos_manager.py with this version:python
+
 # agents/arbos_manager.py
-# FINAL VERSION - Supports miner_review_after_loop toggle + final mandatory review
+# FINAL VERSION - Auto-reloop when miner_review_after_loop=false + Final mandatory review
 
 import os
 import subprocess
 from pathlib import Path
 from typing import Tuple, List
 
-# Core imports
 from agents.memory import memory
 
-# Supporting tools only
 from agents.tools.compute import ComputeRouter
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
@@ -36,7 +36,7 @@ class ArbosManager:
             "exploration": True,
             "resource_aware": True,
             "guardrails": True,
-            "miner_review_after_loop": False,   # New toggle
+            "miner_review_after_loop": False,   # false = auto-reloop, true = pause for miner review
             "miner_review_final": True
         }
         try:
@@ -62,10 +62,7 @@ class ArbosManager:
         return config
 
     def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str], bool]:
-        """
-        Returns: (tool_results, used_tools, should_reloop)
-        Respects miner_review_after_loop from GOAL.md
-        """
+        """Returns: (final_results, used_tools, should_reloop)"""
         from agents.tool_study import tool_study
         import streamlit as st
 
@@ -75,29 +72,91 @@ class ArbosManager:
         cumulative_context = approved_plan[:1500] if approved_plan else ""
         trace_log = []
 
-        # ... (keep all the existing code from previous version up to the end of the loop) ...
+        past_knowledge = memory.query(challenge, n_results=4)
+        if past_knowledge:
+            cumulative_context += "\n\nRelevant past knowledge:\n" + "\n---\n".join(past_knowledge)
 
-        # Save to long-term memory
-        if results:
-            memory.add(
-                text="\n\n".join(results),
-                metadata={"challenge": challenge, "tools_used": ",".join(used_tools)}
-            )
+        program_path = Path("program.md")
+        if not program_path.exists():
+            program_path.write_text(f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{approved_plan}\n\n")
 
-        if not results:
-            results.append("No specialized tool triggered. Using default Arbos reasoning.")
-            used_tools.append("Arbos Core")
+        monitor = ResourceMonitor(max_hours=3.8)
+        elapsed = monitor.elapsed_hours()
+        remaining_hours = 3.8 - elapsed
+        reflection_depth = 3 if remaining_hours > 2.0 else 2 if remaining_hours > 1.0 else 1
 
-        # Store trace
+        trace_log.append(f"Time remaining: {remaining_hours:.2f}h | Reflection depth: {reflection_depth}")
+
+        def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
+            tool_profile = tool_study.load_relevant_profile(next_tool, query=cumulative_context + " " + last_output)
+            try:
+                task = f"""You are Arbos...
+
+Previous: {last_output}
+Goal: {challenge}
+Next tool: {next_tool}
+Time left: {remaining_hours:.2f}h
+
+Tool Profile: {tool_profile}
+
+Mimic the tool intelligently. Consider cost.
+
+Reply exactly:
+Prompt: [prompt]
+Recommended Compute: [chutes/targon/celium/local]"""
+
+                response = self.compute.run_on_compute(task)
+                prompt_part = response.split("Prompt:")[-1] if "Prompt:" in response else response
+                compute_override = response.split("Recommended Compute:")[-1].strip().lower() if "Recommended Compute:" in response else None
+
+                trace_log.append(f"[{next_tool}] Profile retrieved | Compute: {compute_override or 'default'}")
+                return {"prompt": prompt_part.strip(), "compute_override": compute_override}
+            except Exception:
+                trace_log.append(f"[{next_tool}] Reflection fallback")
+                return {"prompt": f"Continue with previous findings using {next_tool}.", "compute_override": None}
+
+        last_output = ""
+        max_loops = 5 if not self.config.get("miner_review_after_loop", False) else 1   # Auto-reloop limit
+
+        for loop in range(max_loops):
+            trace_log.append(f"--- Starting Loop {loop+1} ---")
+
+            tool_sequence = ["AI-Researcher", "AutoResearch", "GPD", "ScienceClaw"]
+            for tool_name in tool_sequence:
+                # Decision + execution (same as before)
+                decide_task = f"""Should we use {tool_name} now? Context: {cumulative_context[:600]}"""
+                decision = self.compute.run_on_compute(decide_task)
+
+                if "YES" in decision.upper():
+                    redesign = reflect_and_redesign(last_output, tool_name)
+                    result = self.compute.run_on_compute(redesign["prompt"], override_compute=redesign.get("compute_override"))
+                    output = result
+
+                    results.append(f"[{tool_name}]\n{output}")
+                    used_tools.append(tool_name)
+                    cumulative_context += f"\n\n[{tool_name} Output]\n{output}"
+                    last_output = output
+
+            # Real ScienceClaw at end of each loop
+            if any(k in lower for k in ["analyze", "experiment", "data", "science", "conclude"]):
+                redesign = reflect_and_redesign(last_output, "ScienceClaw")
+                result = run_scienceclaw(task=redesign["prompt"])
+                output = result.get("output", result.get("error", "No output"))
+                results.append(f"[ScienceClaw - REAL]\n{output}")
+                used_tools.append("ScienceClaw")
+                cumulative_context += f"\n\n[ScienceClaw REAL]\n{output}"
+
+            # Save to memory
+            memory.add(text="\n\n".join(results), metadata={"loop": loop+1})
+
+            # If miner wants review after every loop, stop here
+            if self.config.get("miner_review_after_loop", False):
+                break
+
         st.session_state.trace_log = trace_log
-
-        # Respect GOAL.md toggle
-        should_reloop = self.config.get("miner_review_after_loop", False)
-
-        return "\n\n".join(results), used_tools, should_reloop
+        return "\n\n".join(results), used_tools, self.config.get("miner_review_after_loop", False)
 
     def run(self, challenge: str):
-        """Main entry point"""
         print(f"🚀 Starting Arbos for challenge: {challenge[:80]}...")
 
         monitor = ResourceMonitor(max_hours=3.8)
@@ -110,4 +169,5 @@ class ArbosManager:
             final_output = explore_novel_variant(challenge, final_output)
 
         print(f"✅ Completed with tools: {tools_used}")
-        return final_output, should_reloop   # (output, should_reloop)
+        return final_output, should_reloop
+
