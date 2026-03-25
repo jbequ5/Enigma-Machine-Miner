@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# FINAL STRENGTHENED VERSION - Strong Critique + Clean Toggles + Better Memory
+# UPGRADED MIMICKING VERSION - Strong Context + Few-Shot + Self-Consistency
 
 import os
 import subprocess
@@ -21,7 +21,7 @@ class ArbosManager:
         self.config = self._load_config()
         self.extra_context = self._load_extra_context()
         self._setup_real_arbos()
-        print("✅ FINAL Arbos: Strong Critique + Full Context + Adaptive Re-Loop loaded")
+        print("✅ Arbos with Upgraded Mimicking + Strong Context loaded")
 
     def _setup_real_arbos(self):
         if not os.path.exists(self.arbos_path):
@@ -76,7 +76,6 @@ class ArbosManager:
         try:
             with open(self.goal_file, "r") as f:
                 content = f.read()
-            # Take everything after the last toggle section
             if "# Miner Control" in content or "# Compute" in content:
                 return content.split("# Compute", 1)[-1].strip()
             return content
@@ -89,7 +88,7 @@ class ArbosManager:
 
         full_context = f"""GOAL: {challenge}
 
-MINER STRATEGY (HIGH PRIORITY):
+MINER STRATEGY (HIGH PRIORITY - FOLLOW CLOSELY):
 {self.extra_context}
 
 APPROVED PLAN:
@@ -112,34 +111,52 @@ APPROVED PLAN:
 
         def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
             tool_profile = tool_study.load_relevant_profile(next_tool, query=cumulative_context)
+
+            # Few-shot examples for better mimicking
+            few_shot = {
+                "GPD": "Example: When given a quantum problem, GPD breaks it into theoretical foundations, numerical simulation, and experimental implications.",
+                "AutoResearch": "Example: AutoResearch iteratively writes code, runs it, debugs, and improves until the program.md goal is met.",
+                "AI-Researcher": "Example: AI-Researcher searches literature, synthesizes papers, and finds cross-domain ideas.",
+                "ScienceClaw": "Example: ScienceClaw performs deep scientific analysis, suggests experiments, and draws rigorous conclusions."
+            }
+
             try:
-                task = f"""You are Arbos.
+                task = f"""You are Arbos, expertly mimicking tools.
 
 GOAL: {challenge}
-MINER STRATEGY (FOLLOW CLOSELY):
+
+MINER STRATEGY (FOLLOW VERY CLOSELY):
 {self.extra_context}
 
 Previous output: {last_output}
-Next tool: {next_tool}
-Time left: {remaining_hours:.2f}h
+
+Next tool to mimic: {next_tool}
+
+How the real {next_tool} behaves:
+{few_shot.get(next_tool, "Act with high intelligence and domain depth.")}
 
 Tool Profile: {tool_profile}
 
-Mimic the tool. Stay aligned with miner strategy. Prioritize novelty + verifier score.
+Time left: {remaining_hours:.2f}h
 
-Reply exactly:
-Prompt: [full prompt]
+Think step-by-step:
+1. Understand what the real tool would do here.
+2. Align with miner strategy.
+3. Produce high-novelty, verifier-strong output.
+
+Reply exactly in this format:
+Prompt: [the full prompt you would send to the tool]
 Recommended Compute: [chutes/targon/celium/local]"""
 
                 response = self.compute.run_on_compute(task)
                 prompt_part = response.split("Prompt:")[-1] if "Prompt:" in response else response
                 compute_override = response.split("Recommended Compute:")[-1].strip().lower() if "Recommended Compute:" in response else None
 
-                trace_log.append(f"[{next_tool}] Strong context injected | Compute: {compute_override or 'default'}")
+                trace_log.append(f"[{next_tool}] Upgraded mimic with few-shot | Compute: {compute_override or 'default'}")
                 return {"prompt": prompt_part.strip(), "compute_override": compute_override}
             except Exception:
-                trace_log.append(f"[{next_tool}] Fallback")
-                return {"prompt": f"Continue using {next_tool}.", "compute_override": None}
+                trace_log.append(f"[{next_tool}] Mimic fallback")
+                return {"prompt": f"Continue with previous findings using {next_tool} style, aligned with miner strategy.", "compute_override": None}
 
         last_output = ""
         max_loops = self.config.get("max_loops", 4)
@@ -148,7 +165,7 @@ Recommended Compute: [chutes/targon/celium/local]"""
             trace_log.append(f"--- Loop {loop+1}/{max_loops} ---")
 
             for tool_name in ["AI-Researcher", "AutoResearch", "GPD", "ScienceClaw"]:
-                decide = self.compute.run_on_compute(f"Given miner strategy, should we use {tool_name}?")
+                decide = self.compute.run_on_compute(f"Given the miner strategy, should we use {tool_name} now?")
                 if "YES" in decide.upper():
                     redesign = reflect_and_redesign(last_output, tool_name)
                     result = self.compute.run_on_compute(redesign["prompt"], override_compute=redesign.get("compute_override"))
@@ -159,7 +176,7 @@ Recommended Compute: [chutes/targon/celium/local]"""
                     cumulative_context += f"\n\n[{tool_name}]\n{output}"
                     last_output = output
 
-            # Real ScienceClaw
+            # Real ScienceClaw at end of each loop
             if any(k in lower for k in ["analyze", "experiment", "data", "science", "conclude"]):
                 redesign = reflect_and_redesign(last_output, "ScienceClaw")
                 result = run_scienceclaw(task=redesign["prompt"])
