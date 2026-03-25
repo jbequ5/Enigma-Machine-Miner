@@ -57,10 +57,10 @@ class ArbosManager:
 
     def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
         """
-        FINAL CLEAN INTELLIGENT _smart_route
-        - Arbos decides which tools to use dynamically
-        - Uses Tool Study profiles for high-fidelity mimicking
-        - All execution routed through ComputeRouter (with dynamic override)
+        FINAL UPGRADED _smart_route
+        - Uses vector retrieval from studied tool profiles
+        - Self-refined profiles with improvement evaluation
+        - Dynamic tool selection + dynamic compute override
         - REAL ScienceClaw at the end of every loop
         """
         from agents.tool_study import tool_study
@@ -70,7 +70,7 @@ class ArbosManager:
         used_tools = []
         cumulative_context = approved_plan[:1500] if approved_plan else ""
 
-        # Long-term memory
+        # Long-term memory retrieval
         past_knowledge = memory.query(challenge, n_results=4)
         if past_knowledge:
             cumulative_context += "\n\nRelevant past knowledge from previous runs:\n" + "\n---\n".join(past_knowledge)
@@ -80,9 +80,11 @@ class ArbosManager:
         if not program_path.exists():
             program_path.write_text(f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{approved_plan}\n\n")
 
-        # Reflection helper using tool profiles
+        # Reflection helper using vector retrieval
         def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
-            tool_profile = tool_study.load_profile(next_tool)
+            # Get most relevant chunks from the tool profile
+            relevant_profile = tool_study.load_relevant_profile(next_tool, query=cumulative_context + " " + last_output)
+
             try:
                 task = f"""You are Arbos, a highly intelligent conductor.
 
@@ -90,8 +92,8 @@ Previous tool output: {last_output}
 Overall goal: {challenge}
 Next tool: {next_tool}
 
-Tool Profile:
-{tool_profile}
+Relevant Tool Profile (most relevant parts):
+{relevant_profile}
 
 Using this profile, mimic the real {next_tool} tool as closely and intelligently as possible.
 Create a high-quality prompt that behaves like the real tool would.
@@ -114,10 +116,10 @@ Recommended Compute: [chutes/targon/celium/local]"""
 
         last_output = ""
 
-        # === Mimic the first three tools ===
-        mimic_tools = ["AI-Researcher", "AutoResearch", "GPD"]
+        # Tool sequence - Arbos decides dynamically
+        tool_sequence = ["AI-Researcher", "AutoResearch", "GPD", "ScienceClaw"]
 
-        for tool_name in mimic_tools:
+        for tool_name in tool_sequence:
             decide_task = f"""Challenge: {challenge}
 Cumulative context so far: {cumulative_context[:800]}
 
@@ -131,6 +133,7 @@ Reply with only YES or NO, followed by a very short reason."""
                 task = redesign["prompt"]
                 compute_override = redesign.get("compute_override")
 
+                # Execute via ComputeRouter
                 result = self.compute.run_on_compute(task, override_compute=compute_override)
                 output = result
 
