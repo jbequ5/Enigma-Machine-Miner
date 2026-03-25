@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# FINAL OPERATIONAL VERSION - Reflection after every tool + Long-term memory + program.md
+# FINAL CLEAN OPERATIONAL VERSION - Reflection after every tool + Long-term memory + program.md
 
 import os
 import subprocess
@@ -9,14 +9,7 @@ from typing import Tuple, List
 # Core imports
 from agents.memory import memory
 
-# Tool imports (subfolder structure)
-from agents.tools.hyperagent import run_hyperagent
-from agents.tools.ai_researcher import run_ai_researcher
-from agents.tools.autoresearch import run_autoresearch
-from agents.tools.get_physics_done import run_gpd
-from agents.tools.scienceclaw import run_scienceclaw
-
-# Supporting tools
+# Supporting tools only (no old run_xxx wrappers)
 from agents.tools.compute import ComputeRouter
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
@@ -62,12 +55,13 @@ class ArbosManager:
             pass
         return config
 
-        def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
+    def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
         """
         FINAL CLEAN INTELLIGENT _smart_route
-        - Arbos uses studied tool profiles to mimic each tool accurately
-        - Execution routed through ComputeRouter (respects dynamic override)
-        - Tight reflection loop with long-term memory
+        - Arbos decides which tools to use dynamically
+        - Uses Tool Study profiles for high-fidelity mimicking
+        - All execution routed through ComputeRouter (with dynamic override)
+        - No old tool wrappers
         """
         from agents.tool_study import tool_study
 
@@ -106,35 +100,34 @@ Reply in this exact format:
 Prompt: [the full prompt to send]
 Recommended Compute: [chutes/targon/celium/local]"""
 
-                result = run_hyperagent(task=task, parallel_tasks=3)
-                response = result.get("output", "")
+                result = self.compute.run_on_compute(task)
+                response = result
 
-                prompt_part = response.split("Prompt:")[-1]
-                if "Recommended Compute:" in prompt_part:
-                    prompt = prompt_part.split("Recommended Compute:")[0].strip()
-                    compute_override = prompt_part.split("Recommended Compute:")[-1].strip().lower()
-                else:
-                    prompt = prompt_part.strip()
-                    compute_override = None
+                prompt_part = response.split("Prompt:")[-1] if "Prompt:" in response else response
+                compute_override = None
+                if "Recommended Compute:" in response:
+                    compute_override = response.split("Recommended Compute:")[-1].strip().lower()
 
-                return {"prompt": prompt, "compute_override": compute_override}
+                return {"prompt": prompt_part.strip(), "compute_override": compute_override}
             except Exception:
                 return {"prompt": f"Continue with previous findings using {next_tool} style.", "compute_override": None}
 
         last_output = ""
 
-        # Tool sequence
+        # Tool sequence - Arbos decides dynamically which tools to use
         tool_sequence = ["AI-Researcher", "AutoResearch", "GPD", "ScienceClaw"]
 
         for tool_name in tool_sequence:
-            trigger_keywords = {
-                "AI-Researcher": ["research", "literature", "paper", "review", "survey"],
-                "AutoResearch": ["research", "literature", "paper", "review", "explore", "synthesize"],
-                "GPD": ["quantum", "physics", "circuit", "theory", "particle", "gravity", "field"],
-                "ScienceClaw": ["analyze", "experiment", "data", "science", "conclude"]
-            }
+            # Arbos decides if this tool is relevant
+            decide_task = f"""Challenge: {challenge}
+Cumulative context so far: {cumulative_context[:800]}
 
-            if any(k in lower for k in trigger_keywords.get(tool_name, [])):
+Should we use the {tool_name} tool at this stage?
+Reply with only YES or NO, followed by a very short reason."""
+
+            decision = self.compute.run_on_compute(decide_task)
+
+            if "YES" in decision.upper():
                 redesign = reflect_and_redesign(last_output, tool_name)
                 task = redesign["prompt"]
                 compute_override = redesign.get("compute_override")
@@ -161,7 +154,7 @@ Recommended Compute: [chutes/targon/celium/local]"""
             used_tools.append("Arbos Core")
 
         return "\n\n".join(results), used_tools
-        
+
     def run(self, challenge: str):
         """Main entry point"""
         print(f"🚀 Starting Arbos for challenge: {challenge[:80]}...")
