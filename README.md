@@ -14,12 +14,16 @@ The miner uses **Arbos** as the intelligent conductor, dynamically decides which
 
 ### How the Ralph Loop Works
 
-1. Arbos decides which tools to run
-2. Arbos decides which compute option to use for execution
-3. **Reflects and Redesigns** the prompt for the next tool
-4. **ScienceClaw** agent swarm runs at the end of the chain with cumulative context
-5. **Final Arbos Critique** — if the solution needs improvement, loop back to replanning
-6. Results saved to long-term memory for future challenges.
+1. Miner Customizes GOAL.md File with Challenge + Strategy
+2. File goes to HyperAgent for Planning - Must be Approved by Miner
+3. Arbos decides which tools to run
+4. Arbos decides which compute option to use for execution
+5. **Reflects and Redesigns** the prompt for the next tool
+6. **ScienceClaw** agent swarm runs at the end of the chain with cumulative context
+7. **Optional** Miner Review before Looping again
+8. **Final Arbos Critique** — if the solution needs improvement, loop back to replanning
+9. Final Miner Review before Submission
+10. Results saved to long-term memory for future challenges.
 
 This tight loop makes the miner highly adaptive and capable of continuous self-improvement.
 
