@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# STRONGER VERSION - Full GOAL.md context + Adaptive Re-loop + Strong Critique
+# FINAL STRENGTHENED VERSION - Strong Critique + Clean Toggles + Better Memory
 
 import os
 import subprocess
@@ -21,7 +21,7 @@ class ArbosManager:
         self.config = self._load_config()
         self.extra_context = self._load_extra_context()
         self._setup_real_arbos()
-        print("✅ REAL Arbos + Strong GOAL.md Context + Adaptive Re-Loop loaded")
+        print("✅ FINAL Arbos: Strong Critique + Full Context + Adaptive Re-Loop loaded")
 
     def _setup_real_arbos(self):
         if not os.path.exists(self.arbos_path):
@@ -73,15 +73,12 @@ class ArbosManager:
         return config
 
     def _load_extra_context(self) -> str:
-        """Load all strategic text from GOAL.md after toggles"""
         try:
             with open(self.goal_file, "r") as f:
                 content = f.read()
-
-            # Take everything after the last known toggle section
+            # Take everything after the last toggle section
             if "# Miner Control" in content or "# Compute" in content:
-                parts = content.split("# Compute", 1)
-                return parts[1].strip() if len(parts) > 1 else content
+                return content.split("# Compute", 1)[-1].strip()
             return content
         except Exception:
             return ""
@@ -90,10 +87,9 @@ class ArbosManager:
         from agents.tool_study import tool_study
         import streamlit as st
 
-        # Strong context injection - miner strategy is now prominent
         full_context = f"""GOAL: {challenge}
 
-MINER STRATEGY / CONTEXT FROM GOAL.md:
+MINER STRATEGY (HIGH PRIORITY):
 {self.extra_context}
 
 APPROVED PLAN:
@@ -104,15 +100,15 @@ APPROVED PLAN:
         cumulative_context = full_context
         trace_log = []
 
-        past = memory.query(challenge, n_results=4)
+        past = memory.query(challenge, n_results=6)
         if past:
-            cumulative_context += "\n\nPast knowledge:\n" + "\n---\n".join(past)
+            cumulative_context += "\n\nPrevious loop knowledge:\n" + "\n---\n".join(past)
 
         monitor = ResourceMonitor(max_hours=3.8)
         remaining_hours = 3.8 - monitor.elapsed_hours()
         reflection_depth = 3 if remaining_hours > 2.0 else 2 if remaining_hours > 1.0 else 1
 
-        trace_log.append(f"Time left: {remaining_hours:.2f}h | Depth: {reflection_depth} | Strategy context: {len(self.extra_context)} chars")
+        trace_log.append(f"Time left: {remaining_hours:.2f}h | Depth: {reflection_depth}")
 
         def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
             tool_profile = tool_study.load_relevant_profile(next_tool, query=cumulative_context)
@@ -120,8 +116,7 @@ APPROVED PLAN:
                 task = f"""You are Arbos.
 
 GOAL: {challenge}
-
-MINER STRATEGY (HIGH PRIORITY):
+MINER STRATEGY (FOLLOW CLOSELY):
 {self.extra_context}
 
 Previous output: {last_output}
@@ -130,7 +125,7 @@ Time left: {remaining_hours:.2f}h
 
 Tool Profile: {tool_profile}
 
-Mimic the tool intelligently. Stay aligned with the miner's strategy above. Prioritize novelty and verifier score.
+Mimic the tool. Stay aligned with miner strategy. Prioritize novelty + verifier score.
 
 Reply exactly:
 Prompt: [full prompt]
@@ -140,11 +135,11 @@ Recommended Compute: [chutes/targon/celium/local]"""
                 prompt_part = response.split("Prompt:")[-1] if "Prompt:" in response else response
                 compute_override = response.split("Recommended Compute:")[-1].strip().lower() if "Recommended Compute:" in response else None
 
-                trace_log.append(f"[{next_tool}] Strong context used | Compute: {compute_override or 'default'}")
+                trace_log.append(f"[{next_tool}] Strong context injected | Compute: {compute_override or 'default'}")
                 return {"prompt": prompt_part.strip(), "compute_override": compute_override}
             except Exception:
                 trace_log.append(f"[{next_tool}] Fallback")
-                return {"prompt": f"Continue with previous findings using {next_tool}.", "compute_override": None}
+                return {"prompt": f"Continue using {next_tool}.", "compute_override": None}
 
         last_output = ""
         max_loops = self.config.get("max_loops", 4)
@@ -153,7 +148,7 @@ Recommended Compute: [chutes/targon/celium/local]"""
             trace_log.append(f"--- Loop {loop+1}/{max_loops} ---")
 
             for tool_name in ["AI-Researcher", "AutoResearch", "GPD", "ScienceClaw"]:
-                decide = self.compute.run_on_compute(f"Given the miner strategy above, should we use {tool_name} now?")
+                decide = self.compute.run_on_compute(f"Given miner strategy, should we use {tool_name}?")
                 if "YES" in decide.upper():
                     redesign = reflect_and_redesign(last_output, tool_name)
                     result = self.compute.run_on_compute(redesign["prompt"], override_compute=redesign.get("compute_override"))
@@ -161,7 +156,7 @@ Recommended Compute: [chutes/targon/celium/local]"""
 
                     results.append(f"[{tool_name}]\n{output}")
                     used_tools.append(tool_name)
-                    cumulative_context += f"\n\n[{tool_name} Output]\n{output}"
+                    cumulative_context += f"\n\n[{tool_name}]\n{output}"
                     last_output = output
 
             # Real ScienceClaw
