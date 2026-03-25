@@ -25,10 +25,10 @@ The miner uses a **cumulative, reflective** workflow where each tool builds dire
 
 ### Tool Chain (Sequential & Cumulative)
 
-1. **AI-Researcher** — Broad search and discovery  
-2. **AutoResearch** (karpathy) — Deep iterative literature synthesis 
+1. **AI-Researcher** (facebookresearch)— Broad search and discovery  
+2. **AutoResearch** (Karpathy) — Deep iterative literature synthesis 
 3. **GPD** (Get Physics Done) — Rigorous physics and theoretical modeling  
-4. **ScienceClaw** — Final deep analysis and synthesis  
+4. **ScienceClaw** (MIT) — Final deep analysis and synthesis  
 
 **After each tool**, Arbos performs reflection, redesigns the prompt, and can recommend optimal compute.
 
