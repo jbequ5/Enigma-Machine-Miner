@@ -55,13 +55,13 @@ class ArbosManager:
             pass
         return config
 
-    def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
+def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
         """
-        FINAL UPGRADED _smart_route
-        - Dynamic Reflection Depth based on time left and quality
-        - Cost / Token Awareness in reflection and compute decisions
+        FINAL UPGRADED _smart_route with Debug/Trace Logging
+        - Dynamic Reflection Depth
+        - Cost / Token Awareness
         - Vector retrieval from studied tool profiles
-        - REAL ScienceClaw at the end of every loop
+        - REAL ScienceClaw at the end
         """
         from agents.tool_study import tool_study
 
@@ -69,6 +69,7 @@ class ArbosManager:
         results = []
         used_tools = []
         cumulative_context = approved_plan[:1500] if approved_plan else ""
+        trace_log = []  # For debug mode in Streamlit
 
         # Long-term memory
         past_knowledge = memory.query(challenge, n_results=4)
@@ -85,7 +86,9 @@ class ArbosManager:
         remaining_hours = 3.8 - elapsed
         reflection_depth = 3 if remaining_hours > 2.0 else 2 if remaining_hours > 1.0 else 1
 
-        # Reflection helper using vector retrieval + cost awareness
+        trace_log.append(f"Time remaining: {remaining_hours:.2f}h | Reflection depth: {reflection_depth}")
+
+        # Reflection helper using vector retrieval
         def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
             tool_profile = tool_study.load_relevant_profile(next_tool, query=cumulative_context + " " + last_output)
 
@@ -116,8 +119,11 @@ Recommended Compute: [chutes/targon/celium/local]"""
                 if "Recommended Compute:" in response:
                     compute_override = response.split("Recommended Compute:")[-1].strip().lower()
 
+                trace_log.append(f"[{next_tool}] Profile used | Compute recommended: {compute_override or 'default'}")
+
                 return {"prompt": prompt_part.strip(), "compute_override": compute_override}
             except Exception:
+                trace_log.append(f"[{next_tool}] Reflection failed - using fallback")
                 return {"prompt": f"Continue with previous findings using {next_tool} style.", "compute_override": None}
 
         last_output = ""
@@ -134,6 +140,7 @@ Should we use the {tool_name} tool at this stage?
 Reply with only YES or NO, followed by a very short reason."""
 
             decision = self.compute.run_on_compute(decide_task)
+            trace_log.append(f"Decision for {tool_name}: {decision[:100]}...")
 
             if "YES" in decision.upper():
                 redesign = reflect_and_redesign(last_output, tool_name)
@@ -160,8 +167,10 @@ Reply with only YES or NO, followed by a very short reason."""
                 results.append(f"[ScienceClaw - REAL]\n{output}")
                 used_tools.append("ScienceClaw")
                 cumulative_context += f"\n\n[ScienceClaw REAL Output]\n{output}"
+                trace_log.append("Real ScienceClaw executed at end of loop")
             except Exception as e:
                 results.append(f"[ScienceClaw Error] {str(e)}")
+                trace_log.append(f"ScienceClaw Error: {str(e)}")
 
         # Save to long-term memory
         if results:
@@ -174,8 +183,11 @@ Reply with only YES or NO, followed by a very short reason."""
             results.append("No specialized tool triggered. Using default Arbos reasoning.")
             used_tools.append("Arbos Core")
 
-        return "\n\n".join(results), used_tools
+        # Store trace for Streamlit debug mode
+        st.session_state.trace_log = trace_log
 
+        return "\n\n".join(results), used_tools
+    
     def run(self, challenge: str):
         """Main entry point"""
         print(f"🚀 Starting Arbos for challenge: {challenge[:80]}...")
