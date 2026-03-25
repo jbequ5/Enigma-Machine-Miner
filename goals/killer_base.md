@@ -19,7 +19,11 @@ resource_aware: true
 
 guardrails: true
 
-miner_review_after_loop: false     # Change to true if you want review after EVERY loop
+# Miner Control
+
+miner_review_after_loop: false          #True if you want to review after every loop
+max_loops: 4                    # Maximum number of loops Arbos can run automatically
+miner_review_final: true
 
 # Compute subnets
 
@@ -27,7 +31,7 @@ chutes: true
 
 targon: false
 
-celium: true
+celium: false
 
 # LLM Model Picker for Chutes (new)
 
