@@ -62,107 +62,92 @@ class ArbosManager:
             pass
         return config
 
-    def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
+        def _smart_route(self, challenge: str, approved_plan: str = "") -> Tuple[str, List[str]]:
         """
-        FINAL REALISTIC _smart_route
-        - Reflection + prompt redesign after every tool
-        - Long-term memory + program.md
+        FINAL CLEAN INTELLIGENT _smart_route
+        - Arbos uses studied tool profiles to mimic each tool accurately
+        - Execution routed through ComputeRouter (respects dynamic override)
+        - Tight reflection loop with long-term memory
         """
+        from agents.tool_study import tool_study
+
         lower = challenge.lower()
         results = []
         used_tools = []
         cumulative_context = approved_plan[:1500] if approved_plan else ""
 
-        # Long-term memory
+        # Long-term memory retrieval
         past_knowledge = memory.query(challenge, n_results=4)
         if past_knowledge:
-            cumulative_context += "\n\nRelevant past knowledge:\n" + "\n---\n".join(past_knowledge)
+            cumulative_context += "\n\nRelevant past knowledge from previous runs:\n" + "\n---\n".join(past_knowledge)
 
+        # Initialize program.md
         program_path = Path("program.md")
         if not program_path.exists():
             program_path.write_text(f"# Execution Program\n\n## Challenge\n{challenge}\n\n## Approved Plan\n{approved_plan}\n\n")
 
-        # Reflection helper
+        # Reflection helper using tool profiles
         def reflect_and_redesign(last_output: str, next_tool: str) -> dict:
+            tool_profile = tool_study.load_profile(next_tool)
             try:
-                task = f"""Previous tool output: {last_output}
+                task = f"""You are Arbos, a highly intelligent conductor.
+
+Previous tool output: {last_output}
 Overall goal: {challenge}
 Next tool: {next_tool}
 
-Reconstruct into a specific prompt for the next tool.
-Reply in this format:
-Prompt: [full prompt]
+Tool Profile:
+{tool_profile}
+
+Using this profile, mimic the real {next_tool} tool as closely and intelligently as possible.
+Create a high-quality prompt that behaves like the real tool would.
+
+Reply in this exact format:
+Prompt: [the full prompt to send]
 Recommended Compute: [chutes/targon/celium/local]"""
+
                 result = run_hyperagent(task=task, parallel_tasks=3)
                 response = result.get("output", "")
 
                 prompt_part = response.split("Prompt:")[-1]
-                compute_override = None
                 if "Recommended Compute:" in prompt_part:
                     prompt = prompt_part.split("Recommended Compute:")[0].strip()
                     compute_override = prompt_part.split("Recommended Compute:")[-1].strip().lower()
                 else:
                     prompt = prompt_part.strip()
+                    compute_override = None
 
                 return {"prompt": prompt, "compute_override": compute_override}
             except Exception:
-                return {"prompt": f"Continue with previous findings.", "compute_override": None}
+                return {"prompt": f"Continue with previous findings using {next_tool} style.", "compute_override": None}
 
         last_output = ""
 
-        # 1. AI-Researcher
-        if any(k in lower for k in ["research", "literature", "paper", "review", "survey"]):
-            try:
-                result = run_ai_researcher(task=f"Research: {challenge}\nContext: {cumulative_context}")
-                output = result.get("output", result.get("error", "No output"))
-                results.append(f"[AI-Researcher]\n{output}")
-                used_tools.append("AI-Researcher")
-                cumulative_context += f"\n\n[AI-Researcher Output]\n{output}"
-                last_output = output
-                redesign = reflect_and_redesign(last_output, "AutoResearch")
-                cumulative_context += "\n\n[Arbos Reflection] " + redesign["prompt"]
-            except Exception as e:
-                results.append(f"[AI-Researcher Error] {str(e)}")
+        # Tool sequence
+        tool_sequence = ["AI-Researcher", "AutoResearch", "GPD", "ScienceClaw"]
 
-        # 2. AutoResearch
-        if any(k in lower for k in ["research", "literature", "paper", "review", "explore", "synthesize"]):
-            try:
-                redesign = reflect_and_redesign(last_output, "AutoResearch")
-                result = run_autoresearch(task=redesign["prompt"])
-                output = result.get("output", result.get("error", "No output"))
-                results.append(f"[AutoResearch]\n{output}")
-                used_tools.append("AutoResearch")
-                cumulative_context += f"\n\n[AutoResearch Output]\n{output}"
-                cumulative_context += "\n\n[Arbos Reflection] " + redesign["prompt"]
-                last_output = output
-            except Exception as e:
-                results.append(f"[AutoResearch Error] {str(e)}")
+        for tool_name in tool_sequence:
+            trigger_keywords = {
+                "AI-Researcher": ["research", "literature", "paper", "review", "survey"],
+                "AutoResearch": ["research", "literature", "paper", "review", "explore", "synthesize"],
+                "GPD": ["quantum", "physics", "circuit", "theory", "particle", "gravity", "field"],
+                "ScienceClaw": ["analyze", "experiment", "data", "science", "conclude"]
+            }
 
-        # 3. GPD
-        if any(k in lower for k in ["quantum", "physics", "circuit", "theory", "particle", "gravity", "field"]):
-            try:
-                redesign = reflect_and_redesign(last_output, "GPD")
-                result = run_gpd(task=redesign["prompt"], profile="deep-theory")
-                output = result.get("output", result.get("error", "No output"))
-                results.append(f"[GPD]\n{output}")
-                used_tools.append("GPD")
-                cumulative_context += f"\n\n[GPD Output]\n{output}"
+            if any(k in lower for k in trigger_keywords.get(tool_name, [])):
+                redesign = reflect_and_redesign(last_output, tool_name)
+                task = redesign["prompt"]
+                compute_override = redesign.get("compute_override")
+
+                # Execute via ComputeRouter (respects Arbos dynamic override)
+                result = self.compute.run_on_compute(task, override_compute=compute_override)
+                output = result
+
+                results.append(f"[{tool_name}]\n{output}")
+                used_tools.append(tool_name)
+                cumulative_context += f"\n\n[{tool_name} Output]\n{output}"
                 cumulative_context += "\n\n[Arbos Reflection] " + redesign["prompt"]
                 last_output = output
-            except Exception as e:
-                results.append(f"[GPD Error] {str(e)}")
-
-        # 4. ScienceClaw
-        if any(k in lower for k in ["analyze", "experiment", "data", "science", "conclude"]):
-            try:
-                redesign = reflect_and_redesign(last_output, "ScienceClaw")
-                result = run_scienceclaw(task=redesign["prompt"])
-                output = result.get("output", result.get("error", "No output"))
-                results.append(f"[ScienceClaw]\n{output}")
-                used_tools.append("ScienceClaw")
-                last_output = output
-            except Exception as e:
-                results.append(f"[ScienceClaw Error] {str(e)}")
 
         # Save to long-term memory
         if results:
@@ -172,11 +157,11 @@ Recommended Compute: [chutes/targon/celium/local]"""
             )
 
         if not results:
-            results.append("No specialized tool matched. Using default Arbos reasoning.")
+            results.append("No specialized tool triggered. Using default Arbos reasoning.")
             used_tools.append("Arbos Core")
 
         return "\n\n".join(results), used_tools
-
+        
     def run(self, challenge: str):
         """Main entry point"""
         print(f"🚀 Starting Arbos for challenge: {challenge[:80]}...")
