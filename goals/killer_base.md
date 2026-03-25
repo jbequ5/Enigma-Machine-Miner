@@ -19,6 +19,8 @@ resource_aware: true
 
 guardrails: true
 
+miner_review_after_loop: false     # Change to true if you want review after EVERY loop
+
 # Compute subnets
 
 chutes: true
