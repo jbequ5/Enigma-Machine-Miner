@@ -18,7 +18,7 @@ flowchart TD
     C -->|"🔄 Tweak"| B
     C -->|"❌ Reject"| A
 
-    D --> E["🚀 Dynamic Subprocess Agent Swarm<br/>Parallel Sub-Arbos Instances<br/>(3–6 agents with vLLM + real-time VRAM monitoring)"]
+    D -->|"✅ Approve"| E["🚀 Dynamic Subprocess Agent Swarm<br/>Parallel Sub-Arbos Instances<br/>(3–6 agents with vLLM + real-time VRAM monitoring)"]
 
     E --> F1["Sub-Arbos 1<br/>Subtask + Hypothesis<br/>→ Symbolic Module + ToolHunter if needed"]
     E --> F2["Sub-Arbos 2<br/>Subtask + Hypothesis<br/>→ Symbolic Module + ToolHunter if needed"]
@@ -31,7 +31,7 @@ flowchart TD
     H -->|"✅ Pass"| I["Final Miner Review<br/>+ One-click SN63 Packaging"]
     H -->|"❌ Fail"| J["Arbos Improvement Loop<br/>Re-reflect → Re-refine → Re-swarm"]
 
-    J --> G
+    J --> E
 
     I --> K["Submit to SN63<br/>submission_package.zip"]
 ```
@@ -50,7 +50,7 @@ flowchart TD
 
 ### How Deterministic Tooling Works
 
-1. Planning Arbos analyzes the challenge and shows clear deterministic recommendations.
+1. Planning Arbos analyzes the challenge and shows clear deterministic tool recommendations.
 2. Miner reviews them and can immediately add/edit "Deterministic Tooling Requirements" (e.g., "Use stim for stabilizer checks. Prefer symbolic fallbacks. Run fidelity simulation with quantum_rings.").
 3. Miner has time to install any recommended tools.
 4. When approved, Arbos automatically uses the symbolic module **and** respects the miner-specified preferences in the parallel swarm.
