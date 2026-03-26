@@ -10,7 +10,7 @@ from agents.arbos_manager import ArbosManager
 
 st.set_page_config(page_title="Enigma Machine Miner - SN63", layout="wide")
 st.title("🧠 Enigma Machine Miner (Bittensor SN63)")
-st.caption("Arbos Planning + vLLM Swarm + ToolHunter + Executable Verification")
+st.caption("Arbos Planning + vLLM Swarm + ToolHunter + Executable Verification + Deterministic Tooling")
 
 if "arbos_manager" not in st.session_state:
     st.session_state.arbos_manager = ArbosManager()
@@ -61,10 +61,18 @@ if st.session_state.get("stage") == "planning_approval":
         for t in plan.get("rough_decomposition", []):
             st.write(f"• {t}")
         
-        # NEW: Show Arbos's deterministic/symbolic recommendations prominently
         st.markdown("### 🔧 Arbos Deterministic Recommendations")
         recommendations = plan.get("deterministic_recommendations", "No specific recommendations yet.")
         st.info(recommendations)
+
+        st.markdown("### 🚀 Miner Enhancement Prompt (Make this a 10/10 run)")
+        st.caption("Add any final instructions to push this challenge to maximum quality.")
+        enhancement_prompt = st.text_area(
+            "Your custom 10/10 instructions",
+            height=160,
+            placeholder="Examples:\n• Prioritize Stim for all stabilizer subtasks\n• Use Quantum Rings with 8192 shots and require fidelity > 0.95\n• Focus swarm on novelty and IP potential\n• In synthesis emphasize licensability and verifier strength\n• Avoid any tool that requires manual install"
+        )
+        st.session_state.enhancement_prompt = enhancement_prompt
         
     with col2:
         st.metric("Suggested Swarm Size", plan.get("suggested_swarm_size", 1))
@@ -91,7 +99,12 @@ if st.session_state.get("stage") == "planning_approval":
 # ====================== 2. REFINEMENT + SWARM ======================
 if st.session_state.get("stage") == "refinement":
     with st.spinner("Orchestrator refining plan + launching swarm..."):
-        blueprint = manager._refine_plan(st.session_state.approved_plan, st.session_state.challenge)
+        blueprint = manager._refine_plan(
+            st.session_state.approved_plan, 
+            st.session_state.challenge,
+            st.session_state.get("deterministic_tooling", ""),
+            st.session_state.get("enhancement_prompt", "")
+        )
         st.session_state.blueprint = blueprint
         final_solution, _, _ = manager._smart_route(st.session_state.challenge)
         st.session_state.final_solution = final_solution
@@ -106,7 +119,7 @@ if st.session_state.get("stage") == "final_review":
 
     st.subheader("🔍 Final Miner Review")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Solution", "ToolHunter", "Memory History", "Verification"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Solution", "ToolHunter", "Memory History", "Verification & Deterministic Tooling"])
 
     with tab1:
         st.text_area("Final Solution", solution, height=400)
@@ -134,18 +147,34 @@ if st.session_state.get("stage") == "final_review":
             st.info("No previous attempts in memory.")
 
     with tab4:
-        st.markdown("### 🔬 Custom Verification (Text or Executable Code)")
-        verification = st.text_area(
-            "Verification Instructions / Code",
-            height=200,
-            value=st.session_state.get("verification_instructions", ""),
-            placeholder="Example: Simulate on Quantum Rings with 5000 shots. Require fidelity > 0.95"
-        )
-        st.session_state.verification_instructions = verification
+        st.markdown("### 🔬 Custom Verification & Deterministic Tooling")
+        col_v, col_d = st.columns(2)
+        with col_v:
+            verification = st.text_area(
+                "Verification Instructions / Code",
+                height=180,
+                value=st.session_state.get("verification_instructions", ""),
+                placeholder="Example: Simulate on Quantum Rings with 5000 shots. Require fidelity > 0.95"
+            )
+            st.session_state.verification_instructions = verification
 
-        if st.button("🔄 Re-run with this Verification"):
-            with st.spinner("Re-running with verification..."):
-                new_solution = manager._run_swarm(st.session_state.blueprint, st.session_state.challenge, verification)
+        with col_d:
+            deterministic_tooling = st.text_area(
+                "Deterministic Tooling Requirements",
+                height=180,
+                value=st.session_state.get("deterministic_tooling", ""),
+                placeholder="Example: Use stim for stabilizer checks. Run fidelity with quantum_rings. Prefer symbolic fallbacks."
+            )
+            st.session_state.deterministic_tooling = deterministic_tooling
+
+        if st.button("🔄 Re-run with Verification & Tooling"):
+            with st.spinner("Re-running..."):
+                new_solution = manager._run_swarm(
+                    st.session_state.blueprint, 
+                    st.session_state.challenge, 
+                    verification, 
+                    deterministic_tooling
+                )
                 st.session_state.final_solution = new_solution
                 st.rerun()
 
@@ -153,6 +182,7 @@ if st.session_state.get("stage") == "final_review":
         if "quality_critique" not in st.session_state:
             with st.spinner("Running quality gate..."):
                 task = f"""You are Arbos. Evaluate with this verification: {verification or 'General SN63 standards'}
+Deterministic tooling: {deterministic_tooling or 'None'}
 Solution: {solution[:2000]}
 Output JSON with novelty, verifier_potential, overall_score, recommendation, verification_assessment."""
                 raw = manager.compute.run_on_compute(task)
@@ -181,11 +211,11 @@ Output JSON with novelty, verifier_potential, overall_score, recommendation, ver
     miner_notes = st.text_area("Your Final Notes (optional)")
 
     if st.button("📦 Package for SN63 Submission", type="primary"):
-        _package_submission(solution, blueprint, trace, miner_notes, st.session_state.challenge, verification)
+        _package_submission(solution, blueprint, trace, miner_notes, st.session_state.challenge, verification, deterministic_tooling)
         st.success("✅ Submission package created!")
         st.balloons()
 
-def _package_submission(solution: str, blueprint: dict, trace: list, notes: str, challenge: str, verification: str):
+def _package_submission(solution: str, blueprint: dict, trace: list, notes: str, challenge: str, verification: str, deterministic_tooling: str):
     ts = datetime.now().strftime("%Y%m%d_%H%M")
     sub_dir = Path("submissions") / f"sn63_{ts}"
     sub_dir.mkdir(parents=True, exist_ok=True)
@@ -196,6 +226,7 @@ def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
     (sub_dir / "miner_notes.txt").write_text(notes)
     (sub_dir / "challenge.txt").write_text(challenge)
     (sub_dir / "verification.txt").write_text(verification)
+    (sub_dir / "deterministic_tooling.txt").write_text(deterministic_tooling)
 
     past = memory.query(challenge, n_results=8)
     (sub_dir / "memory_history.txt").write_text("\n\n".join(past))
