@@ -10,7 +10,7 @@ from agents.arbos_manager import ArbosManager
 
 st.set_page_config(page_title="Enigma Machine Miner - SN63", layout="wide")
 st.title("🧠 Enigma Machine Miner (Bittensor SN63)")
-st.caption("Arbos Planning + vLLM Swarm + ToolHunter + Executable Verification + Deterministic Tooling")
+st.caption("Two-stage review • Parallel Swarm • Deterministic Tooling • Executable Verification")
 
 if "arbos_manager" not in st.session_state:
     st.session_state.arbos_manager = ArbosManager()
@@ -20,7 +20,6 @@ manager = st.session_state.arbos_manager
 max_hours = manager.config.get("max_compute_hours", 3.8)
 st.sidebar.metric("Max Compute Limit", f"{max_hours} hours")
 st.sidebar.metric("Resource Aware", "ON" if manager.config.get("resource_aware") else "OFF")
-st.sidebar.metric("Guardrails", "ON" if manager.config.get("guardrails") else "OFF")
 st.sidebar.metric("Review After Loops", "ON" if manager.config.get("miner_review_after_loop") else "OFF")
 
 try:
@@ -29,8 +28,6 @@ try:
         free_vram_gb = free_vram / (1024 ** 3)
         total_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
         st.sidebar.metric("VRAM Free / Total", f"{free_vram_gb:.1f} / {total_vram_gb:.1f} GB")
-    else:
-        st.sidebar.metric("VRAM", "No GPU detected")
 except:
     st.sidebar.metric("VRAM", "Monitoring unavailable")
 
@@ -47,7 +44,7 @@ if st.button("🚀 Start Solving", type="primary") and challenge.strip():
         st.session_state.stage = "planning_approval"
         st.rerun()
 
-# ====================== 1. HIGH-LEVEL PLANNING APPROVAL ======================
+# ====================== STAGE 1: HIGH-LEVEL PLANNING APPROVAL ======================
 if st.session_state.get("stage") == "planning_approval":
     plan = st.session_state.high_level_plan
     st.subheader("📋 Stage 1: High-Level Plan – Strategic Review")
@@ -70,7 +67,7 @@ if st.session_state.get("stage") == "planning_approval":
         enhancement_prompt = st.text_area(
             "Your strategic instructions",
             height=140,
-            placeholder="Examples:\n• Focus heavily on novelty and IP potential\n• Prioritize verifier score above all\n• Use symbolic tools wherever possible"
+            placeholder="Examples:\n• Focus heavily on novelty and IP potential\n• Prioritize verifier score above all\n• Use symbolic tools wherever possible\n• Emphasize licensability in final synthesis"
         )
         st.session_state.enhancement_prompt = enhancement_prompt
 
@@ -80,7 +77,7 @@ if st.session_state.get("stage") == "planning_approval":
     feedback = st.text_area("Feedback / Tweak (optional)")
     col_a, col_b, col_c = st.columns(3)
     with col_a:
-        if st.button("✅ Approve High-Level Plan", type="primary"):
+        if st.button("✅ Approve High-Level Plan & Continue", type="primary"):
             st.session_state.approved_plan = plan
             st.session_state.stage = "orchestrator_review"
             st.rerun()
@@ -96,7 +93,7 @@ if st.session_state.get("stage") == "planning_approval":
             st.session_state.clear()
             st.rerun()
 
-# ====================== 2. ORCHESTRATOR BLUEPRINT REVIEW (Light Tactical Review) ======================
+# ====================== STAGE 2: ORCHESTRATOR BLUEPRINT REVIEW ======================
 if st.session_state.get("stage") == "orchestrator_review":
     with st.spinner("Orchestrator Arbos creating detailed blueprint..."):
         blueprint = manager._refine_plan(
@@ -154,7 +151,7 @@ if st.session_state.get("stage") == "orchestrator_review":
             st.session_state.stage = "planning_approval"
             st.rerun()
 
-# ====================== 3. FINAL REVIEW ======================
+# ====================== FINAL REVIEW ======================
 if st.session_state.get("stage") == "final_review":
     solution = st.session_state.final_solution
     blueprint = st.session_state.get("blueprint", {})
