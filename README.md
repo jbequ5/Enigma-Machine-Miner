@@ -93,6 +93,7 @@ max_loops: 5                       # Maximum automatic loops when review is off
 miner_review_final: true           # Always require final miner review before submission
 
 ### Compute & Resource Management
+compute_source: chutes             # Options: local, chutes, already_running, custom
 max_compute_hours: 3.8             # Dynamic maximum compute time for the entire challenge
 resource_aware: true               # Actively enforces time budgets, early aborts slow branches, adjusts swarm size
 
@@ -105,11 +106,12 @@ manual_tool_installs_allowed: true # Shows manual installation instructions when
 
 ### Routing & LLM
 chutes: true
-chutes_llm: Claude
+chutes_llm: mixtral
 
 ### Swarm Efficiency (vLLM)
 tensor_parallel_size: 1            # Set to 2 or 4 if you have multiple GPUs. Keep 1 for single H100
 vllm_model: mistralai/Mistral-7B-Instruct-v0.2   # Change this to any model you want to use with vLLM
+
 
 ```
 
