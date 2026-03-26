@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# FINAL LONG VERSION - Two-stage review + Miner Enhancement Prompt + Deterministic Tooling in both reviews
+# FINAL LONG VERSION - Two-stage review + Compute Source Handling + Miner Enhancement Prompt
 
 import os
 import subprocess
@@ -81,7 +81,21 @@ class ArbosManager:
         self.config = self._load_config()
         self.extra_context = self._load_extra_context()
         self._setup_real_arbos()
-        print("✅ Arbos Primary Solver — Final Version with Two-Stage Review")
+
+        # Compute source handling for both UI and non-UI usage
+        if hasattr(st, 'session_state') and "compute_source" in st.session_state:
+            # UI mode
+            self.compute_source = st.session_state.compute_source
+            self.custom_endpoint = st.session_state.get("custom_endpoint")
+        else:
+            # Non-UI / script mode - default to Chutes for safety
+            self.compute_source = self.config.get("compute_source", "chutes")
+            self.custom_endpoint = None
+            print(f"⚠️ Running in non-UI mode. Defaulting to compute_source = {self.compute_source}")
+
+        self.compute.set_compute_source(self.compute_source, self.custom_endpoint)
+
+        print("✅ Arbos Primary Solver — Final Long Version with Compute Setup")
 
     def _setup_real_arbos(self):
         if not os.path.exists(self.arbos_path):
@@ -90,7 +104,7 @@ class ArbosManager:
 
     def _load_config(self):
         config = {
-            "miner_review_after_loop": False,   # Controls review after loops if quality gate fails
+            "miner_review_after_loop": False,
             "max_loops": 5,
             "miner_review_final": True,
             "chutes": True,
@@ -99,7 +113,8 @@ class ArbosManager:
             "resource_aware": True,
             "guardrails": True,
             "toolhunter_escalation": True,
-            "manual_tool_installs_allowed": True
+            "manual_tool_installs_allowed": True,
+            "compute_source": "chutes"   # default for non-UI
         }
         try:
             with open(self.goal_file, "r") as f:
@@ -112,7 +127,7 @@ class ArbosManager:
                         config[key] = int(value)
                     elif key == "max_compute_hours":
                         config[key] = float(value)
-                    elif key == "chutes_llm":
+                    elif key == "chutes_llm" or key == "compute_source":
                         config[key] = value
         except Exception:
             pass
@@ -204,7 +219,6 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
             solution = f"Subtask: {subtask}\nHypothesis: {hypothesis}"
             trace = [f"Sub-Arbos {subtask_id} started"]
 
-            # Automatic symbolic/deterministic tooling
             symbolic_result = symbolic_module(subtask, hypothesis, solution)
             if symbolic_result:
                 solution += f"\n{symbolic_result}"
