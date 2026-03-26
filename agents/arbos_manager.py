@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# FINAL VERSION with Auto-use of Installed Deterministic Tools + Better Recommendations
+# FINAL COMPLETE VERSION - All previous upgrades + Miner-controlled Deterministic Tooling after Planning Phase
 
 import os
 import subprocess
@@ -44,11 +44,11 @@ def get_vllm_llm():
 
 # Deterministic tool registry - Arbos checks these first
 DETERMINISTIC_TOOLS = {
-    "stabilizer": "stim",                    # Stim library for stabilizer simulation
-    "fidelity": "qiskit",                    # Qiskit or custom Quantum Rings fidelity
-    "circuit_optimization": "pytket",        # PyTKET for circuit optimization
-    "symbolic_stabilizer": "sympy",          # SymPy for symbolic checks
-    "quantum_rings_sim": "quantum_rings"     # Your Quantum Rings SDK
+    "stabilizer": "stim",
+    "fidelity": "qiskit",
+    "circuit_optimization": "pytket",
+    "symbolic_stabilizer": "sympy",
+    "quantum_rings_sim": "quantum_rings"
 }
 
 class ArbosManager:
@@ -59,7 +59,7 @@ class ArbosManager:
         self.config = self._load_config()
         self.extra_context = self._load_extra_context()
         self._setup_real_arbos()
-        print("✅ Arbos Primary Solver loaded with Auto-use of Deterministic Tools")
+        print("✅ Arbos Primary Solver — Full Upgrade Complete")
 
     def _setup_real_arbos(self):
         if not os.path.exists(self.arbos_path):
@@ -82,10 +82,9 @@ class ArbosManager:
         try:
             with open(self.goal_file, "r") as f:
                 for line in f:
-                    stripped = line.strip().lower()
                     key = line.split(":")[0].strip().lower()
                     value = line.split(":", 1)[1].strip()
-                    if key in config and isinstance(config[key], bool):
+                    if key in ["miner_review_after_loop", "miner_review_final", "chutes", "resource_aware", "guardrails", "toolhunter_escalation", "manual_tool_installs_allowed"]:
                         config[key] = "true" in value.lower()
                     elif key in ["max_loops", "max_compute_minutes"]:
                         config[key] = int(value)
@@ -122,22 +121,24 @@ Time available: {remaining:.2f}h"""
 
         task = f"""You are Planning Arbos. {full_context}
 
-Check available deterministic tools: {list(DETERMINISTIC_TOOLS.keys())}
-Recommend which subtasks can use symbolic/deterministic tools vs LLM.
-Also choose model_class for subtasks: "small", "medium", or "large".
+Available deterministic tools: {list(DETERMINISTIC_TOOLS.keys())}
+Recommend which subtasks can use symbolic/deterministic tools.
+Also choose model_class ("small", "medium", "large") for each subtask.
 
 Output EXACT JSON with high_level_goals, risks_and_mitigations, rough_decomposition, suggested_swarm_size, high_level_tool_hints, compute_ballpark_minutes, quality_gate_targets, deterministic_recommendations."""
 
         response = self.compute.run_on_compute(task, temperature=0.0)
         return self._parse_json(response)
 
-    def _refine_plan(self, approved_plan: Dict, challenge: str) -> Dict:
+    def _refine_plan(self, approved_plan: Dict, challenge: str, deterministic_tooling: str = "") -> Dict:
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours)
         remaining = max_hours - monitor.elapsed_hours()
 
+        extra = f"\nMiner deterministic tooling preference: {deterministic_tooling}" if deterministic_tooling else ""
+
         task = f"""You are Arbos Orchestrator.
-Approved plan: {json.dumps(approved_plan)}
+Approved plan: {json.dumps(approved_plan)}{extra}
 Time left: {remaining:.2f}h
 
 Check available deterministic tools and assign them where possible.
@@ -179,37 +180,31 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, compute_projection
             solution = f"Subtask: {subtask}\nHypothesis: {hypothesis}"
             trace = [f"Sub-Arbos {subtask_id} started with model_class={model_class}"]
 
-            # Try deterministic fallback first
-            fallback = symbolic_fallback(subtask, hypothesis, solution)
-            if fallback:
-                solution += f"\n[Deterministic Fallback]\n{fallback}"
-                trace.append("Used deterministic fallback")
-            else:
-                for loop in range(3):
-                    reflect_task = f"""You are a focused sub-Arbos.
+            for loop in range(3):
+                reflect_task = f"""You are a focused sub-Arbos.
 Subtask: {subtask}
 Hypothesis: {hypothesis}
 Current: {solution[:700]}
 Decide: Improve / Call Tool / Finalize"""
-                    response = self.compute.run_on_compute(reflect_task, temperature=0.0)
-                    trace.append(f"Loop {loop+1}")
+                response = self.compute.run_on_compute(reflect_task, temperature=0.0)
+                trace.append(f"Loop {loop+1}")
 
-                    if "Finalize" in response or "final" in response.lower():
-                        break
+                if "Finalize" in response or "final" in response.lower():
+                    break
 
-                    if "ToolHunter" in str(tools) or "hunter" in response.lower():
-                        gap = f"Gap in {subtask}"
-                        hunt = self._tool_hunter(gap, subtask)
-                        solution += f"\n[ToolHunter]\n{hunt}"
-                    elif tools and tools[0] != "none":
-                        output = self.compute.run_on_compute(f"Apply {tools[0]} to: {solution[:600]}", temperature=0.0)
-                        solution += f"\n[{tools[0]}]\n{output}"
+                if "ToolHunter" in str(tools) or "hunter" in response.lower():
+                    gap = f"Gap in {subtask}"
+                    hunt = self._tool_hunter(gap, subtask)
+                    solution += f"\n[ToolHunter]\n{hunt}"
+                elif tools and tools[0] != "none":
+                    output = self.compute.run_on_compute(f"Apply {tools[0]} to: {solution[:600]}", temperature=0.0)
+                    solution += f"\n[{tools[0]}]\n{output}"
 
-                    if self.config.get("guardrails"):
-                        solution = apply_guardrails(solution, monitor)
+                if self.config.get("guardrails"):
+                    solution = apply_guardrails(solution, monitor)
 
-                    if time.time() - monitor.start_time > (max_hours * 1800 / 6):
-                        break
+                if time.time() - monitor.start_time > (max_hours * 1800 / 6):
+                    break
 
         memory.add(text=solution[:1000], metadata={"subtask": subtask, "status": "completed"})
         shared_results[subtask_id] = {"subtask": subtask, "solution": solution, "trace": trace}
@@ -218,7 +213,6 @@ Decide: Improve / Call Tool / Finalize"""
     def _run_verification(self, solution: str, verification_code: str) -> str:
         if not verification_code or not verification_code.strip():
             return "No custom verification code provided."
-
         try:
             exec_task = f"""Execute this verification code safely on the solution:
 
@@ -234,7 +228,9 @@ Return the verification result, pass/fail verdict, and any metrics."""
         except Exception as e:
             return f"Verification execution failed: {str(e)}. Falling back to LLM assessment."
 
-    def _run_swarm(self, blueprint: Dict[str, Any], challenge: str, verification_instructions: str = "") -> str:
+    def _run_swarm(self, blueprint: Dict[str, Any], challenge: str, 
+                   verification_instructions: str = "", 
+                   deterministic_tooling: str = "") -> str:
         decomposition = blueprint.get("decomposition", ["Full challenge"])
         swarm_config = blueprint.get("swarm_config", {"total_instances": 1})
         tool_map = blueprint.get("tool_map", {})
@@ -268,13 +264,14 @@ Return the verification result, pass/fail verdict, and any metrics."""
                 except Exception as e:
                     trace_log.append(f"Error: {e}")
 
-        # Synthesis
+        # Synthesis with deterministic tooling preference
         all_results = dict(manager_dict)
         failed_context = "\nPrevious failed attempts:\n" + "\n---\n".join(memory.query(challenge + " failed", n_results=5)) if memory.query(challenge + " failed", n_results=5) else ""
 
         synthesis_task = f"""You are Arbos Orchestrator.
 Challenge: {challenge}
 Verification Instructions: {verification_instructions or 'General SN63 standards'}
+Miner Deterministic Tooling Preference: {deterministic_tooling or 'None specified'}
 {failed_context}
 Swarm results: {json.dumps(all_results, indent=2)}
 Final Synthesized Solution:"""
@@ -299,17 +296,17 @@ Final Synthesized Solution:"""
 
         return final_solution
 
-    def _smart_route(self, challenge: str) -> Tuple[str, List[str], bool]:
+    def _smart_route(self, challenge: str, deterministic_tooling: str = "") -> Tuple[str, List[str], bool]:
         import streamlit as st
         high_level_plan = self.plan_challenge(challenge)
         st.session_state.high_level_plan = high_level_plan
 
         approved_plan = high_level_plan
-        blueprint = self._refine_plan(approved_plan, challenge)
+        blueprint = self._refine_plan(approved_plan, challenge, deterministic_tooling)
         st.session_state.blueprint = blueprint
 
         verification = st.session_state.get("verification_instructions", "")
-        final_solution = self._run_swarm(blueprint, challenge, verification)
+        final_solution = self._run_swarm(blueprint, challenge, verification, deterministic_tooling)
         return final_solution, ["swarm"], False
 
     def run(self, challenge: str):
