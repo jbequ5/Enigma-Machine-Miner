@@ -10,43 +10,71 @@ from agents.arbos_manager import ArbosManager
 
 st.set_page_config(page_title="Enigma Machine Miner - SN63", layout="wide")
 st.title("🧠 Enigma Machine Miner (Bittensor SN63)")
-st.caption("Two-stage review • Parallel Swarm • Deterministic Tooling • Executable Verification")
+st.caption("Compute Setup → Two-Stage Review → Parallel Swarm → Verification")
 
 if "arbos_manager" not in st.session_state:
     st.session_state.arbos_manager = ArbosManager()
 manager = st.session_state.arbos_manager
 
-# Sidebar
-max_hours = manager.config.get("max_compute_hours", 3.8)
-st.sidebar.metric("Max Compute Limit", f"{max_hours} hours")
-st.sidebar.metric("Resource Aware", "ON" if manager.config.get("resource_aware") else "OFF")
-st.sidebar.metric("Review After Loops", "ON" if manager.config.get("miner_review_after_loop") else "OFF")
+# ====================== STAGE 0: COMPUTE SETUP ======================
+if "compute_source" not in st.session_state:
+    st.subheader("🔌 Compute Setup — Where should the miner run?")
 
-try:
-    if torch.cuda.is_available():
-        free_vram = torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)
-        free_vram_gb = free_vram / (1024 ** 3)
-        total_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
-        st.sidebar.metric("VRAM Free / Total", f"{free_vram_gb:.1f} / {total_vram_gb:.1f} GB")
-except:
-    st.sidebar.metric("VRAM", "Monitoring unavailable")
+    compute_option = st.radio(
+        "Choose compute source:",
+        options=[
+            "Local GPU (if available)",
+            "Chutes (decentralized GPUs - recommended if no local GPU)",
+            "Already running (use existing endpoint)",
+            "Custom / Hosted (RunPod, Vast, AWS, etc.)"
+        ],
+        index=1  # default to Chutes
+    )
 
-tp_size = manager.config.get("tensor_parallel_size", 1)
-st.sidebar.metric("Tensor Parallel Size (vLLM)", tp_size)
+    if compute_option == "Already running (use existing endpoint)":
+        endpoint = st.text_input(
+            "Existing compute endpoint URL",
+            placeholder="https://my-hosted-miner.com/api or leave blank if pre-configured",
+            help="If you already have a running remote instance, enter its endpoint here."
+        )
+        st.session_state.custom_endpoint = endpoint if endpoint.strip() else "pre_configured"
+        st.info("✅ Using existing running compute. All tasks will be routed to this endpoint.")
 
-challenge = st.text_area("SN63 Challenge", height=140, placeholder="Describe the hard problem...")
+    elif compute_option == "Custom / Hosted (RunPod, Vast, AWS, etc.)":
+        endpoint = st.text_input("Custom compute endpoint URL", placeholder="https://...")
+        st.session_state.custom_endpoint = endpoint
 
-if st.button("🚀 Start Solving", type="primary") and challenge.strip():
-    with st.spinner("Planning Arbos running..."):
-        high_level_plan = manager.plan_challenge(challenge)
-        st.session_state.challenge = challenge
-        st.session_state.high_level_plan = high_level_plan
+    if st.button("Continue with this compute source", type="primary"):
+        if compute_option == "Local GPU (if available)":
+            st.session_state.compute_source = "local"
+            if torch.cuda.is_available():
+                st.success(f"✅ Local GPU detected: {torch.cuda.get_device_name(0)}")
+            else:
+                st.warning("No local GPU found. Consider using Chutes or Already running.")
+
+        elif compute_option == "Chutes (decentralized GPUs - recommended if no local GPU)":
+            st.session_state.compute_source = "chutes"
+            st.info("Chutes selected. Heavy tasks will be routed to decentralized GPUs.")
+
+        elif compute_option == "Already running (use existing endpoint)":
+            st.session_state.compute_source = "already_running"
+
+        else:
+            st.session_state.compute_source = "custom"
+
         st.session_state.stage = "planning_approval"
         st.rerun()
 
+    st.stop()  # Stop until compute source is chosen
+
 # ====================== STAGE 1: HIGH-LEVEL PLANNING APPROVAL ======================
 if st.session_state.get("stage") == "planning_approval":
-    plan = st.session_state.high_level_plan
+    plan = st.session_state.high_level_plan if "high_level_plan" in st.session_state else None
+    if plan is None:
+        with st.spinner("Planning Arbos running..."):
+            plan = manager.plan_challenge(st.session_state.challenge)
+            st.session_state.high_level_plan = plan
+
     st.subheader("📋 Stage 1: High-Level Plan – Strategic Review")
 
     col1, col2 = st.columns([3, 1])
@@ -67,7 +95,7 @@ if st.session_state.get("stage") == "planning_approval":
         enhancement_prompt = st.text_area(
             "Your strategic instructions",
             height=140,
-            placeholder="Examples:\n• Focus heavily on novelty and IP potential\n• Prioritize verifier score above all\n• Use symbolic tools wherever possible\n• Emphasize licensability in final synthesis"
+            placeholder="Examples:\n• Focus heavily on novelty and IP potential\n• Prioritize verifier score above all\n• Use symbolic tools wherever possible"
         )
         st.session_state.enhancement_prompt = enhancement_prompt
 
@@ -85,7 +113,7 @@ if st.session_state.get("stage") == "planning_approval":
         if st.button("🔄 Re-plan"):
             if feedback.strip():
                 with st.spinner("Re-planning..."):
-                    tweaked = manager.plan_challenge(f"{challenge}\n\nMiner feedback: {feedback}")
+                    tweaked = manager.plan_challenge(f"{st.session_state.challenge}\n\nMiner feedback: {feedback}")
                     st.session_state.high_level_plan = tweaked
                     st.rerun()
     with col_c:
