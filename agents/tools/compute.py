@@ -1,70 +1,58 @@
 # agents/tools/compute.py
-# FINAL VERSION - Fully supports dynamic compute override from Arbos
+# ComputeRouter - Smart default to Chutes when no local GPU
 
-import bittensor as bt
-import yaml
-from pathlib import Path
+import torch
+import os
+from typing import Any
 
 class ComputeRouter:
-    def __init__(self):
-        self.subtensor = bt.Subtensor(network="finney")
-        self.dendrite = bt.Dendrite()
-        self.config = self._load_config()
-        self._try_import_sdks()
-        print(f"✅ ComputeRouter initialized - Default: {self.get_compute()} | Chutes LLM: {self.config.get('chutes_llm', 'mixtral')}")
+    def __init__(self, config: dict = None):
+        self.config = config or {}
+        self.local_compute = self.config.get("local_compute", False)
+        self.chutes_enabled = self.config.get("chutes", True)
+        
+        self.use_local = self._has_local_gpu() and self.local_compute
+        
+        if self.use_local:
+            print("✅ Using LOCAL compute (vLLM)")
+        else:
+            print("🔄 No local GPU or local_compute=false → Defaulting to Chutes")
 
-    def _load_config(self):
+    def _has_local_gpu(self):
         try:
-            config_path = Path("config/compute.yaml")
-            if config_path.exists():
-                with open(config_path, "r") as f:
-                    return yaml.safe_load(f) or {}
-        except Exception:
+            if torch.cuda.is_available():
+                print(f"Local GPU detected: {torch.cuda.get_device_name(0)}")
+                return True
+        except:
             pass
-        return {
-            "chutes": True,
-            "targon": False,
-            "celium": False,
-            "chutes_llm": "mixtral"
-        }
+        return False
 
-    def _try_import_sdks(self):
-        global chutes_sdk, targon_sdk, celium_sdk
-        chutes_sdk = targon_sdk = celium_sdk = None
-        try: import chutes_sdk
-        except: pass
-        try: import targon_sdk
-        except: pass
-        try: import celium_sdk
-        except: pass
+    def run_on_compute(self, task: str, temperature: float = 0.0) -> str:
+        if self.use_local:
+            try:
+                from agents.arbos_manager import get_vllm_llm
+                llm = get_vllm_llm()
+                if llm:
+                    # Local inference (expand as needed)
+                    response = llm.generate(task, max_tokens=2048, temperature=temperature)
+                    return response[0].text if hasattr(response[0], 'text') else str(response)
+            except Exception as e:
+                print(f"Local compute failed: {e}. Falling back to Chutes.")
 
-    def get_compute(self) -> str:
-        if self.config.get("chutes"): return "chutes"
-        elif self.config.get("targon"): return "targon"
-        elif self.config.get("celium"): return "celium"
-        return "local"
+        # Default / fallback: Chutes
+        if self.chutes_enabled:
+            print(f"🔄 Routing to Chutes | Task length: {len(task)} chars")
+            return self._run_on_chutes(task, temperature)
+        else:
+            print("⚠️ Chutes disabled and no local compute. Returning placeholder.")
+            return "[NO COMPUTE AVAILABLE]"
 
-    def run_on_compute(self, task: str, override_compute: str = None) -> str:
-        """
-        Execute task with dynamic override from Arbos reflection.
-        """
-        compute = override_compute.lower() if override_compute else self.get_compute()
-        llm_model = self.config.get("chutes_llm", "mixtral")
+    def _run_on_chutes(self, task: str, temperature: float = 0.0) -> str:
+        """Placeholder for real Chutes integration."""
+        # TODO: Add real Chutes SDK call here when you have API keys / hotkey
+        # For now it returns a realistic placeholder so the flow works
+        return f"[Chutes External Compute]\nTask processed on decentralized GPU.\nTemperature: {temperature}\n(This is a placeholder until full Chutes SDK integration.)"
 
-        print(f"🔗 Routing to {compute.upper()} (override: {bool(override_compute)}) | LLM: {llm_model}")
-
-        if compute == "chutes" and chutes_sdk is not None:
-            print(f"✅ Using real Chutes SDK with model: {llm_model}")
-            return f"[Chutes SDK - {llm_model}] Processed: {task[:120]}..."
-
-        elif compute == "targon" and targon_sdk is not None:
-            print("✅ Using real Targon SDK")
-            return f"[Targon SDK] Processed: {task[:120]}..."
-
-        elif compute == "celium" and celium_sdk is not None:
-            print("✅ Using real Celium SDK")
-            return f"[Celium SDK] Processed: {task[:120]}..."
-
-        # Safe fallback
-        print(f"🔗 Falling back to Bittensor dendrite on {compute.upper()}")
-        return f"[Bittensor {compute.upper()}] Completed: {task[:120]}..."
+    # Call this later when you have Chutes credentials
+    def set_chutes_credentials(self, hotkey_path: str = None):
+        print("Chutes credentials would be set here (hotkey, subtensor, etc.)")
