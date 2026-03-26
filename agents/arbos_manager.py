@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# Final Clean Version - Arbos-centric SN63 Miner
+# FINAL CLEAN VERSION - Arbos-centric SN63 Miner
 # Intelligent Planning + Dynamic Swarm + ToolHunter with full toggle respect
 
 import os
@@ -133,7 +133,7 @@ Critique your own plan for SN63 optimality before outputting."""
         return self._parse_json(response)
 
     # ===================================================================
-    # PLAN REFINEMENT
+    # PLAN REFINEMENT (Orchestrator Arbos)
     # ===================================================================
     def _refine_plan(self, approved_plan: Dict[str, Any], challenge: str) -> Dict[str, Any]:
         max_hours = self.config.get("max_compute_hours", 3.8)
@@ -191,7 +191,7 @@ Output EXACTLY this JSON:
     # ===================================================================
     def _tool_hunter(self, gap_description: str, subtask: str) -> str:
         if not self.config.get("toolhunter_escalation", True):
-            return "[ToolHunter disabled by config]"
+            return "[ToolHunter escalation disabled by config]"
 
         result = tool_hunter.hunt_and_integrate(
             gap_description=gap_description,
@@ -215,7 +215,6 @@ Output EXACTLY this JSON:
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours / 3.0)
 
-        # Resource-aware early abort
         if self.config.get("resource_aware") and monitor.elapsed_hours() > max_hours * 0.75:
             solution = "Early abort: time budget exceeded to protect overall compute limit."
             trace = ["Resource-aware early abort triggered"]
@@ -303,7 +302,7 @@ Decide: Improve / Call Tool / Finalize"""
         failed_attempts = memory.query(challenge + " failed", n_results=5)
         failed_context = "\nPrevious failed attempts:\n" + "\n---\n".join(failed_attempts) if failed_attempts else ""
 
-        synthesis_task = f"""You are Arbos Orchestrator. Synthesize all sub-Arbos results.
+        synthesis_task = f"""You are Arbos Orchestrator. Synthesize all sub-Arbos results into one coherent, high-novelty, verifier-strong final solution.
 
 Challenge: {challenge}
 {failed_context}
