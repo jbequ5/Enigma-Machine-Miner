@@ -2,7 +2,7 @@
 
 **Arbos-centric primary solver with intelligent planning, dynamic vLLM swarm, real-time ToolHunter, and miner-insertable executable verification**
 
-The most intelligent and resource-efficient miner on Subnet 63, Enigma. Designed from first principles to solve extremely hard, well-defined computational challenges across quantum and any industry — within the strict compute limits.
+The most intelligent and resource-efficient miner on Subnet 63, Enigma. Designed from first principles to solve extremely hard, well-defined computational challenges across quantum and any industry — within strict miner selected compute limits.
 
 ### Core Architecture – The Intelligent Loop
 
@@ -35,7 +35,7 @@ flowchart TD
 ```
 
 **Key Intelligence Highlights**
-- **Intelligent Planning Arbos** creates the high-level strategy and swarm guidance.
+- **Intelligent Planning Arbos** creates the high-level strategy and swarm guidance, including dynamic model size selection ("small", "medium", "large").
 - **Orchestrator Arbos** intelligently breaks the problem into subprocesses with a precise `tool_map` per subtask.
 - **Subprocess Agent Swarm** runs true parallel exploration with **subtask-specific ToolHunter**, **vLLM shared inference**, real-time VRAM monitoring, and dynamic tensor parallelism.
 - **Main Arbos Reconvene** synthesizes results intelligently, learning from previous failed attempts via memory.
