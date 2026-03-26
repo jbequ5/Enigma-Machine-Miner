@@ -60,36 +60,39 @@ This keeps the system autonomous where possible while intelligently escalating h
 
 Your main strategy and control file is **`goals/killer_base.md`**. It is injected at every stage (Planning Arbos, Orchestrator Arbos, reflections, and quality gates).
 
-#### Main Toggles & Explanations
+```markdown
+## GOAL
+Solve the sponsor challenge with maximum novelty and verifier score while staying under *DESIRED COMPUTE LIMIT* 
 
-- **`exploration:`** (default: true)  
-  Enables the exploration module to generate novel variants after synthesis.
+## Core Strategy Example (MINER EDIT/ADD)
+Produce novel, verifier-strong, licensable solutions for extremely hard SN63 challenges (quantum circuits, stabilizer preprocessing, hybrid optimization, etc.) while staying strictly within compute limits and maximizing IP/value.
 
-- **`resource_aware:`** (default: true)  
-  Activates compute monitoring and early abort if approaching the 3.8h H100 limit.
+Always prioritize:
+- High novelty + verifier potential on Quantum Rings simulator
+- Efficient use of Compute
+- Clear, reproducible outputs
 
-- **`guardrails:`** (default: true)  
-  Applies safety checks and output sanitization.
+## Toggles & Explanations
 
-- **`miner_review_after_loop:`** (default: false)  
-  If `true`, pauses after each loop for miner review. If `false`, Arbos auto-reloops intelligently (up to `max_loops`).
+### Core Behavior
+reflection: 4                    # Number of reflection cycles per sub-Arbos or main loop
+miner_review_after_loop: false   # If true, pause after each major loop for miner input
+max_loops: 5                     # Maximum improvement loops before forcing finalization
+miner_review_final: true         # Always require final miner review before submission (recommended)
 
-- **`max_loops:`** (default: 5)  
-  Maximum number of improvement loops before forcing finalization.
+### Compute & Resource Management
+max_compute_hours: 3.8           # Dynamic maximum compute time for the entire challenge
+resource_aware: true             # ACTIVELY ENFORCED - monitors time, aborts slow branches, 
+                                 # adjusts swarm size, and feeds remaining time into prompts
 
-- **`miner_review_final:`** (default: true)  
-  Always requires a final miner review before packaging/submission (recommended for prize submissions).
+### Safety & Quality
+guardrails: true                 # Applies output cleaning, verifier hooks, and sanity checks 
+                                 # after each sub-Arbos and after final synthesis
 
-- **`chutes:`** (default: true)  
-  Enables dynamic routing to external compute (Chutes/Celium) for heavy tasks.
-
-- **`chutes_llm:`** (default: "mixtral")  
-  Which LLM to use when routing via Chutes.
-
-Additional sections you can add to `killer_base.md`:
-- `# Miner Control` — custom instructions for human oversight.
-- `# Compute` — specific resource limits or routing preferences.
-- `# Strategy` — detailed SN63 success criteria, novelty guidelines, Quantum Rings integration notes, etc.
+### Routing
+chutes: true                     # Enable dynamic routing to external compute (Chutes/Celium)
+chutes_llm: claude              # LLM used when routing heavy tasks
+```
 
 The full content of `killer_base.md` is loaded at startup and strongly injected into every Arbos decision.
 
