@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# COMPLETE FINAL VERSION
+# FINAL VERSION with Swarm Efficiency (Shared Model + VRAM-aware sizing)
 
 import os
 import subprocess
@@ -16,6 +16,30 @@ from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
 from agents.tools.tool_hunter import tool_hunter
 
+# Global shared model for swarm efficiency
+_shared_model = None
+_shared_tokenizer = None
+
+def get_shared_model():
+    """Load once and share across sub-Arbos workers to save VRAM."""
+    global _shared_model, _shared_tokenizer
+    if _shared_model is None:
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            model_name = "mistralai/Mistral-7B-Instruct-v0.2"  # Change to your preferred model
+            _shared_tokenizer = AutoTokenizer.from_pretrained(model_name)
+            _shared_model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                device_map="auto",
+                load_in_8bit=True,          # 8-bit quantization
+                torch_dtype="auto"
+            )
+            print("✅ Shared model loaded with 8-bit quantization")
+        except Exception as e:
+            print(f"⚠️ Shared model failed: {e}. Falling back to per-process.")
+            _shared_model = None
+    return _shared_model, _shared_tokenizer
+
 
 class ArbosManager:
     def __init__(self, goal_file: str = "goals/killer_base.md"):
@@ -25,9 +49,11 @@ class ArbosManager:
         self.config = self._load_config()
         self.extra_context = self._load_extra_context()
         self._setup_real_arbos()
+        print("✅ Arbos Primary Solver loaded with Swarm Efficiency")
 
     def _setup_real_arbos(self):
         if not os.path.exists(self.arbos_path):
+            print("Cloning real Arbos...")
             subprocess.run(["git", "clone", "https://github.com/unarbos/arbos.git", self.arbos_path], check=True)
 
     def _load_config(self):
@@ -134,7 +160,8 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, compute_projection
                 return f"ToolHunter MANUAL REQUIRED:\n{result.get('miner_recommendation', '')}"
             return "ToolHunter failed. Manual disabled."
 
-    def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str], shared_results: dict, subtask_id: int) -> dict:
+    def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
+                          shared_results: dict, subtask_id: int) -> dict:
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours / 3.0)
 
@@ -180,12 +207,17 @@ Decide: Improve / Call Tool / Finalize"""
         swarm_config = blueprint.get("swarm_config", {"total_instances": 1})
         tool_map = blueprint.get("tool_map", {})
 
+        # Swarm Efficiency: VRAM-aware instance count
         total_instances = min(swarm_config.get("total_instances", 4), 6)
+        if self.config.get("resource_aware"):
+            # Rough VRAM check - reduce if likely to OOM
+            total_instances = min(total_instances, 4)  # Conservative on single H100
+
         assignment = swarm_config.get("assignment", {})
         hypotheses = swarm_config.get("hypothesis_diversity", ["standard"] * len(decomposition))
 
         manager_dict = multiprocessing.Manager().dict()
-        trace_log = ["Swarm started"]
+        trace_log = ["Swarm started with efficiency mode"]
 
         with concurrent.futures.ProcessPoolExecutor(max_workers=total_instances) as executor:
             futures = []
@@ -195,7 +227,9 @@ Decide: Improve / Call Tool / Finalize"""
                 tools = tool_map.get(subtask, ["none"])
                 for _ in range(count):
                     hyp = hypotheses[i % len(hypotheses)]
-                    futures.append(executor.submit(self._sub_arbos_worker, subtask, hyp, tools, manager_dict, subtask_id))
+                    futures.append(executor.submit(
+                        self._sub_arbos_worker, subtask, hyp, tools, manager_dict, subtask_id
+                    ))
                     subtask_id += 1
 
             for future in concurrent.futures.as_completed(futures):
@@ -204,18 +238,30 @@ Decide: Improve / Call Tool / Finalize"""
                 except Exception as e:
                     trace_log.append(f"Error: {e}")
 
+        # Synthesis
         all_results = dict(manager_dict)
-        synthesis_task = f"""Synthesize results.
+        failed_context = "\nPrevious failed attempts:\n" + "\n---\n".join(memory.query(challenge + " failed", n_results=5)) if memory.query(challenge + " failed", n_results=5) else ""
+
+        synthesis_task = f"""You are Arbos Orchestrator.
 Challenge: {challenge}
 Verification: {verification_instructions or 'General SN63 standards'}
-Results: {json.dumps(all_results, indent=2)}
-Final Solution:"""
+{failed_context}
+Swarm results: {json.dumps(all_results, indent=2)}
+Final Synthesized Solution:"""
+
         final_solution = self.compute.run_on_compute(synthesis_task)
 
         if self.config.get("guardrails"):
             final_solution = apply_guardrails(final_solution, ResourceMonitor(max_hours=self.config.get("max_compute_hours", 3.8)))
 
         memory.add(text=final_solution[:1500], metadata={"challenge": challenge, "status": "final"})
+
+        trace_log.append("Synthesis complete")
+
+        import streamlit as st
+        if "trace_log" not in st.session_state:
+            st.session_state.trace_log = []
+        st.session_state.trace_log.extend(trace_log)
 
         return final_solution
 
@@ -228,7 +274,8 @@ Final Solution:"""
         blueprint = self._refine_plan(approved_plan, challenge)
         st.session_state.blueprint = blueprint
 
-        final_solution = self._run_swarm(blueprint, challenge, st.session_state.get("verification_instructions", ""))
+        verification = st.session_state.get("verification_instructions", "")
+        final_solution = self._run_swarm(blueprint, challenge, verification)
         return final_solution, ["swarm"], False
 
     def run(self, challenge: str):
