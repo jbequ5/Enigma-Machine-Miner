@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# FINAL LONG VERSION - Corrected Review Logic + Miner Enhancement Prompt
+# FINAL LONG VERSION - Two-stage review + Miner Enhancement Prompt + Deterministic Tooling in both reviews
 
 import os
 import subprocess
@@ -27,6 +27,7 @@ def get_vllm_llm():
             from vllm import LLM
             gpu_count = torch.cuda.device_count()
             tp_size = min(gpu_count, 4)
+            print(f"🚀 Initializing vLLM with {gpu_count} GPU(s) → tensor_parallel_size={tp_size}")
             _vllm_llm = LLM(
                 model="mistralai/Mistral-7B-Instruct-v0.2",
                 tensor_parallel_size=tp_size,
@@ -41,7 +42,7 @@ def get_vllm_llm():
             _vllm_llm = None
     return _vllm_llm
 
-# Enhanced Symbolic Module (unchanged from previous)
+# Enhanced Symbolic / Deterministic Tooling Module
 def symbolic_module(subtask: str, hypothesis: str, current_solution: str) -> str:
     subtask_lower = subtask.lower()
     try:
@@ -80,7 +81,7 @@ class ArbosManager:
         self.config = self._load_config()
         self.extra_context = self._load_extra_context()
         self._setup_real_arbos()
-        print("✅ Arbos Primary Solver — Final Long Version with Correct Review Logic")
+        print("✅ Arbos Primary Solver — Final Version with Two-Stage Review")
 
     def _setup_real_arbos(self):
         if not os.path.exists(self.arbos_path):
@@ -89,7 +90,7 @@ class ArbosManager:
 
     def _load_config(self):
         config = {
-            "miner_review_after_loop": False,   # This still controls reviews after loops if solution fails quality gate
+            "miner_review_after_loop": False,   # Controls review after loops if quality gate fails
             "max_loops": 5,
             "miner_review_final": True,
             "chutes": True,
@@ -173,7 +174,12 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
             end = raw.rfind("}") + 1
             return json.loads(raw[start:end])
         except:
-            return {"decomposition": ["Fallback"], "swarm_config": {"total_instances": 1}, "tool_map": {}, "deterministic_recommendations": ""}
+            return {
+                "decomposition": ["Fallback"],
+                "swarm_config": {"total_instances": 1},
+                "tool_map": {},
+                "deterministic_recommendations": "No specific deterministic recommendations."
+            }
 
     def _tool_hunter(self, gap: str, subtask: str) -> str:
         if not self.config.get("toolhunter_escalation", True):
@@ -198,6 +204,7 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
             solution = f"Subtask: {subtask}\nHypothesis: {hypothesis}"
             trace = [f"Sub-Arbos {subtask_id} started"]
 
+            # Automatic symbolic/deterministic tooling
             symbolic_result = symbolic_module(subtask, hypothesis, solution)
             if symbolic_result:
                 solution += f"\n{symbolic_result}"
