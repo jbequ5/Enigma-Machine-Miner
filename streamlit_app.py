@@ -65,6 +65,8 @@ if st.session_state.get("stage") == "planning_approval":
         st.markdown("**Rough Decomposition:**")
         for t in plan.get("rough_decomposition", []):
             st.write(f"• {t}")
+        st.markdown("**Arbos Recommendations:**")
+        st.write(plan.get("deterministic_recommendations", "No specific recommendations yet."))
     with col2:
         st.metric("Suggested Swarm Size", plan.get("suggested_swarm_size", 1))
 
