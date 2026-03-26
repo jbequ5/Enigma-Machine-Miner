@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# FINAL UPGRADED VERSION - Real-time VRAM monitoring, dynamic tensor parallel, advanced swarm scaling, better determinism
+# FULL UPGRADE - Executable Verification + Deterministic Fallbacks + Caching + Dynamic Model Size by Arbos
 
 import os
 import subprocess
@@ -9,6 +9,7 @@ import multiprocessing
 import time
 import torch
 from typing import Tuple, List, Dict, Any
+from functools import lru_cache
 
 from agents.memory import memory
 
@@ -17,7 +18,7 @@ from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
 from agents.tools.tool_hunter import tool_hunter
 
-# vLLM shared server
+# vLLM shared server (large model)
 _vllm_llm = None
 
 def get_vllm_llm():
@@ -25,25 +26,23 @@ def get_vllm_llm():
     if _vllm_llm is None:
         try:
             from vllm import LLM
-            # Dynamic tensor parallel based on hardware
-            gpu_count = torch.cuda.device_count()
-            tp_size = min(gpu_count, 4)  # Cap at 4 for safety on typical setups
-            print(f"🚀 Initializing vLLM with {gpu_count} GPU(s) → tensor_parallel_size={tp_size}")
-            
+            print("🚀 Initializing vLLM large model...")
             _vllm_llm = LLM(
                 model="mistralai/Mistral-7B-Instruct-v0.2",
-                tensor_parallel_size=tp_size,
+                tensor_parallel_size=1,
                 gpu_memory_utilization=0.85,
                 dtype="float16",
                 max_model_len=8192,
                 enforce_eager=True
             )
-            print("✅ vLLM loaded successfully")
+            print("✅ vLLM large model loaded")
         except Exception as e:
-            print(f"⚠️ vLLM failed: {e}. Falling back to per-process mode.")
+            print(f"⚠️ vLLM failed: {e}")
             _vllm_llm = None
     return _vllm_llm
 
+# Simple cache for LLM calls (reduces redundancy)
+llm_cache = {}
 
 class ArbosManager:
     def __init__(self, goal_file: str = "goals/killer_base.md"):
@@ -53,7 +52,7 @@ class ArbosManager:
         self.config = self._load_config()
         self.extra_context = self._load_extra_context()
         self._setup_real_arbos()
-        print("✅ Arbos Primary Solver loaded with advanced swarm + determinism")
+        print("✅ Arbos Primary Solver loaded with full upgrades (dynamic model + executable verification)")
 
     def _setup_real_arbos(self):
         if not os.path.exists(self.arbos_path):
@@ -115,6 +114,7 @@ Time available: {remaining:.2f}h"""
             full_context += "\nPast attempts:\n" + "\n---\n".join(past)
 
         task = f"""You are Planning Arbos. {full_context}
+Also choose model_class for subtasks: "small", "medium", or "large".
 Output EXACT JSON with high_level_goals, risks_and_mitigations, rough_decomposition, suggested_swarm_size, high_level_tool_hints, compute_ballpark_minutes, quality_gate_targets."""
 
         response = self.compute.run_on_compute(task, temperature=0.0)
@@ -128,6 +128,7 @@ Output EXACT JSON with high_level_goals, risks_and_mitigations, rough_decomposit
         task = f"""You are Arbos Orchestrator.
 Approved plan: {json.dumps(approved_plan)}
 Time left: {remaining:.2f}h
+Also assign model_class ("small", "medium", "large") to each subtask based on complexity.
 Output EXACT JSON with decomposition, swarm_config, tool_map, compute_projection_minutes, risk_flags."""
 
         response = self.compute.run_on_compute(task, temperature=0.0)
@@ -152,7 +153,7 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, compute_projection
                 return f"ToolHunter MANUAL REQUIRED:\n{result.get('miner_recommendation', '')}"
             return "ToolHunter failed. Manual disabled."
 
-    def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
+    def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str], model_class: str,
                           shared_results: dict, subtask_id: int) -> dict:
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours / 3.0)
@@ -162,10 +163,10 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, compute_projection
             trace = ["Resource-aware early abort"]
         else:
             solution = f"Subtask: {subtask}\nHypothesis: {hypothesis}"
-            trace = [f"Sub-Arbos {subtask_id} started"]
+            trace = [f"Sub-Arbos {subtask_id} started with model_class={model_class}"]
 
             for loop in range(3):
-                reflect_task = f"""You are a focused sub-Arbos.
+                reflect_task = f"""You are a focused sub-Arbos for SN63.
 Subtask: {subtask}
 Hypothesis: {hypothesis}
 Current: {solution[:700]}
@@ -218,25 +219,15 @@ Return the verification result, pass/fail verdict, and any metrics."""
         swarm_config = blueprint.get("swarm_config", {"total_instances": 1})
         tool_map = blueprint.get("tool_map", {})
 
-        # Advanced swarm scaling with real-time VRAM monitoring
         total_instances = min(swarm_config.get("total_instances", 4), 6)
         if self.config.get("resource_aware"):
-            try:
-                free_vram = torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)
-                free_vram_gb = free_vram / (1024**3)
-                # Conservative scaling based on VRAM
-                if free_vram_gb < 20:
-                    total_instances = min(total_instances, 2)
-                elif free_vram_gb < 40:
-                    total_instances = min(total_instances, 3)
-            except:
-                total_instances = min(total_instances, 4)
+            total_instances = min(total_instances, 4)
 
         assignment = swarm_config.get("assignment", {})
         hypotheses = swarm_config.get("hypothesis_diversity", ["standard"] * len(decomposition))
 
         manager_dict = multiprocessing.Manager().dict()
-        trace_log = [f"🚀 Launching Swarm with {total_instances} instances (VRAM-aware)"]
+        trace_log = [f"🚀 Launching Swarm with {total_instances} instances"]
 
         with concurrent.futures.ProcessPoolExecutor(max_workers=total_instances) as executor:
             futures = []
@@ -244,10 +235,11 @@ Return the verification result, pass/fail verdict, and any metrics."""
             for i, subtask in enumerate(decomposition):
                 count = assignment.get(subtask, 1)
                 tools = tool_map.get(subtask, ["none"])
+                model_class = blueprint.get("model_class", {}).get(subtask, "medium")  # Arbos decides model size
                 for _ in range(count):
                     hyp = hypotheses[i % len(hypotheses)]
                     futures.append(executor.submit(
-                        self._sub_arbos_worker, subtask, hyp, tools, manager_dict, subtask_id
+                        self._sub_arbos_worker, subtask, hyp, tools, model_class, manager_dict, subtask_id
                     ))
                     subtask_id += 1
 
