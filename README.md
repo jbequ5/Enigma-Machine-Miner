@@ -16,7 +16,7 @@ flowchart TD
     C -->|"🔄 Tweak"| B
     C -->|"❌ Reject"| A
 
-    D --> E["🚀 Dynamic Subprocess Agent Swarm<br/>Parallel Sub-Arbos Instances<br/>(3–6 on one H100 with vLLM + real-time VRAM monitoring)"]
+    D --> E["🚀 Dynamic Subprocess Agent Swarm<br/>Parallel Sub-Arbos Instances<br/>(3–6 agents with vLLM + real-time VRAM monitoring)"]
 
     E --> F1["Sub-Arbos 1<br/>Subtask + Hypothesis<br/>→ Specific ToolHunter if needed"]
     E --> F2["Sub-Arbos 2<br/>Subtask + Hypothesis<br/>→ Specific ToolHunter if needed"]
