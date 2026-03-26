@@ -102,10 +102,45 @@ if st.session_state.get("stage") == "final_review":
                 st.write(line)
 
     with tab4:
-        # Final Arbos quality critique
         if "quality_critique" not in st.session_state:
-            with st.spinner("Running final quality gate..."):
-                critique_task = f"""You are Arbos. Critique the final solution for SN63:
+            with st.spinner("Running refined SN63 quality gate..."):
+                critique_task = f"""You are Arbos performing final SN63 evaluation.
+
+Final solution:
+{solution[:3000]}...
+
+Score each axis 1-10 and provide one-sentence justification.
+Output EXACT JSON:
+{{
+  "novelty": 9.2,
+  "verifier_potential": 9.5,   // Quantum Rings fidelity + reproducibility
+  "alignment": 9.8,
+  "completeness": 9.0,
+  "efficiency": 8.7,           // H100 time / resource use
+  "ip_licensability": 9.1,
+  "overall_score": 9.3,
+  "recommendation": "Submit / Minor tweak / Re-loop",
+  "key_strength": "...",
+  "key_risk": "..."
+}}"""
+
+                raw = manager.compute.run_on_compute(critique_task)
+                try:
+                    critique_json = json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+                    st.session_state.quality_critique = critique_json
+                except:
+                    st.session_state.quality_critique = {"overall_score": 7.0, "recommendation": "Manual review needed"}
+
+        q = st.session_state.quality_critique
+        cols = st.columns(6)
+        for i, (k, v) in enumerate([("Novelty", q.get("novelty", 0)), ("Verifier", q.get("verifier_potential", 0)),
+                                    ("Alignment", q.get("alignment", 0)), ("Completeness", q.get("completeness", 0)),
+                                    ("Efficiency", q.get("efficiency", 0)), ("IP", q.get("ip_licensability", 0))]):
+            cols[i].metric(k, f"{v}/10")
+
+        st.success(f"**Overall: {q.get('overall_score', 0)}/10** → {q.get('recommendation', '')}")
+        st.info(f"Strength: {q.get('key_strength', '')}")
+        st.warning(f"Risk: {q.get('key_risk', '')}")
 
 Solution: {solution[:2000]}...
 
