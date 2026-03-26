@@ -1,6 +1,6 @@
 # agents/arbos_manager.py
-# Final Clean Version - Arbos-centric with intelligent planning, dynamic swarm, ToolHunter,
-# dynamic compute, strong resource_aware, and proper toggle respect
+# Final Clean Version - Arbos-centric SN63 Miner
+# Intelligent Planning + Dynamic Swarm + ToolHunter with full toggle respect
 
 import os
 import subprocess
@@ -47,8 +47,8 @@ class ArbosManager:
             "max_compute_minutes": 228,
             "resource_aware": True,
             "guardrails": True,
-            "toolhunter_escalation": True,      # NEW - controls escalation behavior
-            "manual_tool_installs_allowed": True # NEW - controls whether manual recommendations are shown
+            "toolhunter_escalation": True,
+            "manual_tool_installs_allowed": True
         }
         try:
             with open(self.goal_file, "r") as f:
@@ -109,23 +109,89 @@ Time available: {remaining_hours:.2f}h"""
         if past:
             full_context += "\n\nPast attempts and critiques:\n" + "\n---\n".join(past)
 
-        planning_task = f"""You are Planning Arbos...
+        planning_task = f"""You are Planning Arbos, a meta-planner specialized for Bittensor SN63 challenges.
 
 {full_context}
 
-Output EXACTLY this JSON..."""  # (keep your full planning prompt here)
+Create a high-level executable plan.
+Strictly follow miner strategy. Bias toward novelty, verifier potential, and realistic compute use.
+
+Output EXACTLY this JSON (no extra text):
+{{
+  "high_level_goals": "one sentence summary",
+  "risks_and_mitigations": ["risk1", "risk2", ...],
+  "rough_decomposition": ["subtask1 description", "subtask2 description", ...],
+  "suggested_swarm_size": 4,
+  "high_level_tool_hints": {{"subtask1": ["ScienceClaw"], "subtask2": ["ToolHunter"]}},
+  "compute_ballpark_minutes": 210,
+  "quality_gate_targets": {{"novelty": 8.5, "verifier": 9.0, "alignment": 9.5, "completeness": 9.0}}
+}}
+
+Critique your own plan for SN63 optimality before outputting."""
 
         response = self.compute.run_on_compute(planning_task)
         return self._parse_json(response)
 
-    # ... [ _refine_plan and _parse_json remain unchanged from previous version ]
+    # ===================================================================
+    # PLAN REFINEMENT
+    # ===================================================================
+    def _refine_plan(self, approved_plan: Dict[str, Any], challenge: str) -> Dict[str, Any]:
+        max_hours = self.config.get("max_compute_hours", 3.8)
+        monitor = ResourceMonitor(max_hours=max_hours)
+        remaining_hours = max_hours - monitor.elapsed_hours()
+
+        refinement_task = f"""You are Arbos, the primary orchestrator.
+
+CHALLENGE: {challenge}
+APPROVED HIGH-LEVEL PLAN:
+{json.dumps(approved_plan, indent=2)}
+
+MINER STRATEGY:
+{self.extra_context}
+
+Time left: {remaining_hours:.2f}h
+
+Refine into precise executable blueprint.
+
+Output EXACTLY this JSON:
+{{
+  "decomposition": ["detailed subtask1", "detailed subtask2", ...],
+  "swarm_config": {{
+    "total_instances": 5,
+    "assignment": {{"subtask1": 1, "subtask2": 2, ...}},
+    "hypothesis_diversity": ["classical baseline", "quantum VQE", "bio-inspired", ...]
+  }},
+  "tool_map": {{"subtask1": ["ScienceClaw"], "subtask2": ["ToolHunter"], ...}},
+  "compute_projection_minutes": 195,
+  "risk_flags": ["high_simulation_load"],
+  "quality_gate_targets": {{"novelty": 9.0, "verifier": 9.5, ...}},
+  "early_abort_triggers": ["if any subtask > 40min"]
+}}"""
+
+        response = self.compute.run_on_compute(refinement_task)
+        return self._parse_json(response)
+
+    def _parse_json(self, raw_response: str) -> Dict[str, Any]:
+        try:
+            start = raw_response.find("{")
+            end = raw_response.rfind("}") + 1
+            json_str = raw_response[start:end]
+            return json.loads(json_str)
+        except Exception:
+            return {
+                "decomposition": ["Fallback: process full challenge as one subtask"],
+                "swarm_config": {"total_instances": 1, "assignment": {}},
+                "tool_map": {},
+                "compute_projection_minutes": 210,
+                "risk_flags": ["JSON parse fallback"]
+            }
 
     # ===================================================================
-    # TOOL HUNTER - Now respects toggles
+    # TOOL HUNTER - Respects toggles
     # ===================================================================
     def _tool_hunter(self, gap_description: str, subtask: str) -> str:
         if not self.config.get("toolhunter_escalation", True):
-            return "ToolHunter escalation disabled by config."
+            return "[ToolHunter disabled by config]"
 
         result = tool_hunter.hunt_and_integrate(
             gap_description=gap_description,
@@ -149,6 +215,7 @@ Output EXACTLY this JSON..."""  # (keep your full planning prompt here)
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours / 3.0)
 
+        # Resource-aware early abort
         if self.config.get("resource_aware") and monitor.elapsed_hours() > max_hours * 0.75:
             solution = "Early abort: time budget exceeded to protect overall compute limit."
             trace = ["Resource-aware early abort triggered"]
@@ -176,7 +243,6 @@ Decide: Improve / Call Tool / Finalize"""
                     gap = f"Gap detected in subtask: {subtask}"
                     hunt_result = self._tool_hunter(gap, subtask)
                     solution += f"\n\n[ToolHunter]\n{hunt_result}"
-
                 elif tools and tools[0] != "none":
                     tool_name = tools[0]
                     output = self.compute.run_on_compute(f"Apply {tool_name} to: {solution[:600]}")
@@ -197,13 +263,71 @@ Decide: Improve / Call Tool / Finalize"""
     # DYNAMIC SWARM + SYNTHESIS
     # ===================================================================
     def _run_swarm(self, blueprint: Dict[str, Any], challenge: str) -> str:
-        # ... (swarm execution logic remains the same as previous full version)
+        decomposition = blueprint.get("decomposition", ["Full challenge"])
+        swarm_config = blueprint.get("swarm_config", {"total_instances": 1, "assignment": {}})
+        tool_map = blueprint.get("tool_map", {})
 
-        # After synthesis
+        total_instances = min(swarm_config.get("total_instances", 4), 6)
+        assignment = swarm_config.get("assignment", {})
+        hypotheses = swarm_config.get("hypothesis_diversity", ["standard approach"] * len(decomposition))
+
+        trace_log = ["🚀 Launching Dynamic Swarm...", f"Total instances: {total_instances}"]
+
+        manager_dict = multiprocessing.Manager().dict()
+
+        with concurrent.futures.ProcessPoolExecutor(max_workers=total_instances) as executor:
+            futures = []
+            subtask_id = 0
+            for i, subtask in enumerate(decomposition):
+                assigned_count = assignment.get(subtask, 1)
+                tools_for_subtask = tool_map.get(subtask, ["none"])
+                for _ in range(assigned_count):
+                    hyp = hypotheses[i % len(hypotheses)] if hypotheses else "standard"
+                    futures.append(
+                        executor.submit(
+                            self._sub_arbos_worker,
+                            subtask, hyp, tools_for_subtask, manager_dict, subtask_id
+                        )
+                    )
+                    subtask_id += 1
+
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    result = future.result()
+                    trace_log.append(f"✓ Subtask completed: {result.get('subtask', '')[:80]}...")
+                except Exception as e:
+                    trace_log.append(f"✗ Subtask error: {e}")
+
+        # Synthesis
+        all_results = dict(manager_dict)
+        failed_attempts = memory.query(challenge + " failed", n_results=5)
+        failed_context = "\nPrevious failed attempts:\n" + "\n---\n".join(failed_attempts) if failed_attempts else ""
+
+        synthesis_task = f"""You are Arbos Orchestrator. Synthesize all sub-Arbos results.
+
+Challenge: {challenge}
+{failed_context}
+
+Swarm results:
+{json.dumps(all_results, indent=2)}
+
+Follow miner strategy from killer_base.md.
+
+Final Synthesized Solution:"""
+
+        final_solution = self.compute.run_on_compute(synthesis_task)
+
         if self.config.get("guardrails"):
             final_solution = apply_guardrails(final_solution, ResourceMonitor(max_hours=self.config.get("max_compute_hours", 3.8)))
 
         memory.add(text=final_solution[:1500], metadata={"challenge": challenge, "status": "final_attempt"})
+
+        trace_log.append("Main Arbos synthesis complete")
+
+        import streamlit as st
+        if "trace_log" not in st.session_state:
+            st.session_state.trace_log = []
+        st.session_state.trace_log.extend(trace_log)
 
         return final_solution
 
