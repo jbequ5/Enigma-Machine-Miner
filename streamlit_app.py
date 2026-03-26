@@ -15,7 +15,7 @@ if "arbos_manager" not in st.session_state:
     st.session_state.arbos_manager = ArbosManager()
 manager = st.session_state.arbos_manager
 
-challenge = st.text_area("SN63 Challenge", height=120, placeholder="Describe the hard problem...")
+challenge = st.text_area("SN63 Challenge", height=140, placeholder="Describe the hard problem...")
 
 if st.button("🚀 Start Solving", type="primary") and challenge.strip():
     with st.spinner("Planning Arbos running..."):
@@ -25,8 +25,54 @@ if st.button("🚀 Start Solving", type="primary") and challenge.strip():
         st.session_state.stage = "planning_approval"
         st.rerun()
 
-# Planning approval screen (add your existing approval UI here if needed)
+# ====================== 1. PLANNING APPROVAL ======================
+if st.session_state.get("stage") == "planning_approval":
+    plan = st.session_state.high_level_plan
+    st.subheader("📋 High-Level Plan – Miner Approval")
 
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown(f"**Goals:** {plan.get('high_level_goals', 'N/A')}")
+        st.markdown("**Risks:**")
+        for r in plan.get("risks_and_mitigations", []):
+            st.write(f"• {r}")
+        st.markdown("**Rough Decomposition:**")
+        for t in plan.get("rough_decomposition", []):
+            st.write(f"• {t}")
+    with col2:
+        st.metric("Suggested Swarm Size", plan.get("suggested_swarm_size", 1))
+        st.metric("Est. Time", f"{plan.get('compute_ballpark_minutes', 0)} min")
+
+    feedback = st.text_area("Feedback / Tweak (optional)")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        if st.button("✅ Approve & Continue", type="primary"):
+            st.session_state.approved_plan = plan
+            st.session_state.stage = "refinement"
+            st.rerun()
+    with col_b:
+        if st.button("🔄 Tweak & Re-plan"):
+            if feedback.strip():
+                with st.spinner("Re-planning..."):
+                    tweaked = manager.plan_challenge(f"{challenge}\n\nMiner feedback: {feedback}")
+                    st.session_state.high_level_plan = tweaked
+                    st.rerun()
+    with col_c:
+        if st.button("❌ Restart"):
+            st.session_state.clear()
+            st.rerun()
+
+# ====================== 2. REFINEMENT + SWARM ======================
+if st.session_state.get("stage") == "refinement":
+    with st.spinner("Orchestrator refining plan + launching swarm..."):
+        blueprint = manager._refine_plan(st.session_state.approved_plan, st.session_state.challenge)
+        st.session_state.blueprint = blueprint
+        final_solution, _, _ = manager._smart_route(st.session_state.challenge)
+        st.session_state.final_solution = final_solution
+        st.session_state.stage = "final_review"
+        st.rerun()
+
+# ====================== 3. FINAL REVIEW ======================
 if st.session_state.get("stage") == "final_review":
     solution = st.session_state.final_solution
     blueprint = st.session_state.get("blueprint", {})
@@ -34,28 +80,32 @@ if st.session_state.get("stage") == "final_review":
 
     st.subheader("🔍 Final Miner Review")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Solution", "ToolHunter", "Memory", "Verification"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Solution", "ToolHunter", "Memory History", "Verification"])
 
     with tab1:
         st.text_area("Final Solution", solution, height=400)
 
     with tab2:
-        manual = [e for e in trace if isinstance(e, str) and "MANUAL REQUIRED" in e.upper()]
-        if manual:
-            st.warning("**Manual ToolHunter Actions Required**")
-            for m in manual:
-                st.error(m)
+        st.markdown("### ⚠️ ToolHunter Manual Actions Needed")
+        manual_actions = [entry for entry in trace if isinstance(entry, str) and "MANUAL REQUIRED" in entry.upper()]
+        if manual_actions and manager.config.get("manual_tool_installs_allowed", True):
+            st.warning("**Manual Tool Installation Required**")
+            for action in manual_actions:
+                st.error(action)
+            st.info("Please install the recommended tools manually, then re-run if needed.")
+        elif manual_actions:
+            st.info("ToolHunter found tools, but manual installs are disabled in config.")
         else:
-            st.success("No manual actions needed.")
+            st.success("✅ No manual ToolHunter actions required.")
 
     with tab3:
-        st.markdown("### Memory History")
+        st.markdown("### Memory History (Re-loop Learning)")
         past = memory.query(st.session_state.challenge, n_results=8)
         if past:
             for i, p in enumerate(past, 1):
                 st.write(f"**Attempt {i}:** {p[:300]}...")
         else:
-            st.info("No previous attempts.")
+            st.info("No previous attempts in memory.")
 
     with tab4:
         st.markdown("### 🔬 Custom Verification (Text or Executable Code)")
@@ -88,24 +138,47 @@ Output JSON with novelty, verifier_potential, overall_score, recommendation, ver
                     st.session_state.quality_critique = {"overall_score": 7.0}
 
         q = st.session_state.quality_critique
-        st.success(f"Overall: {q.get('overall_score', 0)}/10")
+        cols = st.columns(6)
+        metrics = [
+            ("Novelty", q.get("novelty", 0)),
+            ("Verifier", q.get("verifier_potential", 0)),
+            ("Alignment", q.get("alignment", 0)),
+            ("Completeness", q.get("completeness", 0)),
+            ("Efficiency", q.get("efficiency", 0)),
+            ("IP", q.get("ip_licensability", 0))
+        ]
+        for col, (label, value) in zip(cols, metrics):
+            col.metric(label, f"{value}/10")
 
-    if st.button("📦 Package Submission"):
-        _package_submission(solution, blueprint, trace, "", st.session_state.challenge, verification)
-        st.success("Packaged!")
+        st.success(f"**Overall Score: {q.get('overall_score', 0)}/10** → {q.get('recommendation', '')}")
+        st.info(f"**Strength:** {q.get('key_strength', '')}")
+        st.warning(f"**Risk:** {q.get('key_risk', '')}")
 
-def _package_submission(solution, blueprint, trace, notes, challenge, verification):
+    miner_notes = st.text_area("Your Final Notes (optional)")
+
+    if st.button("📦 Package for SN63 Submission", type="primary"):
+        _package_submission(solution, blueprint, trace, miner_notes, st.session_state.challenge, verification)
+        st.success("✅ Submission package created!")
+        st.balloons()
+
+def _package_submission(solution: str, blueprint: dict, trace: list, notes: str, challenge: str, verification: str):
     ts = datetime.now().strftime("%Y%m%d_%H%M")
-    dir_path = Path("submissions") / f"sn63_{ts}"
-    dir_path.mkdir(parents=True, exist_ok=True)
+    sub_dir = Path("submissions") / f"sn63_{ts}"
+    sub_dir.mkdir(parents=True, exist_ok=True)
 
-    (dir_path / "solution.md").write_text(solution)
-    (dir_path / "verification.txt").write_text(verification)
-    (dir_path / "trace.log").write_text("\n".join(str(t) for t in trace))
+    (sub_dir / "solution.md").write_text(solution)
+    (sub_dir / "blueprint.json").write_text(json.dumps(blueprint, indent=2))
+    (sub_dir / "trace.log").write_text("\n".join(str(t) for t in trace))
+    (sub_dir / "miner_notes.txt").write_text(notes)
+    (sub_dir / "challenge.txt").write_text(challenge)
+    (sub_dir / "verification.txt").write_text(verification)
 
-    with zipfile.ZipFile(dir_path / "submission_package.zip", "w") as z:
-        for f in dir_path.glob("*"):
+    past = memory.query(challenge, n_results=8)
+    (sub_dir / "memory_history.txt").write_text("\n\n".join(past))
+
+    with zipfile.ZipFile(sub_dir / "submission_package.zip", "w") as z:
+        for f in sub_dir.glob("*"):
             if f.is_file() and f.suffix != ".zip":
                 z.write(f, f.name)
 
-    st.success(f"Package saved to {dir_path}")
+    print(f"✅ Package ready: {sub_dir}/submission_package.zip")
