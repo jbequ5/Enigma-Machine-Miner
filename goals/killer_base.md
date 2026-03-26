@@ -26,6 +26,11 @@ miner_review_final: true           **#always review final output**
 
 **Compute + LLM**
 
+max_compute_hours: 3.8
+
+# OR for finer control:
+# max_compute_minutes: 228
+
 chutes: true
 
 targon: false
