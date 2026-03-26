@@ -44,7 +44,10 @@ class ArbosManager:
             "max_loops": 5,
             "miner_review_final": True,
             "chutes": True,
-            "chutes_llm": "mixtral"
+            "chutes_llm": "mixtral",
+            # NEW: Dynamic compute limit (easily configurable in killer_base.md)
+            "max_compute_hours": 3.8,      # Default fallback
+            "max_compute_minutes": 228     # For finer control in prompts
         }
         try:
             with open(self.goal_file, "r") as f:
@@ -68,6 +71,11 @@ class ArbosManager:
                         config["chutes"] = "true" in stripped
                     elif stripped.startswith("chutes_llm:"):
                         config["chutes_llm"] = line.split(":")[1].strip()
+                    # NEW toggles for dynamic compute
+                    elif stripped.startswith("max_compute_hours:"):
+                        config["max_compute_hours"] = float(line.split(":")[1].strip())
+                    elif stripped.startswith("max_compute_minutes:"):
+                        config["max_compute_minutes"] = int(line.split(":")[1].strip())
         except Exception:
             pass
         return config
