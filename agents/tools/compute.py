@@ -1,5 +1,5 @@
 # agents/tools/compute.py
-# ComputeRouter - Respects miner-selected compute source (Local, Chutes, Already running, Custom)
+# ComputeRouter - Fully supports all compute types chosen in setup screen
 
 import torch
 import requests
@@ -19,15 +19,15 @@ class ComputeRouter:
         if source == "local":
             self.use_local = torch.cuda.is_available()
             if self.use_local:
-                print(f"✅ Local GPU selected and detected: {torch.cuda.get_device_name(0)}")
+                print(f"✅ Using LOCAL GPU: {torch.cuda.get_device_name(0)}")
             else:
-                print("⚠️ Local GPU selected but no GPU detected. Falling back to placeholder.")
+                print("⚠️ Local GPU selected but none detected.")
         else:
             self.use_local = False
             if endpoint:
-                print(f"✅ {source} selected with endpoint: {endpoint}")
+                print(f"✅ Using external compute ({source}) with endpoint: {endpoint}")
             else:
-                print(f"✅ {source} selected (endpoint will be used when provided)")
+                print(f"✅ {source} selected — endpoint needed for live compute.")
 
     def run_on_compute(self, task: str, temperature: float = 0.0) -> str:
         """Main entry point for all LLM/compute tasks."""
@@ -42,22 +42,19 @@ class ComputeRouter:
             except Exception as e:
                 print(f"Local compute failed: {e}. Falling back.")
 
-        # Use external endpoint (Chutes, Already running, or Custom)
+        # Use external endpoint (Chutes, Already running, Custom)
         if self.custom_endpoint and self.custom_endpoint != "pre_configured":
             print(f"🔄 Routing to external endpoint: {self.custom_endpoint}")
             return self._call_external_endpoint(task, temperature)
 
-        # No endpoint provided yet → friendly placeholder
-        if self.compute_source in ["chutes", "already_running", "custom"]:
-            return f"[External Compute Placeholder]\n" \
-                   f"Source: {self.compute_source}\n" \
-                   f"Task would be sent to your configured endpoint.\n" \
-                   f"(Add real endpoint in Compute Setup to enable live compute.)"
-
-        return "[NO COMPUTE AVAILABLE] Please configure compute source in the setup screen."
+        # No endpoint provided yet
+        return f"[External Compute Placeholder]\n" \
+               f"Source: {self.compute_source}\n" \
+               f"Task would be sent to your configured endpoint.\n" \
+               f"(Please provide a valid endpoint in Compute Setup for live compute.)"
 
     def _call_external_endpoint(self, task: str, temperature: float = 0.0) -> str:
-        """Call the user-provided endpoint (Chutes, custom, etc.)."""
+        """Call the user-provided endpoint."""
         try:
             payload = {
                 "task": task,
@@ -74,9 +71,8 @@ class ComputeRouter:
             return data.get("response", data.get("text", str(data)))
         except Exception as e:
             return f"[Endpoint Error] Could not reach {self.custom_endpoint}\nError: {str(e)}\n\n" \
-                   "Make sure your endpoint is running and accepts POST requests with 'task' field."
+                   f"Make sure your endpoint is running and accepts POST requests."
 
-    # Helper for Streamlit to check status
     def get_status(self):
         if self.use_local:
             return f"Local GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'}"
