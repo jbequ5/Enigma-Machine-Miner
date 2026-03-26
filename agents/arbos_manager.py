@@ -184,23 +184,22 @@ Project realistic H100 time. Propose conservative fallback if needed."""
     # ===================================================================
     # TOOL HUNTER (per sub-Arbos)
     # ===================================================================
+
     def _tool_hunter(self, gap_description: str, subtask: str) -> str:
-        """Lightweight tool discovery and adaptation."""
-        hunt_task = f"""You are ToolHunter for SN63.
-
-Subtask: {subtask}
-Gap: {gap_description}
-
-Suggest or discover an open-source tool (GitHub/arXiv/HF) to fill this gap.
-Prefer GPU-friendly, verifiable tools.
-
-Reply concisely:
-Found: [name/repo]
-Integration: [one-line plan]
-Adapt for Quantum Rings/SN63: [yes/no + brief]"""
-
-        result = self.compute.run_on_compute(hunt_task)
-        return f"ToolHunter → {result[:600]}..."
+        """Real ToolHunter integration."""
+        from agents.tools.tool_hunter import tool_hunter
+        
+        # Pass challenge context from memory or blueprint if available
+        result = tool_hunter.hunt_and_integrate(
+            gap_description=gap_description,
+            subtask=subtask,
+            challenge_context="SN63 quantum/optimization challenge on Quantum Rings simulator"
+        )
+        
+        if result["status"] == "success":
+            return f"ToolHunter SUCCESS: {result['tool_name']} | Integration: {result.get('integration_code', '')[:300]}"
+        else:
+            return f"ToolHunter: {result.get('reason', 'No suitable tool found')}"
 
     # ===================================================================
     # SUB-ARBOS WORKER (runs in parallel)
