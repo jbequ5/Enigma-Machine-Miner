@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# FINAL VERSION - All remaining weaknesses addressed
+# FINAL VERSION - Hybrid ToolHunter + GOAL.md-guided pre-run discovery
 
 import os
 import subprocess
@@ -8,15 +8,15 @@ import concurrent.futures
 import multiprocessing
 import time
 import torch
-import requests
+from datetime import datetime
 from typing import Tuple, List, Dict, Any
 
 from agents.memory import memory
+from agents.tools.tool_hunter import hunt_and_integrate, load_registry, save_registry
 
 from agents.tools.compute import ComputeRouter
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
-from agents.tools.tool_hunter import tool_hunter
 
 # vLLM shared server
 _vllm_llm = None
@@ -51,7 +51,6 @@ def get_vllm_llm():
             _vllm_llm = None
     return _vllm_llm
 
-# Expanded Symbolic Reasoning Layer
 def symbolic_module(subtask: str, hypothesis: str, current_solution: str) -> str:
     subtask_lower = subtask.lower()
     try:
@@ -92,7 +91,7 @@ class ArbosManager:
             self.custom_endpoint = None
 
         self.compute.set_compute_source(self.compute_source, self.custom_endpoint)
-        print("✅ Arbos Primary Solver — Final Upgraded Version Loaded")
+        print("✅ Arbos Primary Solver loaded with hybrid ToolHunter + GOAL.md discovery")
 
     def _setup_real_arbos(self):
         if not os.path.exists(self.arbos_path):
@@ -135,6 +134,58 @@ class ArbosManager:
                 return f.read()
         except Exception:
             return ""
+
+    def discover_from_goal(self, goal_content: str) -> list:
+        """Pre-run discovery: Use GOAL.md to guide smarter ToolHunter hunt and populate registry"""
+        registry = load_registry()
+
+        discovery_task = f"""You are ToolHunter in pre-run discovery mode.
+
+GOAL.md content (use this as strong guiding context):
+{goal_content[:5000]}
+
+Task:
+Analyze the goals, strategy, and priorities above.
+Suggest the most relevant tools, libraries, or Hugging Face models that would help achieve them.
+Prioritize deterministic/symbolic tools, planning harnesses, math/quantum models, and efficiency tools.
+
+For each suggestion provide:
+- Name
+- Why it fits the GOAL.md
+- Install command
+
+Return a clean, actionable list."""
+
+        response = self.compute.run_on_compute(discovery_task, temperature=0.0, task_type="toolhunter", novelty_level="medium")
+
+        new_items = []
+        try:
+            lines = response.split("\n")
+            current = {}
+            for line in lines:
+                line = line.strip()
+                if line.startswith("- ") or line.startswith("•"):
+                    if current:
+                        new_items.append(current)
+                    current = {"name": line[2:], "keywords": [], "install_cmd": "", "added": datetime.now().isoformat()}
+                elif "install" in line.lower() or "pip" in line.lower() or "huggingface" in line.lower():
+                    if current:
+                        current["install_cmd"] = line
+                elif any(k in line.lower() for k in ["fits", "helps", "useful", "relevant"]):
+                    if current:
+                        current["keywords"].append(line.lower())
+
+            if current:
+                new_items.append(current)
+
+            if new_items:
+                registry["tools"].extend(new_items)
+                save_registry(registry)
+                return new_items
+        except Exception as e:
+            print(f"Discovery parsing error: {e}")
+
+        return []
 
     def plan_challenge(self, challenge: str) -> Dict[str, Any]:
         max_hours = self.config.get("max_compute_hours", 3.8)
@@ -187,39 +238,11 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
             }
 
     def _tool_hunter(self, gap: str, subtask: str) -> str:
-        if not self.config.get("toolhunter_escalation", True):
-            return "[ToolHunter disabled]"
-
-        if any(k in gap.lower() for k in ["model", "hf", "huggingface", "specialized", "fine-tuned", "arxiv", "research"]):
-            try:
-                headers = {}
-                hf_token = os.getenv("HF_TOKEN")
-                if hf_token:
-                    headers["Authorization"] = f"Bearer {hf_token}"
-                response = requests.get(
-                    f"https://huggingface.co/api/models?search={subtask.replace(' ', '+')}&limit=5",
-                    headers=headers,
-                    timeout=10
-                )
-                if response.status_code == 200:
-                    models = response.json()
-                    if models:
-                        model_name = models[0]["id"]
-                        compatibility = "Requires ~40GB+ VRAM. 4-bit/8-bit quantization recommended for hosted compute."
-                        install_cmd = f"pip install huggingface-hub && huggingface-cli download {model_name}"
-                        return f"ToolHunter found specialized HF model: {model_name}\nCompatibility: {compatibility}\nSuggested install: {install_cmd}\nRecommendation: Add to Enhancement Prompt or run the command above."
-            except Exception:
-                pass
-
-            return f"ToolHunter found specialized model: Qwen/Qwen2-Math-7B-Instruct\nCompatibility: ~24GB VRAM (4-bit recommended)\nSuggested install: pip install transformers accelerate bitsandbytes"
-
-        result = tool_hunter.hunt_and_integrate(gap, subtask, f"SN63: {subtask}")
+        """Runtime ToolHunter - uses hybrid approach"""
+        result = hunt_and_integrate(gap, subtask)
         if result.get("status") == "success":
-            return f"ToolHunter SUCCESS: {result.get('tool_name')}"
-        else:
-            if self.config.get("manual_tool_installs_allowed", True):
-                return f"ToolHunter MANUAL REQUIRED:\n{result.get('miner_recommendation', '')}"
-            return "ToolHunter failed. Manual disabled."
+            return f"ToolHunter ({result.get('source', 'unknown')}): {result.get('recommendation')}"
+        return "ToolHunter found no strong match."
 
     def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
                           shared_results: dict, subtask_id: int) -> dict:
@@ -287,8 +310,7 @@ Decide: Improve / Call Tool / Finalize"""
                         "• Results retrieved\n"
                         "• Pass: True")
 
-            # Safer sandboxed execution
-            exec_task = f"""Execute verification safely (restricted environment):
+            exec_task = f"""Execute verification safely:
 
 Solution: {solution[:1500]}
 Code: {verification_code}
@@ -310,16 +332,6 @@ Return pass/fail + key metrics."""
         total_instances = min(swarm_config.get("total_instances", 4), 6)
         if self.config.get("resource_aware"):
             total_instances = min(total_instances, 4)
-
-        # Proactive remote VRAM check for hosted compute
-        if not self.compute.use_local and self.compute.custom_endpoint:
-            try:
-                status = self.compute.get_status()
-                if "VRAM" in status and int(status.split("VRAM")[1].split()[0]) < 40:
-                    total_instances = min(total_instances, 2)
-                    print("⚠️ Low remote VRAM detected — reduced swarm size")
-            except:
-                pass
 
         assignment = swarm_config.get("assignment", {})
         hypotheses = swarm_config.get("hypothesis_diversity", ["standard"] * len(decomposition))
