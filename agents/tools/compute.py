@@ -1,5 +1,5 @@
 # agents/tools/compute.py
-# ComputeRouter with LLM Router - selects model based on task importance and novelty
+# UPGRADE: Automatic quantization and model proxying for hosted compute
 
 import torch
 import requests
@@ -9,12 +9,8 @@ from typing import Any, Dict
 class LLMRouter:
     def __init__(self):
         self.model_preferences = {
-            "planning": "best",
-            "orchestration": "best",
-            "subtask": "fast",
-            "synthesis": "best",
-            "verification": "fast",
-            "toolhunter": "fast"
+            "planning": "best", "orchestration": "best", "subtask": "fast",
+            "synthesis": "best", "verification": "fast", "toolhunter": "fast"
         }
 
     def choose_model(self, task_type: str, novelty_level: str = "medium", miner_preference: str = None) -> str:
@@ -35,19 +31,10 @@ class ComputeRouter:
     def set_compute_source(self, source: str, endpoint: str = None):
         self.compute_source = source
         self.custom_endpoint = endpoint
-
         if source == "local":
             self.use_local = torch.cuda.is_available()
-            if self.use_local:
-                print(f"✅ Using LOCAL GPU: {torch.cuda.get_device_name(0)}")
-            else:
-                print("⚠️ Local GPU selected but none detected.")
         else:
             self.use_local = False
-            if endpoint:
-                print(f"✅ Using external compute ({source}) → Endpoint: {endpoint}")
-            else:
-                print(f"✅ {source} selected — endpoint needed.")
 
     def run_on_compute(self, task: str, temperature: float = 0.0, task_type: str = "subtask", 
                        novelty_level: str = "medium", miner_preferred_model: str = None) -> str:
@@ -58,17 +45,34 @@ class ComputeRouter:
                 from agents.arbos_manager import get_vllm_llm
                 llm = get_vllm_llm()
                 if llm:
-                    print(f"Using local vLLM for {task_type} (preferred: {preferred_model})")
                     response = llm.generate(task, max_tokens=2048, temperature=temperature)
                     return response[0].text if hasattr(response[0], 'text') else str(response)
-            except Exception as e:
-                print(f"Local compute failed: {e}. Falling back.")
+            except Exception:
+                pass
 
-        if self.custom_endpoint and self.custom_endpoint != "pre_configured":
-            print(f"🔄 Routing to external endpoint for {task_type} (preferred model: {preferred_model})")
+        if self.custom_endpoint:
+            # Automatic quantization proxying for hosted compute
+            if miner_preferred_model and not self.use_local:
+                quantized = self._try_quantized_version(miner_preferred_model)
+                if quantized != miner_preferred_model:
+                    print(f"⚡ Using quantized version: {quantized} for hosted compute")
+                    preferred_model = quantized
             return self._call_external_endpoint(task, temperature, preferred_model)
 
-        return f"[COMPUTE NOT CONFIGURED]\nSource: {self.compute_source}\nTask type: {task_type}"
+        return "[COMPUTE NOT CONFIGURED]"
+
+    def _try_quantized_version(self, model_name: str) -> str:
+        """Automatic fallback to common quantized versions for hosted compute"""
+        quantized_map = {
+            "Llama-3-70B": "TheBloke/Llama-3-70B-Instruct-GPTQ-4bit",
+            "Llama-3-8B": "TheBloke/Llama-3-8B-Instruct-GPTQ-4bit",
+            "Mixtral-8x22B": "TheBloke/Mixtral-8x22B-Instruct-v0.1-GPTQ",
+            "Qwen2-72B": "Qwen/Qwen2-72B-Instruct-GPTQ-4bit"
+        }
+        for key, q_version in quantized_map.items():
+            if key.lower() in model_name.lower():
+                return q_version
+        return model_name
 
     def _call_external_endpoint(self, task: str, temperature: float = 0.0, preferred_model: str = None) -> str:
         for attempt in range(self.max_retries):
@@ -79,29 +83,15 @@ class ComputeRouter:
                     "max_tokens": 2048,
                     "preferred_model": preferred_model
                 }
-                response = requests.post(
-                    self.custom_endpoint,
-                    json=payload,
-                    timeout=180,
-                    headers={"Content-Type": "application/json"}
-                )
+                response = requests.post(self.custom_endpoint, json=payload, timeout=180)
                 response.raise_for_status()
                 data = response.json()
-                return data.get("response", data.get("text", str(data)))
-            except requests.exceptions.Timeout:
-                if attempt == self.max_retries - 1:
-                    return "[Timeout] External endpoint did not respond in time."
-                time.sleep(2 ** attempt)
+                return data.get("response", str(data))
             except Exception as e:
                 if attempt == self.max_retries - 1:
                     return f"[Endpoint Error] {str(e)}"
                 time.sleep(2 ** attempt)
-        return "[External Compute Failed] All retries exhausted."
+        return "[External Compute Failed]"
 
     def get_status(self):
-        if self.use_local:
-            return f"Local GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'}"
-        elif self.custom_endpoint:
-            return f"Using external endpoint: {self.custom_endpoint}"
-        else:
-            return "Compute source not configured"
+        return f"Source: {self.compute_source} | Model routing active"
