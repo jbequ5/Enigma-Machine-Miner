@@ -262,7 +262,7 @@ if st.session_state.get("stage") == "final_review":
         st.markdown("### Memory History (Re-loop Learning)")
         st.info("Memory history would load here from your memory system.")
 
-    # ==================== SELF-IMPROVEMENT TAB (Fully Connected) ====================
+    # ==================== SELF-IMPROVEMENT TAB (FULLY CONNECTED) ====================
     with tab4:
         st.markdown("### 🧬 SELF-IMPROVEMENT LOOP (trajrl-inspired)")
         st.caption("Analyze trajectories • Diagnose failures • Suggest better prompts")
