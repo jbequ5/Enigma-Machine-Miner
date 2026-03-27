@@ -273,7 +273,6 @@ if st.session_state.get("stage") == "final_review":
                 st.session_state.final_solution = new_solution
                 st.rerun()
 
-        # Quality gate
         if "quality_critique" not in st.session_state:
             with st.spinner("Running quality gate..."):
                 task = f"""You are Arbos. Evaluate with this verification: {verification or 'General SN63 standards'}
