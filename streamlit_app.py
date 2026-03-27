@@ -51,10 +51,7 @@ if "compute_source" not in st.session_state:
         )
 
     elif compute_option == "Custom / Hosted (RunPod, Vast, AWS, etc.)":
-        endpoint = st.text_input(
-            "Custom compute endpoint URL",
-            placeholder="https://..."
-        )
+        endpoint = st.text_input("Custom compute endpoint URL", placeholder="https://...")
 
     if st.button("Continue with this compute source", type="primary"):
         st.session_state.compute_source = {
