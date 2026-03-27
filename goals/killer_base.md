@@ -31,9 +31,6 @@ guardrails: true                   # Applies output cleaning and sanity checks a
 toolhunter_escalation: true        # Enables ToolHunter to generate manual recommendations on failure
 manual_tool_installs_allowed: true # Shows manual installation instructions when needed
 
-### Routing & LLM
-chutes: true
-chutes_llm: mixtral
 
 ### Swarm Efficiency (vLLM)
 tensor_parallel_size: 1            # Set to 2 or 4 if you have multiple GPUs. Keep 1 for single H100
