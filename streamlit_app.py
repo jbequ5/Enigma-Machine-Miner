@@ -18,7 +18,7 @@ manager = st.session_state.arbos_manager
 
 # ====================== STAGE 0: COMPUTE SETUP ======================
 if "compute_source" not in st.session_state:
-    st.subheader("🔌 Compute Setup — Where should the miner run?")
+    st.subheader("🔌 Compute Setup")
 
     compute_option = st.radio(
         "Choose compute source:",
@@ -54,13 +54,13 @@ if "compute_source" not in st.session_state:
         endpoint = st.text_input("Custom compute endpoint URL", placeholder="https://...")
 
     if st.button("Continue with this compute source", type="primary"):
-        st.session_state.compute_source = {
+        source_map = {
             "Local GPU (if available)": "local",
             "Chutes (decentralized GPUs - recommended if no local GPU)": "chutes",
             "Already running (use existing endpoint)": "already_running",
             "Custom / Hosted (RunPod, Vast, AWS, etc.)": "custom"
-        }[compute_option]
-
+        }
+        st.session_state.compute_source = source_map[compute_option]
         st.session_state.custom_endpoint = endpoint if endpoint and endpoint.strip() else None
 
         # Pass to ComputeRouter
@@ -73,11 +73,12 @@ if "compute_source" not in st.session_state:
 
 # ====================== STAGE 1: HIGH-LEVEL PLANNING APPROVAL ======================
 if st.session_state.get("stage") == "planning_approval":
-    plan = st.session_state.high_level_plan if "high_level_plan" in st.session_state else None
-    if plan is None:
-        with st.spinner("Planning Arbos running..."):
-            plan = manager.plan_challenge(st.session_state.challenge)
-            st.session_state.high_level_plan = plan
+    if "challenge" not in st.session_state:
+        st.session_state.challenge = st.text_area("SN63 Challenge", height=120, placeholder="Describe the hard problem...")
+
+    with st.spinner("Planning Arbos running..."):
+        plan = manager.plan_challenge(st.session_state.challenge)
+        st.session_state.high_level_plan = plan
 
     st.subheader("📋 Stage 1: High-Level Plan – Strategic Review")
 
@@ -95,11 +96,11 @@ if st.session_state.get("stage") == "planning_approval":
         st.info(plan.get("deterministic_recommendations", "No specific recommendations yet."))
 
         st.markdown("### 🚀 Miner Enhancement Prompt (Strategic 10/10 instructions)")
-        st.caption("Broad guidance for the entire run.")
+        st.caption("Broad guidance for the entire run. You can also specify exact models here.")
         enhancement_prompt = st.text_area(
             "Your strategic instructions",
             height=140,
-            placeholder="Examples:\n• Focus heavily on novelty and IP potential\n• Prioritize verifier score above all\n• Use symbolic tools wherever possible"
+            placeholder="Examples:\n• Focus heavily on novelty and IP potential\n• Use TheBloke/Llama-3-70B-Instruct for synthesis\n• Prioritize symbolic tools wherever possible"
         )
         st.session_state.enhancement_prompt = enhancement_prompt
 
@@ -153,7 +154,7 @@ if st.session_state.get("stage") == "orchestrator_review":
             "Final instructions",
             height=120,
             value=st.session_state.get("enhancement_prompt", ""),
-            placeholder="Any last tactical adjustments..."
+            placeholder="Any last tactical adjustments or model requests..."
         )
         st.session_state.enhancement_prompt = final_enhancement
 
@@ -203,7 +204,7 @@ if st.session_state.get("stage") == "final_review":
             st.warning("**Manual Tool Installation Required**")
             for action in manual_actions:
                 st.error(action)
-            st.info("Please install the recommended tools manually, then re-run if needed.")
+            st.info("Please install the recommended tools or models manually, then re-run if needed.")
         else:
             st.success("✅ No manual ToolHunter actions required.")
 
@@ -233,7 +234,7 @@ if st.session_state.get("stage") == "final_review":
                 "Deterministic Tooling Requirements",
                 height=180,
                 value=st.session_state.get("deterministic_tooling", ""),
-                placeholder="Example: Use stim for stabilizer checks. Run fidelity with quantum_rings."
+                placeholder="Example: Use stim for stabilizer checks. Prefer symbolic fallbacks."
             )
             st.session_state.deterministic_tooling = deterministic_tooling
 
