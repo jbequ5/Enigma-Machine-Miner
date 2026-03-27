@@ -1,5 +1,6 @@
 # agents/tools/tool_hunter.py
 # FULL CAPABILITIES: Real GitHub/arXiv search, ranking, safe clone/install, Quantum Rings adapter, testing, miner escalation
+# Hybrid: Registry first (fast) → Full live hunt when needed
 
 import os
 import subprocess
@@ -9,21 +10,64 @@ import time
 import requests
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from datetime import datetime
 
 from agents.memory import memory
 from agents.tools.compute import ComputeRouter
 from agents.tools.resource_aware import ResourceMonitor
 
+REGISTRY_PATH = "agents/tools/registry.json"
+
+def load_registry():
+    if os.path.exists(REGISTRY_PATH):
+        try:
+            with open(REGISTRY_PATH, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"tools": [], "models": [], "last_updated": ""}
+
+def save_registry(registry):
+    registry["last_updated"] = datetime.now().isoformat()
+    os.makedirs(os.path.dirname(REGISTRY_PATH), exist_ok=True)
+    with open(REGISTRY_PATH, "w") as f:
+        json.dump(registry, f, indent=2)
 
 class ToolHunter:
     def __init__(self):
         self.compute = ComputeRouter()
         self.temp_dir = Path(tempfile.gettempdir()) / "toolhunter_cache"
         self.temp_dir.mkdir(exist_ok=True)
-        self.github_token = os.getenv("GITHUB_TOKEN", "")  # optional for higher rate limits
-        print("🔍 ToolHunter FULLY EXPANDED: Real search + clone + Quantum Rings adapter + miner escalation")
+        self.github_token = os.getenv("GITHUB_TOKEN", "")
+        print("🔍 ToolHunter FULLY EXPANDED: Real search + clone + Quantum Rings adapter + miner escalation + hybrid registry")
 
     def hunt_and_integrate(self, gap_description: str, subtask: str, challenge_context: str = "") -> Dict[str, Any]:
+        # Hybrid Step 1: Fast registry lookup
+        registry = load_registry()
+        query = (gap_description + " " + subtask).lower()
+
+        for tool in registry.get("tools", []):
+            keywords = [k.lower() for k in tool.get("keywords", [])]
+            if any(k in query for k in keywords):
+                return {
+                    "status": "success",
+                    "tool_name": tool.get("name"),
+                    "recommendation": tool.get("install_cmd", ""),
+                    "source": "registry"
+                }
+
+        for model in registry.get("models", []):
+            keywords = [k.lower() for k in model.get("keywords", [])]
+            if any(k in query for k in keywords):
+                return {
+                    "status": "success",
+                    "model_name": model.get("name"),
+                    "compatibility": model.get("compatibility", ""),
+                    "recommendation": model.get("install_cmd", ""),
+                    "source": "registry"
+                }
+
+        # Hybrid Step 2: Full live hunt if registry didn't match well
         monitor = ResourceMonitor(max_hours=0.5)
 
         # === REAL SEARCH (GitHub + arXiv) ===
@@ -62,6 +106,16 @@ JSON only."""
         integration_attempt = self._attempt_safe_install_and_test(result, gap_description, subtask)
 
         if integration_attempt["success"]:
+            # Auto-add successful live result to registry
+            registry = load_registry()
+            registry["tools"].append({
+                "name": result.get("chosen_tool"),
+                "keywords": [word.lower() for word in subtask.split() if len(word) > 3],
+                "install_cmd": f"git clone {result.get('chosen_tool')}",
+                "added": datetime.now().isoformat()
+            })
+            save_registry(registry)
+
             memory.add(text=f"ToolHunter success: {result['chosen_tool']}", metadata={"subtask": subtask, "confidence": result["confidence"]})
             return {"status": "success", **result, "test_result": integration_attempt["test_output"], "miner_action": None}
 
@@ -98,14 +152,12 @@ JSON only."""
             except Exception:
                 pass
 
-            # arXiv (simple title search)
+            # arXiv
             try:
                 arxiv_url = f"http://export.arxiv.org/api/query?search_query=all:{q.replace(' ', '+')}&max_results=3"
                 r = requests.get(arxiv_url, timeout=10)
-                if r.status_code == 200:
-                    # Parse basic XML (simplified)
-                    if "<entry>" in r.text:
-                        candidates.append({"source": "arxiv", "name": q, "url": f"https://arxiv.org/search/?query={q}", "description": "arXiv paper - likely has code"})
+                if r.status_code == 200 and "<entry>" in r.text:
+                    candidates.append({"source": "arxiv", "name": q, "url": f"https://arxiv.org/search/?query={q}", "description": "arXiv paper - likely has code"})
             except Exception:
                 pass
         return candidates[:5]
@@ -119,18 +171,14 @@ JSON only."""
             temp_env = self.temp_dir / f"tool_{int(time.time())}"
             temp_env.mkdir(exist_ok=True)
 
-            # Clone
             subprocess.run(["git", "clone", tool_url, temp_env], check=True, timeout=60, cwd=temp_env.parent)
 
-            # Test basic import + Quantum Rings stub
             test_code = f"""
 import sys
 sys.path.insert(0, '{temp_env}')
 try:
-    # Try common import patterns
     import {tool_url.split('/')[-1].replace('-', '_')}
     print('Import successful')
-    # Quantum Rings compatibility stub test
     print('Quantum Rings adapter ready for manual hook')
 except Exception as e:
     print(f'Import failed: {{e}}')
@@ -156,15 +204,32 @@ Automated attempt failed: {attempt.get('test_output', 'Unknown')[:400]}
 Manual Steps (run in your H100 environment):
 1. git clone {tool}
 2. cd <repo>
-3. pip install -e . --no-deps   # or follow repo README
+3. pip install -e . --no-deps
 4. Test: python -c "import {tool.split('/')[-1].replace('-','_') or 'module'}; print('OK')"
 
-Add this wrapper to your sub-Arbos (from ToolHunter):
+Add this wrapper to your sub-Arbos:
 {decision.get('integration_code', '# Paste suggested wrapper here')}
 
-Once working, re-run the challenge or add to long-term memory manually."""
+Once working, re-run or add to registry manually."""
 
-    # ... (keep _extract_queries, _parse_json, _create_skip_result from previous version - unchanged)
+    def _extract_queries(self, response: str) -> List[str]:
+        try:
+            start = response.find("[")
+            end = response.rfind("]") + 1
+            return json.loads(response[start:end])
+        except:
+            return [response.strip()[:100]]
+
+    def _parse_json(self, raw: str) -> Dict:
+        try:
+            start = raw.find("{")
+            end = raw.rfind("}") + 1
+            return json.loads(raw[start:end])
+        except:
+            return {"chosen_tool": None, "confidence": 0}
+
+    def _create_skip_result(self, reason: str) -> Dict:
+        return {"status": "skip", "reason": reason}
 
 # Singleton
 tool_hunter = ToolHunter()
