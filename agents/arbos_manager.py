@@ -1,5 +1,5 @@
 # agents/arbos_manager.py
-# FINAL COMPLETE LONG VERSION - Smart Model Hunting in ToolHunter + LLM Router + All Features
+# FINAL COMPLETE LONG VERSION - Cleaned config (no chutes_llm), tensor_parallel_size only for local
 
 import os
 import subprocess
@@ -17,7 +17,7 @@ from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
 from agents.tools.tool_hunter import tool_hunter
 
-# vLLM shared server
+# vLLM shared server - tensor_parallel_size only for local compute
 _vllm_llm = None
 
 def get_vllm_llm():
@@ -25,8 +25,18 @@ def get_vllm_llm():
     if _vllm_llm is None:
         try:
             from vllm import LLM
-            gpu_count = torch.cuda.device_count()
-            tp_size = min(gpu_count, 4)
+            # Only apply tensor_parallel_size when using local compute
+            import streamlit as st
+            compute_source = st.session_state.get("compute_source") if hasattr(st, 'session_state') else "chutes"
+            is_local = compute_source == "local"
+            
+            tp_size = 1
+            if is_local:
+                tp_size = min(torch.cuda.device_count(), 4)
+                print(f"✅ Using tensor_parallel_size = {tp_size} for LOCAL compute")
+            else:
+                print("ℹ️ Hosted compute selected — tensor_parallel_size ignored (controlled by remote endpoint)")
+
             _vllm_llm = LLM(
                 model="mistralai/Mistral-7B-Instruct-v0.2",
                 tensor_parallel_size=tp_size,
@@ -81,6 +91,7 @@ class ArbosManager:
         self.extra_context = self._load_extra_context()
         self._setup_real_arbos()
 
+        # Compute source handling
         if hasattr(st, 'session_state') and "compute_source" in st.session_state:
             self.compute_source = st.session_state.compute_source
             self.custom_endpoint = st.session_state.get("custom_endpoint")
@@ -101,28 +112,28 @@ class ArbosManager:
             "miner_review_after_loop": False,
             "max_loops": 5,
             "miner_review_final": True,
-            "chutes": True,
-            "chutes_llm": "mixtral",
             "max_compute_hours": 3.8,
             "resource_aware": True,
             "guardrails": True,
             "toolhunter_escalation": True,
             "manual_tool_installs_allowed": True,
-            "compute_source": "chutes"
+            "compute_source": "chutes"          # default
         }
         try:
             with open(self.goal_file, "r") as f:
                 for line in f:
+                    if ":" not in line:
+                        continue
                     key = line.split(":")[0].strip().lower()
                     value = line.split(":", 1)[1].strip()
                     if key in config and isinstance(config[key], bool):
                         config[key] = "true" in value.lower()
-                    elif key in ["max_loops", "max_compute_minutes"]:
+                    elif key in ["max_loops"]:
                         config[key] = int(value)
                     elif key == "max_compute_hours":
                         config[key] = float(value)
-                    elif key in ["chutes_llm", "compute_source"]:
-                        config[key] = value
+                    elif key == "compute_source":
+                        config[key] = value.lower()
         except Exception:
             pass
         return config
