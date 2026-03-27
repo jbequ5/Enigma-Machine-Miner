@@ -1,5 +1,5 @@
 # agents/tools/compute.py
-# UPGRADE: Automatic quantization and model proxying for hosted compute
+# Final version with automatic quantization proxying
 
 import torch
 import requests
@@ -51,7 +51,6 @@ class ComputeRouter:
                 pass
 
         if self.custom_endpoint:
-            # Automatic quantization proxying for hosted compute
             if miner_preferred_model and not self.use_local:
                 quantized = self._try_quantized_version(miner_preferred_model)
                 if quantized != miner_preferred_model:
@@ -62,7 +61,6 @@ class ComputeRouter:
         return "[COMPUTE NOT CONFIGURED]"
 
     def _try_quantized_version(self, model_name: str) -> str:
-        """Automatic fallback to common quantized versions for hosted compute"""
         quantized_map = {
             "Llama-3-70B": "TheBloke/Llama-3-70B-Instruct-GPTQ-4bit",
             "Llama-3-8B": "TheBloke/Llama-3-8B-Instruct-GPTQ-4bit",
