@@ -30,7 +30,6 @@ st.markdown(f"""
         visibility: hidden;
     }}
 
-    /* VERY DARK overlay for maximum readability */
     .stApp {{
         background: linear-gradient(rgba(0, 5, 3, 0.98), rgba(0, 12, 8, 0.99));
     }}
@@ -94,10 +93,10 @@ if "arbos_manager" not in st.session_state:
     st.session_state.arbos_manager = ArbosManager()
 manager = st.session_state.arbos_manager
 
-# ====================== QUICK PROMPT BAR (Persistent at top) ======================
+# ====================== QUICK PROMPT BAR ======================
 st.markdown("### 🚀 QUICK MINER PROMPT")
 quick_prompt = st.text_area(
-    "Quick Enhancement Prompt (applied instantly to current session)",
+    "Quick Enhancement Prompt (applied instantly)",
     height=80,
     placeholder="Maximize novelty • Prioritize symbolic tools • Require formal verification...",
     key="quick_prompt"
@@ -106,7 +105,7 @@ quick_prompt = st.text_area(
 if st.button("Apply Quick Prompt to Current Session", type="primary"):
     if quick_prompt.strip():
         st.session_state.enhancement_prompt = quick_prompt.strip()
-        st.success("Quick prompt applied to current enhancement prompt!")
+        st.success("Quick prompt applied!")
 
 st.markdown("---")
 
@@ -279,12 +278,11 @@ if st.session_state.get("stage") == "final_review":
         st.markdown("### Memory History (Re-loop Learning)")
         st.info("Memory history would load here from your memory system.")
 
-    # ==================== SELF-IMPROVEMENT TAB (Fully Connected) ====================
     with tab4:
         st.markdown("### 🧬 SELF-IMPROVEMENT LOOP (trajrl-inspired)")
         st.caption("Analyze trajectories • Diagnose failures • Suggest better prompts")
 
-        history = manager.get_run_history(n=5)
+        history = manager.get_run_history(n=8)
         if history:
             st.dataframe(pd.DataFrame(history), use_container_width=True)
         else:
@@ -304,11 +302,11 @@ if st.session_state.get("stage") == "final_review":
                 if st.button("✅ Apply Suggestion to Current Enhancement Prompt"):
                     current = st.session_state.get("enhancement_prompt", "")
                     st.session_state.enhancement_prompt = manager.apply_self_improvement(current, critique)
-                    st.success("Suggestion applied to current prompt!")
+                    st.success("Suggestion applied!")
 
         st.markdown("**Manual Self-Improvement Instruction**")
         manual = st.text_area("Tell Arbos how to improve next run", height=100,
-                              placeholder="Be more aggressive on novelty. Force use of symbolic verification...")
+                              placeholder="Be more aggressive on novelty...")
 
         if st.button("🚀 Apply & Re-run with Self-Improvement", type="primary"):
             st.success("Enhanced prompt sent to swarm with self-improvement directives!")
@@ -316,6 +314,21 @@ if st.session_state.get("stage") == "final_review":
     miner_notes = st.text_area("Your Final Notes (optional)")
 
     if st.button("📦 Package for SN63 Submission", type="primary"):
+        # Save to persistent history
+        score = st.session_state.get("quality_critique", {}).get("overall_score", 7.0)
+        novelty = st.session_state.get("quality_critique", {}).get("novelty", 7.0)
+        verifier = st.session_state.get("quality_critique", {}).get("verifier_potential", 7.0)
+        
+        manager.save_run_to_history(
+            challenge=st.session_state.challenge,
+            enhancement_prompt=st.session_state.get("enhancement_prompt", ""),
+            solution=solution,
+            score=score,
+            novelty=novelty,
+            verifier=verifier,
+            main_issue="None"
+        )
+
         _package_submission(solution, blueprint, trace, miner_notes, st.session_state.challenge, 
                            st.session_state.get("verification_instructions", ""), 
                            st.session_state.get("deterministic_tooling", ""))
