@@ -35,7 +35,42 @@ flowchart TD
 
     I --> K["Submit to SN63<br/>submission_package.zip"]
 ```
+### Production 11-Step Flow – The Enigma-Machine-Miner Double-Loop Engine
 
+This system is purpose-built for SN63: it treats the **official ValidationOracle** as the single source of truth, uses EGGROLL for efficient exploration, Agent-Reach for grounded decisions, and gives the miner full control while remaining highly autonomous and compute-efficient.
+
+1. **Phase 1: Recommended Tools (Trigger)**  
+   Main Arbos runs ToolHunter on GOAL.md (which includes the official validator path). It returns concrete tool and model recommendations. Miner reviews and applies/skips. Validation oracle reference is loaded.
+
+2. **Phase 2: Intelligent Planning**  
+   Arbos generates a high-level plan, suggested swarm size, compute rules, and a Validation Oracle summary. Miner approves or tweaks with a custom enhancement prompt.
+
+3. **Phase 3: Executable Blueprint**  
+   Orchestrator Arbos creates a concrete subtask breakdown, tool assignments, symbolic-first rules, VRAM budgets, and a clear validation oracle integration plan.
+
+4. **Phase 4: Post-Orchestration Review Dashboard (Parallel View)**  
+   A single, powerful screen shows the full blueprint, swarm dynamics, and **Validation Oracle Summary**. Miner sees Arbos Recommended patterns (from Vector DB), backup suggestions, and an "Add My Context" form — each with toggles and evidence. Action bar: “Pass All / Use Original” or **Encode & Launch Swarm**.
+
+5. **Phase 5: Dynamic Swarm Execution**  
+   3–6 Sub-Arbos run in parallel using symbolic-first logic and ToolHunter for gaps. Real-time VRAM monitoring and EGGROLL low-rank perturbations keep exploration efficient.
+
+6. **Phase 6: Reconvene**  
+   Main Arbos synthesizes all sub-results into a candidate solution. No automatic pause — flow continues unless miner-configured.
+
+7. **Phase 7: ATLAS Inner-Loop (Autonomous)**  
+   `generate_self_tests()` + multi-hypothesis generation with EGGROLL perturbations. Tests run silently. Failures trigger a repair loop (max 3 attempts). All actions are benchmarked against the ValidationOracle.
+
+8. **Phase 8: Verification (Oracle-Centric)**  
+   Full verification runs the **official miner validation code** from GOAL.md locally. Returns structured `validation_score`, fidelity, and V/Vd readiness. If “pause on verification” is enabled, miner reviews; otherwise the system continues autonomously.
+
+9. **Phase 9: TrajectoryRL Outer-Loop (Always Runs)**  
+   Every trajectory is stored and embedded in the Vector DB (single source of truth). Self-critique generates strategy updates and meta-prompt deltas. High-validation-score patterns are automatically surfaced as Arbos Recommended on the next loop.
+
+10. **Phase 10: Loop Decision**  
+    Early-stop triggers if validation_score falls below threshold after 2 loops (configurable). If the solution passes the oracle and loops remain, the system returns to Phase 5. Otherwise it moves to improvement → refined blueprint → Phase 4.
+
+11. **Phase 11: Final Review & Packaging**  
+    Solution + full oracle results are displayed. One-click **Package for SN63** creates a clean V/Vd-formatted zip containing the solution, blueprint, trace, miner notes, and `validation_oracle.json`. Session ends.
 ---
 
 ### Key Intelligence Highlights
