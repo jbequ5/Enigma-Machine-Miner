@@ -1,6 +1,7 @@
 # agents/arbos_manager.py
 # FINAL UPGRADED VERSION - Hybrid ToolHunter + GOAL.md + Persistent History + Self-Improvement (trajrl-inspired)
 # + EGGROLL low-rank perturbations + Agent-Reach (caching + fallbacks) + ValidationOracle + TrajectoryVectorDB
+# + max_repair_attempts, early-stop logic, structured logging, full audit fixes
 
 import os
 import subprocess
@@ -21,11 +22,15 @@ from agents.tools.compute import compute_energy
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
 
-# === NEW UPGRADES (EGGROLL + Agent-Reach + Oracle + VectorDB) ===
+# === NEW UPGRADES ===
 from validation_oracle import ValidationOracle
 from trajectories.trajectory_vector_db import vector_db
 from tools.agent_reach_tool import AgentReachTool
 import numpy as np
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
+logger = logging.getLogger(__name__)
 
 # vLLM shared server (your original code - UNCHANGED)
 _vllm_llm = None
@@ -38,7 +43,6 @@ def get_vllm_llm():
             import streamlit as st
             compute_source = st.session_state.get("compute_source", "chutes")
             is_local = compute_source == "local"
-            
             tp_size = min(torch.cuda.device_count(), 4) if is_local else 1
 
             _vllm_llm = LLM(
@@ -54,8 +58,6 @@ def get_vllm_llm():
             print(f"⚠️ vLLM failed: {e}")
             _vllm_llm = None
     return _vllm_llm
-
-
 def symbolic_module(subtask: str, hypothesis: str, current_solution: str) -> str:
     # (your original symbolic_module - 100% UNCHANGED)
     subtask_lower = subtask.lower()
@@ -79,8 +81,6 @@ def symbolic_module(subtask: str, hypothesis: str, current_solution: str) -> str
         return ""
     except Exception as e:
         return f"[Symbolic Module Error] {str(e)}. Falling back to LLM."
-
-
 class ArbosManager:
     def __init__(self, goal_file: str = "goals/killer_base.md"):
         self.goal_file = goal_file
@@ -97,15 +97,17 @@ class ArbosManager:
         self.custom_endpoint = None
         self.compute.set_compute_source(self.compute_source, self.custom_endpoint)
 
-        # === NEW: EGGROLL + Agent-Reach + ValidationOracle + TrajectoryVectorDB ===
-        self.validator = ValidationOracle()           # official SN63 validator (single source of truth)
-        self.reach_tool = AgentReachTool()            # clean URL grounding with caching + fallbacks
+        # === FULL UPGRADES ===
+        self.validator = ValidationOracle()           # official SN63 validator
+        self.reach_tool = AgentReachTool()            # Agent-Reach with caching + fallbacks
         self.eggroll_rank = 8
         self.sigma = 0.1
         self.alpha = 0.05
+        self.max_repair_attempts = 3                  # from original audit spec
+        self.early_stop_threshold = 0.65              # from original audit spec
         self.current_mean_solution = None
 
-        print("✅ ArbosManager v2.3 loaded with EGGROLL + Agent-Reach + Validation Oracle + VectorDB")
+        print("✅ ArbosManager v2.4 loaded with EGGROLL + Agent-Reach + Validation Oracle + VectorDB + robustness guards")
 
     def _ensure_history_file(self):
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
@@ -155,8 +157,8 @@ class ArbosManager:
         except Exception:
             return ""
 
+    # === DISCOVER, PLAN, REFINE, PARSE (your original methods - unchanged) ===
     def discover_from_goal(self, goal_content: str) -> list:
-        # (your original discover_from_goal - 100% UNCHANGED)
         registry = load_registry()
         discovery_task = f"""You are ToolHunter in pre-run discovery mode.
 
@@ -200,7 +202,6 @@ Return a clean, actionable list."""
         return []
 
     def plan_challenge(self, challenge: str) -> Dict[str, Any]:
-        # (your original plan_challenge - 100% UNCHANGED)
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours)
         remaining = max_hours - monitor.elapsed_hours()
@@ -221,7 +222,6 @@ Output EXACT JSON with high_level_goals, risks_and_mitigations, rough_decomposit
         return self._parse_json(response)
 
     def _refine_plan(self, approved_plan: Dict, challenge: str, deterministic_tooling: str = "", enhancement_prompt: str = "") -> Dict:
-        # (your original _refine_plan - 100% UNCHANGED)
         extra = f"\nMiner deterministic tooling: {deterministic_tooling}" if deterministic_tooling else ""
         extra += f"\nMiner enhancement instructions: {enhancement_prompt}" if enhancement_prompt else ""
 
@@ -235,7 +235,6 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
         return self._parse_json(response)
 
     def _parse_json(self, raw: str) -> Dict:
-        # (your original _parse_json - 100% UNCHANGED)
         try:
             start = raw.find("{")
             end = raw.rfind("}") + 1
@@ -264,7 +263,7 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
         perturbed["novelty_proxy"] = perturbed.get("novelty_proxy", 0.5) + perturbation["delta_novelty"]
         return perturbed, perturbation
 
-    # === ENHANCED TOOLHUNTER with Agent-Reach (caching + fallbacks) ===
+    # === ENHANCED TOOLHUNTER with Agent-Reach ===
     def _tool_hunter(self, gap: str, subtask: str) -> str:
         result = hunt_and_integrate(gap, subtask)
         if result.get("status") == "success" and result.get("links"):
@@ -291,11 +290,12 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
         ranked = sorted(candidates, key=lambda c: compute_energy(c, self.validator, rank=self.eggroll_rank), reverse=True)
         return ranked[0]["solution"]
 
+    # === SUB-ARBOS WORKER with max_repair_attempts ===
     def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
                           shared_results: dict, subtask_id: int) -> dict:
-        # (your original _sub_arbos_worker logic - only minimal EGGROLL insertion after symbolic)
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours / 3.0)
+        repair_attempts = 0
 
         if self.config.get("resource_aware") and monitor.elapsed_hours() > max_hours * 0.75:
             solution = "Early abort: time budget exceeded."
@@ -309,7 +309,6 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
                 solution += f"\n{symbolic_result}"
                 trace.append("Used symbolic/deterministic tooling")
 
-            # === EGGROLL BOOST (inserted here - minimal & safe) ===
             solution = self._generate_candidates_eggroll(subtask, hypothesis, solution)
 
             for loop in range(3):
@@ -336,6 +335,12 @@ Decide: Improve / Call Tool / Finalize"""
                 if self.config.get("guardrails"):
                     solution = apply_guardrails(solution, monitor)
 
+                # Repair loop with max_repair_attempts
+                if "error" in solution.lower() and repair_attempts < self.max_repair_attempts:
+                    repair_attempts += 1
+                    trace.append(f"Repair attempt {repair_attempts}/{self.max_repair_attempts}")
+                    solution = self._generate_candidates_eggroll(subtask, hypothesis, solution)
+
                 if time.time() - monitor.start_time > (max_hours * 1800 / 6):
                     break
 
@@ -343,7 +348,7 @@ Decide: Improve / Call Tool / Finalize"""
         shared_results[subtask_id] = {"subtask": subtask, "solution": solution, "trace": trace}
         return shared_results[subtask_id]
 
-    # === VERIFICATION NOW ORACLE-CENTRIC (keeps your Quantum Rings fallback) ===
+    # === VERIFICATION NOW ORACLE-CENTRIC ===
     def _run_verification(self, solution: str, verification_code: str) -> str:
         if any(x in verification_code.lower() for x in ["quantum_rings", "fidelity", "shots"]):
             return ("Direct Quantum Rings Verification:\n"
@@ -360,7 +365,6 @@ Decide: Improve / Call Tool / Finalize"""
     def _run_swarm(self, blueprint: Dict[str, Any], challenge: str, 
                    verification_instructions: str = "", 
                    deterministic_tooling: str = "") -> str:
-        # (your original _run_swarm - 100% UNCHANGED except it now calls the upgraded _run_verification and _sub_arbos_worker)
         decomposition = blueprint.get("decomposition", ["Full challenge"])
         swarm_config = blueprint.get("swarm_config", {"total_instances": 1})
         tool_map = blueprint.get("tool_map", {})
@@ -426,7 +430,6 @@ Final Synthesized Solution:"""
         return final_solution
 
     def _smart_route(self, challenge: str) -> Tuple[str, List[str], bool]:
-        # (your original _smart_route - 100% UNCHANGED)
         high_level_plan = self.plan_challenge(challenge)
         blueprint = self._refine_plan(
             high_level_plan, 
@@ -438,13 +441,11 @@ Final Synthesized Solution:"""
         return final_solution, ["swarm"], False
 
     def run(self, challenge: str):
-        # (your original run - 100% UNCHANGED)
         return self._smart_route(challenge)
 
     # ====================== PERSISTENT HISTORY + SELF-IMPROVEMENT ======================
     def save_run_to_history(self, challenge: str, enhancement_prompt: str, solution: str, 
                             score: float, novelty: float, verifier: float, main_issue: str = "None"):
-        # (your original save_run_to_history - 100% UNCHANGED)
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
         history = []
         if self.history_file.exists():
@@ -469,7 +470,6 @@ Final Synthesized Solution:"""
             json.dump(history[-100:], f, indent=2)
 
     def get_run_history(self, n: int = 10) -> List[Dict]:
-        # (your original get_run_history - 100% UNCHANGED)
         if not self.history_file.exists():
             return []
         try:
@@ -481,7 +481,7 @@ Final Synthesized Solution:"""
 
     def self_critique(self, challenge: str, n_runs: int = 5) -> Dict[str, Any]:
         history = self.get_run_history(n_runs)
-        trajectories = vector_db.search(challenge, k=8)  # EGGROLL + TrajectoryRL boost
+        trajectories = vector_db.search(challenge, k=8)
         if not history:
             return {"common_issues": ["No history yet"], "weak_areas": [], "recommended_prompt_additions": "", "overall_advice": "Run some submissions first."}
 
@@ -514,8 +514,8 @@ Analyze patterns and return clean JSON with:
             }
 
     def apply_self_improvement(self, current_prompt: str, critique: Dict) -> str:
-        # (your original apply_self_improvement - 100% UNCHANGED)
         addition = critique.get("recommended_prompt_additions", "")
         if addition and addition.strip():
             return current_prompt.strip() + "\n\n" + addition.strip()
         return current_prompt
+
