@@ -26,7 +26,7 @@ flowchart TD
 
     F1 & F2 & FN --> G["🔄 Reconvene with Main Arbos<br/>Synthesis of all sub-results"]
 
-    G --> H["📊 Intelligent Verification System<br/>Miner-controlled executable verification +<br/>Direct Quantum Rings / OpenQuantum integration"]
+    G --> H["📊 Intelligent Verification System<br/>Miner-controlled executable verification +<br/>Direct Quantum Rings / OpenQuantum integration + ValidationOracle"]
 
     H -->|"✅ Pass"| I["Final Miner Review<br/>+ One-click SN63 Packaging"]
     H -->|"❌ Fail"| J["Arbos Improvement Loop<br/>Re-reflect → Re-refine → Re-swarm"]
@@ -47,8 +47,11 @@ flowchart TD
 - **Orchestrator Arbos** — Refines the plan into an executable blueprint with subtasks, swarm config, tool_map, and model assignments.
 - **Dynamic Parallel Swarm with per-subtask ToolHunter** — Each Sub-Arbos explores hypotheses independently and calls ToolHunter for gaps. Tool acquisiton failures are clearly shown in the final ToolHunter tab with actionable fixes.
 - **Automatic Symbolic Reasoning** — Automatically invokes deterministic logic (stabilizers, fidelity, circuit optimization, preprocessing) before falling back to LLM.
-- **Intelligent Verification System** — Supports custom executable code including direct Quantum Rings and OpenQuantum integration for real, deterministic metrics.
+- **Intelligent Verification System** — Supports custom executable code including direct Quantum Rings and OpenQuantum integration for real, deterministic metrics. Now powered by **ValidationOracle** as the single source of truth.
 - **Adaptive Re-loop & Memory** — Strong long-term memory with meta-reflection on failures, making the miner more effective over time.
+- **New: EGGROLL Low-Rank Perturbations** — Efficient exploration in the inner loop for better novelty with lower compute cost.
+- **New: Agent-Reach Grounding** — ToolHunter now automatically fetches clean web content with caching and fallbacks for higher-quality recommendations.
+- **New: Phase 4 Post-Orchestration Review Dashboard** — Parallel view with blueprint, Validation Oracle summary, toggles for Arbos Recommended (Vector DB) and custom context, plus "Encode & Launch Swarm".
 
 ---
 
@@ -98,6 +101,7 @@ The system uses a smart **LLM Router** that chooses the right model for each tas
 - Routine sub-tasks, verification, ToolHunter → "fast" models  
 - You can override any choice by naming a specific model (including HF models) in the Enhancement Prompt.  
 - External endpoints receive the `preferred_model` field so they can attempt to load it.
+
 ---
 
 ### GOAL.md / killer_base.md Configuration
@@ -157,6 +161,14 @@ streamlit run streamlit_app.py
 **Phase 2 ready.**
 
 ---
+
+**Recent Upgrades**  
+- **ValidationOracle** as single source of truth for scoring  
+- **EGGROLL** low-rank perturbations for efficient exploration  
+- **Agent-Reach** with caching + fallbacks for grounded ToolHunter  
+- **Phase 4 Parallel Review Dashboard** with toggles and "Encode & Launch Swarm"  
+- **Early-stop** and `max_repair_attempts` robustness guards  
+- Full V/Vd-ready packaging with oracle results included  
 
 Made with focus on first-principles agentic design for Bittensor SN63.  
 Questions or feature requests? Open an issue or ping @dTAO_Dad on X.
