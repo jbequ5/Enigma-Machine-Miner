@@ -1,7 +1,6 @@
 # agents/arbos_manager.py
 # FINAL UPGRADED VERSION - Hybrid ToolHunter + GOAL.md + Persistent History + Self-Improvement (trajrl-inspired)
-# + EGGROLL low-rank perturbations + Agent-Reach (caching + fallbacks) + ValidationOracle + TrajectoryVectorDB
-# + max_repair_attempts, early-stop readiness, full audit fixes from original spec
+# + EGGROLL low-rank perturbations + Agent-Reach + ValidationOracle + TrajectoryVectorDB + full audit fixes
 
 import os
 import subprocess
@@ -32,9 +31,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger(__name__)
 
-# vLLM shared server (your original code - UNCHANGED)
+# vLLM (unchanged)
 _vllm_llm = None
-
 def get_vllm_llm():
     global _vllm_llm
     if _vllm_llm is None:
@@ -43,17 +41,9 @@ def get_vllm_llm():
             import streamlit as st
             compute_source = st.session_state.get("compute_source", "chutes")
             is_local = compute_source == "local"
-            
             tp_size = min(torch.cuda.device_count(), 4) if is_local else 1
-
-            _vllm_llm = LLM(
-                model="mistralai/Mistral-7B-Instruct-v0.2",
-                tensor_parallel_size=tp_size,
-                gpu_memory_utilization=0.85,
-                dtype="float16",
-                max_model_len=8192,
-                enforce_eager=True
-            )
+            _vllm_llm = LLM(model="mistralai/Mistral-7B-Instruct-v0.2", tensor_parallel_size=tp_size,
+                            gpu_memory_utilization=0.85, dtype="float16", max_model_len=8192, enforce_eager=True)
             print("✅ vLLM loaded")
         except Exception as e:
             print(f"⚠️ vLLM failed: {e}")
@@ -62,7 +52,6 @@ def get_vllm_llm():
 
 
 def symbolic_module(subtask: str, hypothesis: str, current_solution: str) -> str:
-    # (your original symbolic_module - 100% UNCHANGED)
     subtask_lower = subtask.lower()
     try:
         if any(k in subtask_lower for k in ["stabilizer", "pauli", "commute", "generator", "tableau"]):
@@ -71,16 +60,12 @@ def symbolic_module(subtask: str, hypothesis: str, current_solution: str) -> str
                 return "[Stim Stabilizer Module] Tableau constructed and validated."
             except ImportError:
                 return "[Stim Stabilizer Module] Not installed — fallback active."
-
         if any(k in subtask_lower for k in ["fidelity", "simulation", "shots", "quantum_rings", "error correction"]):
             return "[Quantum Rings Fidelity Module] Circuit submitted. Fidelity estimate: 0.94–0.96."
-
         if any(k in subtask_lower for k in ["circuit", "optimize", "depth", "gate", "qiskit", "pytket"]):
             return "[PyTKET Optimization Module] Gate count reduced ~12–18%. Depth lowered."
-
         if any(k in subtask_lower for k in ["symbolic", "pauli", "sympy", "algebra"]):
             return "[SymPy Symbolic Module] Pauli strings simplified and checked."
-
         return ""
     except Exception as e:
         return f"[Symbolic Module Error] {str(e)}. Falling back to LLM."
@@ -102,17 +87,17 @@ class ArbosManager:
         self.custom_endpoint = None
         self.compute.set_compute_source(self.compute_source, self.custom_endpoint)
 
-        # === FULL UPGRADES FROM ALL DISCUSSIONS ===
-        self.validator = ValidationOracle()           # official SN63 validator (single source of truth)
-        self.reach_tool = AgentReachTool()            # clean URL grounding with caching + fallbacks
+        # === FULL INTEGRATIONS ===
+        self.validator = ValidationOracle()
+        self.reach_tool = AgentReachTool()
         self.eggroll_rank = 8
         self.sigma = 0.1
         self.alpha = 0.05
-        self.max_repair_attempts = 3                  # from original audit spec
-        self.early_stop_threshold = 0.65              # from original audit spec
+        self.max_repair_attempts = 3
+        self.early_stop_threshold = 0.65
         self.current_mean_solution = None
 
-        logger.info("✅ ArbosManager v2.4 fully loaded with EGGROLL + Agent-Reach + ValidationOracle + VectorDB + robustness guards")
+        logger.info("✅ ArbosManager v2.4 fully loaded with all integrations")
 
     def _ensure_history_file(self):
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
@@ -251,7 +236,7 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
                 "deterministic_recommendations": "No specific deterministic recommendations."
             }
 
-    # === EGGROLL LOW-RANK PERTURBATION HELPER ===
+    # EGGROLL LOW-RANK PERTURBATION HELPER
     def generate_low_rank_perturbation(self, base_solution: Dict, rank: int = None, seed: int = None) -> Tuple[Dict, Dict]:
         if rank is None:
             rank = self.eggroll_rank
@@ -267,7 +252,7 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
         perturbed["novelty_proxy"] = perturbed.get("novelty_proxy", 0.5) + perturbation["delta_novelty"]
         return perturbed, perturbation
 
-    # === ENHANCED TOOLHUNTER with Agent-Reach (caching + fallbacks) ===
+    # ENHANCED TOOLHUNTER with Agent-Reach
     def _tool_hunter(self, gap: str, subtask: str) -> str:
         result = hunt_and_integrate(gap, subtask)
         if result.get("status") == "success" and result.get("links"):
@@ -284,7 +269,7 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
             return f"ToolHunter + Agent-Reach ({result.get('source', 'unknown')}): {result.get('recommendation')}"
         return "ToolHunter + Agent-Reach found no strong match."
 
-    # === ATLAS INNER-LOOP + EGGROLL CANDIDATE GENERATION ===
+    # ATLAS INNER-LOOP + EGGROLL
     def _generate_candidates_eggroll(self, subtask: str, hypothesis: str, current_solution: str) -> str:
         base = {"solution": current_solution, "novelty_proxy": 0.5, "est_compute": 1.0}
         candidates = [base]
@@ -294,7 +279,7 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
         ranked = sorted(candidates, key=lambda c: compute_energy(c, self.validator, rank=self.eggroll_rank), reverse=True)
         return ranked[0]["solution"]
 
-    # === SUB-ARBOS WORKER with max_repair_attempts and early-stop readiness ===
+    # SUB-ARBOS WORKER with max_repair_attempts
     def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
                           shared_results: dict, subtask_id: int) -> dict:
         max_hours = self.config.get("max_compute_hours", 3.8)
@@ -313,7 +298,6 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
                 solution += f"\n{symbolic_result}"
                 trace.append("Used symbolic/deterministic tooling")
 
-            # EGGROLL boost
             solution = self._generate_candidates_eggroll(subtask, hypothesis, solution)
 
             for loop in range(3):
@@ -340,7 +324,7 @@ Decide: Improve / Call Tool / Finalize"""
                 if self.config.get("guardrails"):
                     solution = apply_guardrails(solution, monitor)
 
-                # Repair loop with max_repair_attempts
+                # Repair loop
                 if "error" in solution.lower() and repair_attempts < self.max_repair_attempts:
                     repair_attempts += 1
                     trace.append(f"Repair attempt {repair_attempts}/{self.max_repair_attempts}")
@@ -353,7 +337,7 @@ Decide: Improve / Call Tool / Finalize"""
         shared_results[subtask_id] = {"subtask": subtask, "solution": solution, "trace": trace}
         return shared_results[subtask_id]
 
-    # === VERIFICATION NOW ORACLE-CENTRIC ===
+    # ORACLE-CENTRIC VERIFICATION
     def _run_verification(self, solution: str, verification_code: str) -> str:
         if any(x in verification_code.lower() for x in ["quantum_rings", "fidelity", "shots"]):
             return ("Direct Quantum Rings Verification:\n"
@@ -367,6 +351,7 @@ Decide: Improve / Call Tool / Finalize"""
         vector_db.add_eggroll({"solution": solution, "validation_score": oracle_result["validation_score"]})
         return f"ValidationOracle: score={oracle_result['validation_score']:.3f} | vvd_ready={oracle_result['vvd_ready']} | notes={oracle_result.get('notes','')}"
 
+    # SWARM with early-stop readiness (Phase 10)
     def _run_swarm(self, blueprint: Dict[str, Any], challenge: str, 
                    verification_instructions: str = "", 
                    deterministic_tooling: str = "") -> str:
@@ -448,7 +433,7 @@ Final Synthesized Solution:"""
     def run(self, challenge: str):
         return self._smart_route(challenge)
 
-    # ====================== PERSISTENT HISTORY + SELF-IMPROVEMENT ======================
+    # PERSISTENT HISTORY + SELF-IMPROVEMENT
     def save_run_to_history(self, challenge: str, enhancement_prompt: str, solution: str, 
                             score: float, novelty: float, verifier: float, main_issue: str = "None"):
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
