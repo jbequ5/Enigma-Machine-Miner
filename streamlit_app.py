@@ -7,7 +7,7 @@ from datetime import datetime
 
 from agents.arbos_manager import ArbosManager
 
-# ====================== BUNKER THEME (extracted - fixes blue/inactive code) ======================
+# ====================== BUNKER THEME ======================
 BUNKER_CSS = """
 <style>
     [data-testid="stAppViewContainer"] {
@@ -107,7 +107,6 @@ st.sidebar.metric("Mode", "Production + Self-Improvement")
 st.sidebar.caption(f"EGGROLL Rank: **{manager.eggroll_rank}** | σ: **{manager.sigma:.3f}**")
 st.sidebar.caption("Agent-Reach: **ON** (caching + fallbacks)")
 st.sidebar.caption("ValidationOracle: **LIVE** (SN63 official scoring)")
-st.sidebar.caption(f"Max Repair Attempts: **{getattr(manager, 'max_repair_attempts', 3)}**")
 pause_on_verification = st.sidebar.checkbox("Pause on Verification (Phase 8)", value=False)
 early_stop_enabled = st.sidebar.checkbox("Enable Early-Stop (validation_score < 0.65 after 2 loops)", value=True)
 
@@ -203,9 +202,9 @@ if st.session_state.get("stage") == "planning_approval":
             st.session_state.clear()
             st.rerun()
 
-# ====================== PHASE 4: POST-ORCHESTRATION REVIEW DASHBOARD (PARALLEL VIEW) ======================
+# ====================== PHASE 4: POST-ORCHESTRATION REVIEW DASHBOARD ======================
 if st.session_state.get("stage") == "post_orchestration_review":
-    with st.spinner("Orchestrator Arbos creating detailed blueprint..."):
+    with st.spinner("Orchestrator creating blueprint..."):
         blueprint = manager._refine_plan(
             st.session_state.approved_plan, 
             st.session_state.challenge,
@@ -250,7 +249,7 @@ if st.session_state.get("stage") == "final_review":
     with tab1:
         st.text_area("Final Synthesized Solution", solution, height=400)
         st.markdown("### ValidationOracle Results (Official SN63 Scoring)")
-        st.success("✅ Oracle ran successfully – score, fidelity, and V/Vd readiness recorded in package.")
+        st.success(f"Score: {manager.validator.last_score:.3f} | V/Vd Ready: {manager.validator.last_vvd_ready} | Notes: {manager.validator.last_notes}")
 
     with tab2:
         st.markdown("### ToolHunter Results")
@@ -267,7 +266,6 @@ if st.session_state.get("stage") == "final_review":
 
     with tab4:
         st.markdown("### 🧬 SELF-IMPROVEMENT LOOP (trajrl-inspired + EGGROLL)")
-        st.caption("Analyze trajectories • Diagnose failures • Suggest better prompts")
         history = manager.get_run_history(n=8)
         if history:
             st.dataframe(pd.DataFrame(history), use_container_width=True)
@@ -275,7 +273,7 @@ if st.session_state.get("stage") == "final_review":
             st.info("No run history yet.")
 
         if st.button("🔍 Run Arbos Self-Critique on Last Runs", type="primary"):
-            with st.spinner("Arbos analyzing patterns across runs..."):
+            with st.spinner("Arbos analyzing patterns..."):
                 critique = manager.self_critique(st.session_state.challenge, n_runs=5)
                 st.success("✅ Self-Critique Complete")
                 st.markdown(f"""
@@ -303,9 +301,9 @@ if st.session_state.get("stage") == "final_review":
             challenge=st.session_state.challenge,
             enhancement_prompt=st.session_state.get("enhancement_prompt", ""),
             solution=solution,
-            score=8.5,
+            score=manager.validator.last_score,
             novelty=8.0,
-            verifier=9.0,
+            verifier=manager.validator.last_score,
             main_issue="None"
         )
         _package_submission(solution, blueprint, trace, miner_notes, st.session_state.challenge, 
@@ -314,7 +312,7 @@ if st.session_state.get("stage") == "final_review":
         st.success("✅ Submission package created!")
         st.balloons()
 
-# ====================== PACKAGING FUNCTION (with full Oracle results) ======================
+# ====================== PACKAGING FUNCTION ======================
 def _package_submission(solution: str, blueprint: dict, trace: list, notes: str, challenge: str, verification: str, deterministic_tooling: str):
     ts = datetime.now().strftime("%Y%m%d_%H%M")
     sub_dir = Path("submissions") / f"sn63_{ts}"
@@ -328,12 +326,12 @@ def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
     (sub_dir / "verification.txt").write_text(verification)
     (sub_dir / "deterministic_tooling.txt").write_text(deterministic_tooling)
 
-    # Full Oracle results for V/Vd readiness
+    # Full Oracle results for V/Vd
     oracle_info = {
-        "validation_score": getattr(manager.validator, "last_score", None),
-        "fidelity": getattr(manager.validator, "last_fidelity", None),
-        "vvd_ready": getattr(manager.validator, "last_vvd_ready", None),
-        "notes": getattr(manager.validator, "last_notes", ""),
+        "validation_score": manager.validator.last_score,
+        "fidelity": manager.validator.last_fidelity,
+        "vvd_ready": manager.validator.last_vvd_ready,
+        "notes": manager.validator.last_notes,
         "timestamp": datetime.now().isoformat()
     }
     (sub_dir / "validation_oracle.json").write_text(json.dumps(oracle_info, indent=2))
