@@ -29,48 +29,13 @@ flowchart TD
     G --> H["📊 Intelligent Verification System<br/>Miner-controlled executable verification +<br/>Direct Quantum Rings / OpenQuantum integration + ValidationOracle"]
 
     H -->|"✅ Pass"| I["Final Miner Review<br/>+ One-click SN63 Packaging"]
-    H -->|"❌ Fail"| J["Arbos Improvement Loop<br/>Re-reflect → Re-refine → Re-swarm"]
+    H -->|"❌ Fail"| J["Arbos Improvement Loop<br/>Re-reflect → Re-refine → Re-swarm<br/>+ Three-Layer Memory + Safe Runtime Tool Creation"]
 
     J --> E
 
     I --> K["Submit to SN63<br/>submission_package.zip"]
 ```
-### Production 11-Step Flow – The Enigma-Machine-Miner Double-Loop Engine
 
-This system is purpose-built for SN63: it treats the **official ValidationOracle** as the single source of truth, uses EGGROLL for efficient exploration, Agent-Reach for grounded decisions, and gives the miner full control while remaining highly autonomous and compute-efficient.
-
-1. **Phase 1: Recommended Tools (Trigger)**  
-   Main Arbos runs ToolHunter on GOAL.md (which includes the official validator path). It returns concrete tool and model recommendations. Miner reviews and applies/skips. Validation oracle reference is loaded.
-
-2. **Phase 2: Intelligent Planning**  
-   Arbos generates a high-level plan, suggested swarm size, compute rules, and a Validation Oracle summary. Miner approves or tweaks with a custom enhancement prompt.
-
-3. **Phase 3: Executable Blueprint**  
-   Orchestrator Arbos creates a concrete subtask breakdown, tool assignments, symbolic-first rules, VRAM budgets, and a clear validation oracle integration plan.
-
-4. **Phase 4: Post-Orchestration Review Dashboard (Parallel View)**  
-   A single, powerful screen shows the full blueprint, swarm dynamics, and **Validation Oracle Summary**. Miner sees Arbos Recommended patterns (from Vector DB), backup suggestions, and an "Add My Context" form — each with toggles and evidence. Action bar: “Pass All / Use Original” or **Encode & Launch Swarm**.
-
-5. **Phase 5: Dynamic Swarm Execution**  
-   3–6 Sub-Arbos run in parallel using symbolic-first logic and ToolHunter for gaps. Real-time VRAM monitoring and EGGROLL low-rank perturbations keep exploration efficient.
-
-6. **Phase 6: Reconvene**  
-   Main Arbos synthesizes all sub-results into a candidate solution. No automatic pause — flow continues unless miner-configured.
-
-7. **Phase 7: ATLAS Inner-Loop (Autonomous)**  
-   `generate_self_tests()` + multi-hypothesis generation with EGGROLL perturbations. Tests run silently. Failures trigger a repair loop (max 3 attempts). All actions are benchmarked against the ValidationOracle.
-
-8. **Phase 8: Verification (Oracle-Centric)**  
-   Full verification runs the **official miner validation code** from GOAL.md locally. Returns structured `validation_score`, fidelity, and V/Vd readiness. If “pause on verification” is enabled, miner reviews; otherwise the system continues autonomously.
-
-9. **Phase 9: TrajectoryRL Outer-Loop (Always Runs)**  
-   Every trajectory is stored and embedded in the Vector DB (single source of truth). Self-critique generates strategy updates and meta-prompt deltas. High-validation-score patterns are automatically surfaced as Arbos Recommended on the next loop.
-
-10. **Phase 10: Loop Decision**  
-    Early-stop triggers if validation_score falls below threshold after 2 loops (configurable). If the solution passes the oracle and loops remain, the system returns to Phase 5. Otherwise it moves to improvement → refined blueprint → Phase 4.
-
-11. **Phase 11: Final Review & Packaging**  
-    Solution + full oracle results are displayed. One-click **Package for SN63** creates a clean V/Vd-formatted zip containing the solution, blueprint, trace, miner notes, and `validation_oracle.json`. Session ends.
 ---
 
 ### Key Intelligence Highlights
@@ -84,9 +49,11 @@ This system is purpose-built for SN63: it treats the **official ValidationOracle
 - **Automatic Symbolic Reasoning** — Automatically invokes deterministic logic (stabilizers, fidelity, circuit optimization, preprocessing) before falling back to LLM.
 - **Intelligent Verification System** — Supports custom executable code including direct Quantum Rings and OpenQuantum integration for real, deterministic metrics. Now powered by **ValidationOracle** as the single source of truth.
 - **Adaptive Re-loop & Memory** — Strong long-term memory with meta-reflection on failures, making the miner more effective over time.
-- **New: EGGROLL Low-Rank Perturbations** — Efficient exploration in the inner loop for better novelty with lower compute cost.
-- **New: Agent-Reach Grounding** — ToolHunter now automatically fetches clean web content with caching and fallbacks for higher-quality recommendations.
-- **New: Phase 4 Post-Orchestration Review Dashboard** — Parallel view with blueprint, Validation Oracle summary, toggles for Arbos Recommended (Vector DB) and custom context, plus "Encode & Launch Swarm".
+- **EGGROLL Low-Rank Perturbations** — Efficient exploration in the inner loop for better novelty with lower compute cost.
+- **Agent-Reach Grounding** — ToolHunter now automatically fetches clean web content with caching and fallbacks for higher-quality recommendations.
+- **Phase 4 Post-Orchestration Review Dashboard** — Parallel view with blueprint, Validation Oracle summary, toggles for Arbos Recommended (Vector DB) and custom context, plus "Encode & Launch Swarm".
+- **Three-Layer Memory Refinement** — Short-term buffer + LLM-compressed long-term summaries on top of Vector DB for sharper Arbos Recommended and better long-term learning.
+- **Safe Runtime Tool Creation** — Arbos can propose, safely test, and persist new quantum-specific tools only if they meaningfully improve validation_score.
 
 ---
 
@@ -201,10 +168,11 @@ streamlit run streamlit_app.py
 - **ValidationOracle** as single source of truth for scoring  
 - **EGGROLL** low-rank perturbations for efficient exploration  
 - **Agent-Reach** with caching + fallbacks for grounded ToolHunter  
+- **Three-Layer Memory Refinement** — Short-term buffer + LLM-compressed long-term summaries on top of Vector DB  
+- **Safe Runtime Tool Creation** — Arbos can propose, test, and persist new quantum-specific tools only if they meaningfully improve validation_score  
 - **Phase 4 Parallel Review Dashboard** with toggles and "Encode & Launch Swarm"  
 - **Early-stop** and `max_repair_attempts` robustness guards  
 - Full V/Vd-ready packaging with oracle results included  
 
 Made with focus on first-principles agentic design for Bittensor SN63.  
 Questions or feature requests? Open an issue or ping @dTAO_Dad on X.
-```
