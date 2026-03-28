@@ -23,7 +23,6 @@ from agents.tools.guardrails import apply_guardrails
 
 # === NEW UPGRADES (EGGROLL + Agent-Reach + Oracle + VectorDB) ===
 from validation_oracle import ValidationOracle
-from compute import compute_energy
 from trajectories.trajectory_vector_db import vector_db
 from tools.agent_reach_tool import AgentReachTool
 import numpy as np
