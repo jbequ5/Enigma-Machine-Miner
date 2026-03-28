@@ -25,7 +25,8 @@ from agents.tools.guardrails import apply_guardrails
 from validation_oracle import ValidationOracle
 from trajectories.trajectory_vector_db import vector_db
 from tools.agent_reach_tool import AgentReachTool
-from trajectories.memory_layers import MemoryLayers   # NEW
+from trajectories.memory_layers import MemoryLayers   # NEW - three-layer memory
+from tools.runtime_tools import RuntimeToolCreator     # NEW - safe runtime tool creation
 import numpy as np
 import logging
 
@@ -241,27 +242,6 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
                 "tool_map": {},
                 "deterministic_recommendations": "No specific deterministic recommendations."
             }
-        # NEW: Runtime Tool Creation (from the code you sent)
-        async def propose_and_create_tool(self, current_goal: str, failure_analysis: str, oracle):
-        prompt = f"""Analyze failure: {failure_analysis}. Propose a new Python tool (single function `run(input)`) that could improve validation_score for {current_goal}.
-        Return only the full Python code for the tool."""
-        code = await self.generate(prompt)   # your existing generate method
-        tool_name = f"custom_{hash(current_goal) % 10000}"
-        creator = RuntimeToolCreator()       # assume you add this class
-        success = creator.create_and_test_tool(code, tool_name, {"goal": current_goal}, self, oracle)
-        if success:
-            # Register dynamically if needed
-            logger.info(f"New tool {tool_name} created and persisted")
-        return success
-
-    # NEW: Self-Diagnostics (from the code you sent)
-    async def run_self_diagnostics(self, swarm_status: dict, recent_trajectories):
-        prompt = f"""Run self-diagnosis on swarm: {swarm_status}. Recent trajectories: {recent_trajectories[:3]}.
-        Output JSON: {{"health": "good/poor", "issues": [...], "recommended_fix": "..."}}"""
-        diag = json.loads(await self.generate(prompt))
-        if diag.get("health") == "poor":
-            logger.warning(f"Diagnostics flagged issues: {diag.get('issues', [])}")
-        return diag
 
     # EGGROLL LOW-RANK PERTURBATION HELPER
     def generate_low_rank_perturbation(self, base_solution: Dict, rank: int = None, seed: int = None) -> Tuple[Dict, Dict]:
@@ -544,3 +524,24 @@ Analyze patterns and return clean JSON with:
         if addition and addition.strip():
             return current_prompt.strip() + "\n\n" + addition.strip()
         return current_prompt
+
+    # === NEW: Runtime Tool Creation (exactly as you sent) ===
+    async def propose_and_create_tool(self, current_goal: str, failure_analysis: str, oracle):
+        prompt = f"""Analyze failure: {failure_analysis}. Propose a new Python tool (single function `run(input)`) that could improve validation_score for {current_goal}.
+        Return only the full Python code for the tool."""
+        code = await self.generate(prompt)   # your existing generate method
+        tool_name = f"custom_{hash(current_goal) % 10000}"
+        creator = RuntimeToolCreator()
+        success = creator.create_and_test_tool(code, tool_name, {"goal": current_goal}, self, oracle)
+        if success:
+            logger.info(f"New tool {tool_name} created and persisted")
+        return success
+
+    # === NEW: Self-Diagnostics (exactly as you sent) ===
+    async def run_self_diagnostics(self, swarm_status: dict, recent_trajectories):
+        prompt = f"""Run self-diagnosis on swarm: {swarm_status}. Recent trajectories: {recent_trajectories[:3]}.
+        Output JSON: {{"health": "good/poor", "issues": [...], "recommended_fix": "..."}}"""
+        diag = json.loads(await self.generate(prompt))
+        if diag.get("health") == "poor":
+            logger.warning(f"Diagnostics flagged issues: {diag.get('issues', [])}")
+        return diag
