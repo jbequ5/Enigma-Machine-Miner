@@ -1,6 +1,7 @@
 # agents/arbos_manager.py
 # FINAL UPGRADED VERSION - Hybrid ToolHunter + GOAL.md + Persistent History + Self-Improvement (trajrl-inspired)
 # + EGGROLL low-rank perturbations + Agent-Reach + ValidationOracle + TrajectoryVectorDB + full audit fixes
+# + NO-BS ASSESSMENT UPGRADES: per-subtask scoring, weighted synthesis, correlation logging, executable self-checks, trajectory export hook
 
 import os
 import subprocess
@@ -25,8 +26,8 @@ from agents.tools.guardrails import apply_guardrails
 from validation_oracle import ValidationOracle
 from trajectories.trajectory_vector_db import vector_db
 from tools.agent_reach_tool import AgentReachTool
-from trajectories.memory_layers import MemoryLayers   # NEW - three-layer memory
-from tools.runtime_tools import RuntimeToolCreator     # NEW - safe runtime tool creation
+from trajectories.memory_layers import MemoryLayers
+from tools.runtime_tools import RuntimeToolCreator
 import numpy as np
 import logging
 
@@ -89,7 +90,6 @@ class ArbosManager:
         self.custom_endpoint = None
         self.compute.set_compute_source(self.compute_source, self.custom_endpoint)
 
-        # === FULL INTEGRATIONS ===
         self.validator = ValidationOracle()
         self.reach_tool = AgentReachTool()
         self.eggroll_rank = 8
@@ -100,11 +100,10 @@ class ArbosManager:
         self.current_mean_solution = None
         self.loop_count = 0
 
-        # NEW: Three-Layer Memory
         self.memory_layers = MemoryLayers()
         self.memory_layers.set_vector_db(vector_db)
 
-        logger.info("✅ ArbosManager v2.5 fully loaded with all integrations and audit fixes")
+        logger.info("✅ ArbosManager v2.6 — NO-BS ASSESSMENT FULLY INCORPORATED")
 
     def _ensure_history_file(self):
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
@@ -230,7 +229,7 @@ Output EXACT JSON with:
 - swarm_config: number of instances and assignment strategy
 - tool_map: tools per subtask
 - deterministic_recommendations
-- validation_criteria: dict where key = subtask name/id, value = {{"criteria": "short success description", "self_check_prompt": "prompt for the sub-Arbos to self-evaluate its output", "required_metrics": ["fidelity > 0.9", ...]}}
+- validation_criteria: dict where key = subtask name/id, value = {{"criteria": "short success description", "self_check_prompt": "prompt for the sub-Arbos to self-evaluate its output", "required_metrics": ["fidelity > 0.9", ...], "executable_self_check": "optional one-line python eval string"}}
 
 Keep subtasks focused and validation_criteria actionable so each sub-Arbos stays on target."""
 
@@ -296,13 +295,12 @@ Keep subtasks focused and validation_criteria actionable so each sub-Arbos stays
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours / 3.0)
         repair_attempts = 0
-
-        # NEW: Access validation criteria passed from orchestrator
         validation_criteria = getattr(self, "_current_validation_criteria", {}).get(subtask, None)
 
         if self.config.get("resource_aware") and monitor.elapsed_hours() > max_hours * 0.75:
             solution = "Early abort: time budget exceeded."
             trace = ["Resource-aware early abort"]
+            local_score = 0.0
         else:
             solution = f"Subtask: {subtask}\nHypothesis: {hypothesis}"
             trace = [f"Sub-Arbos {subtask_id} started"]
@@ -315,9 +313,9 @@ Keep subtasks focused and validation_criteria actionable so each sub-Arbos stays
             solution = self._generate_candidates_eggroll(subtask, hypothesis, solution)
 
             current_reflect_prompt = None
+            local_score = 0.5
 
             for loop in range(3):
-                # === NEW: Self-evaluation using Arbos-recommended validation criteria ===
                 local_eval = None
                 if validation_criteria:
                     criteria = validation_criteria
@@ -333,23 +331,25 @@ Give a score (0.0-1.0) and short explanation."""
                     local_eval = self.compute.run_on_compute(eval_prompt, temperature=0.0, task_type="sub_eval")
                     trace.append(f"Self-eval: {local_eval[:150]}...")
 
-                    # === NEW: Improve reflection prompt for NEXT iteration ===
+                    try:
+                        score_str = local_eval.split("0.")[1][:3] if "0." in local_eval else "0.5"
+                        local_score = float(score_str)
+                    except:
+                        local_score = 0.5
+
                     if loop < 2:
                         improve_prompt = f"""You are a sub-Arbos improving your own reasoning strategy.
 Previous self-evaluation: {local_eval}
 Subtask goal / criteria: {criteria.get('criteria', '')}
 
 Rewrite a better, stricter reflection prompt for your next attempt.
-Incorporate lessons from the evaluation.
-Make it more focused on meeting the criteria.
-Output ONLY the new reflection prompt text (no extra explanation)."""
+Output ONLY the new reflection prompt text."""
 
                         new_reflect = self.compute.run_on_compute(improve_prompt, temperature=0.2, task_type="prompt_improve")
                         if new_reflect and len(new_reflect.strip()) > 20:
                             current_reflect_prompt = new_reflect.strip()
                             trace.append("Improved own reflection prompt")
 
-                # === Use improved prompt or original ===
                 if current_reflect_prompt:
                     reflect_task = current_reflect_prompt
                 else:
@@ -358,7 +358,7 @@ Subtask: {subtask}
 Hypothesis: {hypothesis}
 Current: {solution[:800]}
 {'Self-evaluation from last attempt: ' + (local_eval[:400] if local_eval else '')}
-Prefer deterministic tools and specialized HF models when applicable.
+Prefer deterministic tools.
 Decide: Improve / Call Tool / Finalize
 Stay tightly aligned with the validation criteria."""
 
@@ -387,8 +387,10 @@ Stay tightly aligned with the validation criteria."""
                 if time.time() - monitor.start_time > (max_hours * 1800 / 6):
                     break
 
-        memory.add(text=solution[:1000], metadata={"subtask": subtask, "status": "completed"})
-        shared_results[subtask_id] = {"subtask": subtask, "solution": solution, "trace": trace}
+        memory.add(text=solution[:1000], metadata={"subtask": subtask, "status": "completed", "local_score": local_score})
+        vector_db.add({"type": "sub_arbos_result", "subtask": subtask, "local_score": local_score, "solution": solution[:800]})
+
+        shared_results[subtask_id] = {"subtask": subtask, "solution": solution, "trace": trace, "local_score": local_score}
         return shared_results[subtask_id]
 
     def _run_verification(self, solution: str, verification_code: str) -> str:
@@ -411,7 +413,6 @@ Stay tightly aligned with the validation criteria."""
         swarm_config = blueprint.get("swarm_config", {"total_instances": 1})
         tool_map = blueprint.get("tool_map", {})
 
-        # NEW: Store validation criteria for sub-arbos workers
         self._current_validation_criteria = blueprint.get("validation_criteria", {})
 
         total_instances = min(swarm_config.get("total_instances", 4), 6)
@@ -444,6 +445,12 @@ Stay tightly aligned with the validation criteria."""
                     trace_log.append(f"Error: {e}")
 
         all_results = dict(manager_dict)
+
+        # Per-subtask contribution scoring
+        sub_scores = [r.get("local_score", 0.5) for r in all_results.values()]
+        avg_sub_score = sum(sub_scores) / len(sub_scores) if sub_scores else 0.5
+        trace_log.append(f"Per-subtask avg score: {avg_sub_score:.3f}")
+
         failed_context = "\nPrevious failed attempts:\n" + "\n---\n".join(memory.query(challenge + " failed", n_results=5)) if memory.query(challenge + " failed", n_results=5) else ""
 
         synthesis_task = f"""You are Arbos Orchestrator.
@@ -451,14 +458,19 @@ Challenge: {challenge}
 Verification Instructions: {verification_instructions or 'General SN63 standards'}
 Miner Deterministic Tooling: {deterministic_tooling or 'None specified'}
 {failed_context}
-Swarm results: {json.dumps(all_results, indent=2)}
-Final Synthesized Solution:"""
+Swarm results (with local scores): {json.dumps(all_results, indent=2)}
+Per-subtask avg score: {avg_sub_score:.3f}
+Final Synthesized Solution (weight higher-scoring subtasks more):"""
 
         final_solution = self.compute.run_on_compute(synthesis_task, temperature=0.0, task_type="synthesis", novelty_level="high")
 
         if verification_instructions and verification_instructions.strip():
             verification_result = self._run_verification(final_solution, verification_instructions)
             final_solution += f"\n\n--- VERIFICATION RESULT ---\n{verification_result}"
+
+            # Correlation logging
+            final_score = getattr(self.validator, "last_score", 0.0)
+            logger.info(f"Correlation | Sub-avg: {avg_sub_score:.3f} | Final Oracle: {final_score:.3f}")
 
             score = self.validator.last_score
             if score < self.early_stop_threshold and self.loop_count >= 2:
@@ -469,8 +481,7 @@ Final Synthesized Solution:"""
         if self.config.get("guardrails"):
             final_solution = apply_guardrails(final_solution, ResourceMonitor(max_hours=self.config.get("max_compute_hours", 3.8)))
 
-        memory.add(text=final_solution[:1500], metadata={"challenge": challenge, "status": "final"})
-
+        memory.add(text=final_solution[:1500], metadata={"challenge": challenge, "status": "final", "sub_avg_score": avg_sub_score})
         trace_log.append("Synthesis + Verification complete")
 
         import streamlit as st
@@ -480,6 +491,14 @@ Final Synthesized Solution:"""
 
         self.loop_count += 1
         return final_solution
+
+    def export_trajectories_for_optimization(self, challenge: str):
+        traj = vector_db.search(challenge, k=50)
+        path = Path("trajectories") / f"export_{challenge[:30]}_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(traj, indent=2))
+        logger.info(f"Exported {len(traj)} trajectories to {path} for offline optimization")
+        return str(path)
 
     def _smart_route(self, challenge: str) -> Tuple[str, List[str], bool]:
         high_level_plan = self.plan_challenge(challenge)
