@@ -78,7 +78,7 @@ st.set_page_config(
 
 st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63</h3>", unsafe_allow_html=True)
-st.caption("Double-Loop Discovery Engine • Real Quantum Rings + Recursive Autoresearch + Dynamic Verification + EGGROLL + NO-BS ASSESSMENT")
+st.caption("Double-Loop Discovery Engine • Real Quantum Rings SDK + Recursive Autoresearch + Dynamic Verification + EGGROLL + NO-BS ASSESSMENT")
 
 # ====================== SESSION STATE & MANAGER ======================
 if "arbos_manager" not in st.session_state:
@@ -244,7 +244,9 @@ if st.session_state.get("stage") == "post_orchestration_review":
         if enable_runtime_tools:
             st.info("Safe runtime tool creation enabled")
         st.session_state.stage = "final_review"
-        final_solution, _, _ = manager._smart_route(st.session_state.challenge)
+        # Pass verification_instructions if available in session state
+        verification_instructions = st.session_state.get("verification_instructions", "")
+        final_solution, _, _ = manager._smart_route(st.session_state.challenge, verification_instructions)
         st.session_state.final_solution = final_solution
         st.rerun()
 
@@ -261,7 +263,8 @@ if st.session_state.get("stage") == "final_review":
     with tab1:
         st.text_area("Final Synthesized Solution", solution, height=400)
         st.markdown("### ValidationOracle Results (Official SN63 Scoring)")
-        st.markdown(f"**Detected Validation Strategy:** {getattr(manager, '_current_strategy', {}).get('domain', 'general')} | Type: {getattr(manager, '_current_strategy', {}).get('verification_type', 'standard')} | Tools: {getattr(manager, '_current_strategy', {}).get('enabled_modules', [])}")
+        strategy = getattr(manager, '_current_strategy', {})
+        st.markdown(f"**Detected Validation Strategy:** {strategy.get('domain', 'general')} | Type: {strategy.get('verification_type', 'standard')} | Tools: {strategy.get('enabled_modules', [])}")
         st.success(f"Score: {manager.validator.last_score:.3f} | V/Vd Ready: {manager.validator.last_vvd_ready} | Notes: {manager.validator.last_notes}")
 
         st.markdown("### Sub-Arbos Performance (NO-BS ASSESSMENT)")
@@ -307,21 +310,24 @@ if st.session_state.get("stage") == "final_review":
         st.markdown("**Manual Self-Improvement Instruction**")
         manual = st.text_area("Tell Arbos how to improve next run", height=100, placeholder="Be more aggressive on novelty...")
 
-        if st.button("🔬 Perform Autoresearch + Apply Meta-Patches", type="primary"):
-            with st.spinner("Running recursive self-improvement..."):
+        col_auto1, col_auto2 = st.columns(2)
+        with col_auto1:
+            if st.button("🔬 Perform Autoresearch + Apply Meta-Patches", type="primary"):
+                with st.spinner("Running recursive self-improvement..."):
+                    critique = manager.self_critique(st.session_state.challenge)
+                    patches = manager.perform_autoresearch(critique)
+                    st.success("Autoresearch complete!")
+                    st.json(patches)
+        with col_auto2:
+            if st.button("📈 Evolve Workflow (EvoAgentX style)"):
                 critique = manager.self_critique(st.session_state.challenge)
-                patches = manager.perform_autoresearch(critique)
-                st.success("Autoresearch complete!")
-                st.json(patches)
-
-        if st.button("📈 Evolve Workflow (EvoAgentX style)"):
-            critique = manager.self_critique(st.session_state.challenge)
-            st.markdown("**Workflow Evolution Suggestions:**")
-            st.write(critique.get("workflow_evolution", []))
+                st.markdown("**Workflow Evolution Suggestions:**")
+                st.write(critique.get("workflow_evolution", []))
 
         if st.button("🚀 Apply & Re-run with Self-Improvement", type="primary"):
             st.success("Enhanced prompt sent to swarm with self-improvement directives!")
 
+    # NEW: Trajectory export for offline optimization
     if st.button("📤 Export Trajectories for Offline Optimization (agent-lightning / RL)"):
         path = manager.export_trajectories_for_optimization(st.session_state.challenge)
         st.success(f"Trajectories exported to {path}")
