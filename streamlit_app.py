@@ -78,7 +78,7 @@ st.set_page_config(
 
 st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63</h3>", unsafe_allow_html=True)
-st.caption("Double-Loop Discovery Engine • EGGROLL + Agent-Reach + ValidationOracle + Three-Layer Memory + Runtime Tools + NO-BS ASSESSMENT UPGRADES")
+st.caption("Double-Loop Discovery Engine • Real Quantum Rings + Recursive Autoresearch + Dynamic Verification + EGGROLL + NO-BS ASSESSMENT")
 
 # ====================== SESSION STATE & MANAGER ======================
 if "arbos_manager" not in st.session_state:
@@ -103,11 +103,12 @@ st.markdown("---")
 
 # ====================== SIDEBAR ======================
 st.sidebar.title("🛠️ ALLIED OPERATIONS")
-st.sidebar.metric("Mode", "Production + Self-Improvement")
+st.sidebar.metric("Mode", "Production + Recursive Self-Improvement")
 st.sidebar.caption(f"EGGROLL Rank: **{manager.eggroll_rank}** | σ: **{manager.sigma:.3f}**")
 st.sidebar.caption("Agent-Reach: **ON** (caching + fallbacks)")
 st.sidebar.caption("ValidationOracle: **LIVE** (SN63 official scoring)")
 st.sidebar.caption(f"Max Repair Attempts: **{manager.max_repair_attempts}**")
+st.sidebar.caption("Quantum Rings SDK: **REAL**")
 
 pause_on_verification = st.sidebar.checkbox("Pause on Verification (Phase 8)", value=False)
 early_stop_enabled = st.sidebar.checkbox("Enable Early-Stop (validation_score < 0.65 after 2 loops)", value=True)
@@ -260,7 +261,7 @@ if st.session_state.get("stage") == "final_review":
     with tab1:
         st.text_area("Final Synthesized Solution", solution, height=400)
         st.markdown("### ValidationOracle Results (Official SN63 Scoring)")
-        st.markdown(f"**Detected Validation Strategy:** {manager._current_strategy.get('domain', 'general')} | Type: {manager._current_strategy.get('verification_type', 'standard')} | Tools: {manager._current_strategy.get('enabled_modules', [])}")
+        st.markdown(f"**Detected Validation Strategy:** {getattr(manager, '_current_strategy', {}).get('domain', 'general')} | Type: {getattr(manager, '_current_strategy', {}).get('verification_type', 'standard')} | Tools: {getattr(manager, '_current_strategy', {}).get('enabled_modules', [])}")
         st.success(f"Score: {manager.validator.last_score:.3f} | V/Vd Ready: {manager.validator.last_vvd_ready} | Notes: {manager.validator.last_notes}")
 
         st.markdown("### Sub-Arbos Performance (NO-BS ASSESSMENT)")
@@ -280,7 +281,7 @@ if st.session_state.get("stage") == "final_review":
         st.info("Memory history loaded from your persistent memory system.")
 
     with tab4:
-        st.markdown("### 🧬 SELF-IMPROVEMENT LOOP (trajrl-inspired + EGGROLL)")
+        st.markdown("### 🧬 SELF-IMPROVEMENT LOOP (Trajectory-Informed + EvoAgentX + Autoresearch)")
         history = manager.get_run_history(n=8)
         if history:
             st.dataframe(pd.DataFrame(history), use_container_width=True)
@@ -306,10 +307,21 @@ if st.session_state.get("stage") == "final_review":
         st.markdown("**Manual Self-Improvement Instruction**")
         manual = st.text_area("Tell Arbos how to improve next run", height=100, placeholder="Be more aggressive on novelty...")
 
+        if st.button("🔬 Perform Autoresearch + Apply Meta-Patches", type="primary"):
+            with st.spinner("Running recursive self-improvement..."):
+                critique = manager.self_critique(st.session_state.challenge)
+                patches = manager.perform_autoresearch(critique)
+                st.success("Autoresearch complete!")
+                st.json(patches)
+
+        if st.button("📈 Evolve Workflow (EvoAgentX style)"):
+            critique = manager.self_critique(st.session_state.challenge)
+            st.markdown("**Workflow Evolution Suggestions:**")
+            st.write(critique.get("workflow_evolution", []))
+
         if st.button("🚀 Apply & Re-run with Self-Improvement", type="primary"):
             st.success("Enhanced prompt sent to swarm with self-improvement directives!")
 
-    # NEW: Trajectory export for offline optimization
     if st.button("📤 Export Trajectories for Offline Optimization (agent-lightning / RL)"):
         path = manager.export_trajectories_for_optimization(st.session_state.challenge)
         st.success(f"Trajectories exported to {path}")
