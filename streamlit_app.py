@@ -7,7 +7,7 @@ from datetime import datetime
 
 from agents.arbos_manager import ArbosManager
 
-# ====================== BUNKER THEME (extracted - fixes blue/inactive code) ======================
+# ====================== BUNKER THEME ======================
 BUNKER_CSS = """
 <style>
     [data-testid="stAppViewContainer"] {
@@ -109,11 +109,9 @@ st.sidebar.caption("Agent-Reach: **ON** (caching + fallbacks)")
 st.sidebar.caption("ValidationOracle: **LIVE** (SN63 official scoring)")
 st.sidebar.caption(f"Max Repair Attempts: **{manager.max_repair_attempts}**")
 
-# Phase 4 toggles
 pause_on_verification = st.sidebar.checkbox("Pause on Verification (Phase 8)", value=False)
 early_stop_enabled = st.sidebar.checkbox("Enable Early-Stop (validation_score < 0.65 after 2 loops)", value=True)
 
-# New toggles from 724-Office features
 enable_three_layer_memory = st.sidebar.checkbox("Enable Three-Layer Memory Compression", value=False)
 enable_runtime_tools = st.sidebar.checkbox("Allow Safe Runtime Tool Creation", value=False)
 enable_self_diagnostics = st.sidebar.checkbox("Run Self-Diagnostics on Reconvene", value=False)
@@ -223,15 +221,12 @@ if st.session_state.get("stage") == "post_orchestration_review":
 
     st.header("🚀 Phase 4: Post-Orchestration Review Dashboard")
     st.subheader("Blueprint & Swarm Dynamics")
-    
-    # Enhanced display with validation criteria highlight
     st.json(blueprint)
     st.caption("**New:** Arbos now recommends per-subtask `validation_criteria` including self_check_prompts. Sub-Arbos will self-evaluate and dynamically improve their reflection prompts inside their repair loops.")
 
     col1, col2 = st.columns(2)
     with col1:
         apply_arbo = st.checkbox("⭐ Apply Arbos Recommended (Vector DB high-score patterns)", value=True)
-        st.write("High-validation-score patterns from previous runs")
         enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=False)
     with col2:
         add_context = st.checkbox("➕ Add My Context / Tools / Tests", value=False)
@@ -267,7 +262,6 @@ if st.session_state.get("stage") == "final_review":
         st.markdown("### ValidationOracle Results (Official SN63 Scoring)")
         st.success(f"Score: {manager.validator.last_score:.3f} | V/Vd Ready: {manager.validator.last_vvd_ready} | Notes: {manager.validator.last_notes}")
 
-        # New: Show sub-Arbos validation behavior
         st.markdown("### Sub-Arbos Validation & Prompt Improvement")
         st.info("Each sub-Arbos now performs self-evaluation using Arbos-recommended criteria and improves its own reflection prompt across repair attempts.")
 
@@ -346,7 +340,6 @@ def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
     (sub_dir / "verification.txt").write_text(verification)
     (sub_dir / "deterministic_tooling.txt").write_text(deterministic_tooling)
 
-    # Full Oracle results for V/Vd
     oracle_info = {
         "validation_score": manager.validator.last_score,
         "fidelity": manager.validator.last_fidelity,
