@@ -13,44 +13,29 @@ class VerificationAnalyzer:
             return ""
 
     def analyze(self, verification_instructions: str = "", challenge: str = "") -> Dict[str, Any]:
-        text = f"{self.goal_content}\n{verification_instructions}\n{challenge}".lower()
+        full_text = f"{self.goal_content}\n{verification_instructions}\n{challenge}"
+        text_lower = full_text.lower()
 
         strategy = {
-            "domain": "general",
+            "domain": "adaptive",
             "enabled_modules": ["sympy"],
-            "scoring_weights": {"fidelity": 0.07, "symbolic": 0.05, "speed": 0.03, "fingerprint": 0.0},
+            "scoring_weights": {"symbolic": 0.4, "deterministic": 0.3, "novelty": 0.2, "speed": 0.1},
             "self_check_commands": [],
             "recommended_tools": [],
-            "verification_type": "standard"
+            "verification_type": "custom",
+            "verifier_code_snippets": []
         }
 
-        # SN63-specific detection
-        if any(k in text for k in ["fingerprint", "synthetic circuit", "proof of compute", "statistical", "peaked circuit"]):
-            strategy["domain"] = "quantum_sn63"
-            strategy["enabled_modules"] = ["stim", "pytket", "quantum_rings", "sympy"]
-            strategy["recommended_tools"] = ["stim", "pytket"]
-            strategy["scoring_weights"]["fidelity"] = 0.15
-            strategy["scoring_weights"]["fingerprint"] = 0.12
-            strategy["verification_type"] = "fingerprint_proof"
+        # Extract verifier code blocks
+        code_blocks = re.findall(r'```(?:python|code)?\s*(.*?)```', full_text, re.DOTALL | re.IGNORECASE)
+        strategy["verifier_code_snippets"] = [b.strip() for b in code_blocks if b.strip()]
 
-        elif any(k in text for k in ["stim", "tableau", "pauli", "stabilizer", "fidelity", "quantum rings", "circuit"]):
-            strategy["domain"] = "quantum"
-            strategy["enabled_modules"] = ["stim", "pytket", "quantum_rings", "sympy"]
-            strategy["recommended_tools"] = ["stim", "pytket"]
-            strategy["scoring_weights"]["fidelity"] = 0.12
-            strategy["scoring_weights"]["symbolic"] = 0.08
-
-        elif any(k in text for k in ["sympy", "algebra", "equation", "matrix"]):
-            strategy["domain"] = "math"
-            strategy["enabled_modules"] = ["sympy"]
-
-        elif any(k in text for k in ["crypto", "zk", "ecc", "rsa"]):
-            strategy["domain"] = "crypto"
-            strategy["enabled_modules"] = ["sympy"]
-
-        # Extract executable self-checks
-        checks = re.findall(r'(?:self_check|verify|validate|assert|fingerprint|statistical).*?```python(.*?)```', 
+        # Extract self-check / verify blocks
+        checks = re.findall(r'(?:self_check|verify|validate|assert|score|metric).*?```(?:python)?\s*(.*?)```', 
                            verification_instructions + challenge, re.DOTALL | re.IGNORECASE)
         strategy["self_check_commands"] = [c.strip() for c in checks if c.strip()]
+
+        # Extract recommended tools from miner text
+        strategy["recommended_tools"] = re.findall(r'(?:use|install|require|pip)\s+([a-z0-9\-_]+)', text_lower)
 
         return strategy
