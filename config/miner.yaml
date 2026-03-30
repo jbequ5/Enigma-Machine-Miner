@@ -1,12 +1,25 @@
-# Basic Bittensor miner config
-netuid: 63
-subtensor:
-  network: finney
+# miner.yaml
+# Bittensor Miner Configuration for SN63
+
+version: 1.0
+
+# Wallet settings
 wallet:
   name: default
   hotkey: default
+
+# Subnet-specific
+subnet:
+  netuid: 63          # Enigma subnet
+  network: finney     # or test for testnet
+
+# Axon (only needed if running full miner)
 axon:
+  ip: 0.0.0.0
   port: 8091
+  external_ip: ""     # your public IP if needed
+  external_port: 8091
+
+# Logging
 logging:
   level: INFO
-
