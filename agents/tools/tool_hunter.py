@@ -1,9 +1,10 @@
 # agents/tools/tool_hunter.py
-# Hybrid ToolHunter with automatic HF model download + ReadyAI llms.txt (SN33) grounding
+# Hybrid ToolHunter with HF auto-download + ReadyAI llms.txt (SN33) grounding
 
 import json
 import os
 import requests
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List
@@ -12,8 +13,10 @@ from agents.memory import memory
 from agents.tools.compute import ComputeRouter
 from huggingface_hub import snapshot_download
 
-# New: ReadyAI integration
+# ReadyAI integration
 from agents.tools.readyai_tool import readyai_tool
+
+logger = logging.getLogger(__name__)
 
 REGISTRY_PATH = "agents/tools/registry.json"
 
@@ -42,35 +45,34 @@ class ToolHunter:
 
     def hunt_and_integrate(self, gap_description: str, subtask: str, challenge_context: str = "") -> Dict[str, Any]:
         registry = load_registry()
-        query = (gap_description + " " + subtask + " " + challenge_context).lower()
+        full_query = (gap_description + " " + subtask + " " + challenge_context).lower()
 
         # Step 1: Fast registry lookup
         for tool in registry.get("tools", []):
             keywords = [k.lower() for k in tool.get("keywords", [])]
-            if any(k in query for k in keywords):
-                return {
-                    "status": "success",
-                    "tool_name": tool.get("name"),
-                    "recommendation": tool.get("install_cmd", ""),
-                    "source": "registry"
-                }
+            if any(k in full_query for k in keywords):
+                return {"status": "success", "tool_name": tool.get("name"), "source": "registry"}
 
-        # Step 2: ReadyAI llms.txt grounding (great for domains, companies, topics)
-        if any(word in query for word in ["company", "domain", "technology", "research", "org", "site", "arxiv", "who", "gov"]):
-            readyai_result = readyai_tool.query(gap_description + " " + subtask, limit=4)
-            if readyai_result.get("success"):
-                memory.add(text=f"ReadyAI grounding: {readyai_result['summary']}", 
-                          metadata={"source": "readyai", "query": gap_description})
-                
-                return {
-                    "status": "success",
-                    "source": "readyai_llms.txt",
-                    "results": readyai_result["results"],
-                    "summary": readyai_result["summary"],
-                    "recommendation": "Use structured domain knowledge from ReadyAI for grounding"
-                }
+        # Step 2: ReadyAI llms.txt grounding (very useful for real-world challenges)
+        if any(k in full_query for k in ["company", "domain", "technology", "research", "org", "site", "arxiv", "gov", "who", "institute"]):
+            try:
+                readyai_result = readyai_tool.query(gap_description + " " + subtask, limit=4)
+                if readyai_result.get("success"):
+                    memory.add(
+                        text=f"ReadyAI grounding: {readyai_result['summary']}", 
+                        metadata={"source": "readyai", "query": gap_description}
+                    )
+                    return {
+                        "status": "success",
+                        "source": "readyai_llms.txt",
+                        "results": readyai_result["results"],
+                        "summary": readyai_result["summary"],
+                        "recommendation": "Use structured domain knowledge from ReadyAI"
+                    }
+            except Exception as e:
+                logger.warning(f"ReadyAI query failed: {e}")
 
-        # Step 3: Full live hunt (GitHub + HF)
+        # Step 3: Full live hunt (GitHub + HF models)
         search_task = f"""Generate precise search queries for this SN63 gap:
 Gap: {gap_description}
 Subtask: {subtask}
@@ -78,6 +80,7 @@ Context: {challenge_context or 'General verifier-driven challenge'}
 
 Reply exactly:
 Queries: ["github query1", "huggingface query2"]"""
+
         queries_response = self.compute.run_on_compute(search_task, task_type="toolhunter")
         queries = self._extract_queries(queries_response)
 
@@ -89,22 +92,23 @@ Candidates:
 {json.dumps(candidates, indent=2)}
 
 Choose the SINGLE best HF model or tool (or 'none'). Provide:
-- chosen_item (repo URL or HF model name)
+- chosen_item
 - integration_idea
 - confidence (0-10)
 
 JSON only."""
+
         decision = self.compute.run_on_compute(decision_task, task_type="toolhunter")
         result = self._parse_json(decision)
 
         if result.get("chosen_item") in (None, "none") or result.get("confidence", 0) < 6:
             return self._create_skip_result(result.get("reason", "No suitable item"))
 
-        # Auto-download if it's a Hugging Face model
+        # Auto-download HF model if recommended
         if "/" in result.get("chosen_item", "") and "github" not in result["chosen_item"].lower():
             self._auto_download_hf_model(result["chosen_item"])
 
-        # Add to registry
+        # Save to registry
         registry = load_registry()
         registry["models"].append({
             "name": result.get("chosen_item"),
@@ -113,19 +117,20 @@ JSON only."""
         })
         save_registry(registry)
 
-        memory.add(text=f"ToolHunter recommendation: {result['chosen_item']}", 
-                  metadata={"subtask": subtask, "confidence": result["confidence"]})
+        memory.add(
+            text=f"ToolHunter recommendation: {result['chosen_item']}", 
+            metadata={"subtask": subtask, "confidence": result["confidence"]}
+        )
 
         return {
             "status": "success",
             "chosen_item": result.get("chosen_item"),
             "integration_idea": result.get("integration_idea", ""),
             "confidence": result.get("confidence", 5),
-            "miner_action": "Model auto-downloaded and ready for next run"
+            "miner_action": "Model auto-downloaded and ready"
         }
 
     def _auto_download_hf_model(self, model_id: str):
-        """Automatically download high-confidence HF models."""
         try:
             target_dir = self.models_dir / model_id.replace("/", "__")
             if target_dir.exists():
@@ -135,7 +140,7 @@ JSON only."""
             snapshot_download(repo_id=model_id, local_dir=target_dir, local_dir_use_symlinks=False)
             logger.info(f"✅ Successfully downloaded {model_id}")
         except Exception as e:
-            logger.warning(f"Auto-download failed for {model_id}: {e}")
+            logger.warning(f"HF auto-download failed for {model_id}: {e}")
 
     def _real_search(self, queries: List[str]) -> List[Dict]:
         candidates = []
