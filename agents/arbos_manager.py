@@ -15,7 +15,7 @@ import logging
 multiprocessing.set_start_method('spawn', force=True)
 
 from agents.memory import memory, memory_layers
-from agents.tools.tool_hunter import hunt_and_integrate, load_registry, save_registry
+from agents.tools.tool_hunter import tool_hunter, load_registry, save_registry
 from agents.tools.compute import ComputeRouter
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
@@ -344,7 +344,7 @@ Stay tightly aligned with the validation criteria."""
         return shared_results[subtask_id]
 
     def _tool_hunter(self, gap: str, subtask: str) -> str:
-        result = hunt_and_integrate(gap, subtask)
+        result = tool_hunter.hunt_and_integrate(gap, subtask)
         if result.get("status") == "success" and result.get("links"):
             for link in result.get("links", [])[:3]:
                 clean = self.reach_tool.fetch_url_content(link.get("url", ""))
@@ -575,7 +575,7 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
             return {"decomposition": ["Fallback"], "swarm_config": {"total_instances": 1}, "tool_map": {}, "validation_criteria": {}}
 
     def _tool_hunter(self, gap: str, subtask: str) -> str:
-        result = hunt_and_integrate(gap, subtask)
+        result = tool_hunter.hunt_and_integrate(gap, subtask)
         if result.get("status") == "success" and result.get("links"):
             for link in result.get("links", [])[:3]:
                 clean = self.reach_tool.fetch_url_content(link.get("url", ""))
