@@ -1,6 +1,5 @@
 # agents/tools/tool_hunter.py
-# Hybrid ToolHunter: Registry first (fast) → Full live hunt when needed
-# Hardened version: Suggestions only — no runtime installation or execution
+# Hybrid ToolHunter with automatic HF model download for high-confidence recommendations
 
 import json
 import os
@@ -11,6 +10,7 @@ from typing import Dict, Any, List
 
 from agents.memory import memory
 from agents.tools.compute import ComputeRouter
+from huggingface_hub import snapshot_download
 
 REGISTRY_PATH = "agents/tools/registry.json"
 
@@ -33,7 +33,9 @@ class ToolHunter:
     def __init__(self):
         self.compute = ComputeRouter()
         self.github_token = os.getenv("GITHUB_TOKEN", "")
-        print("🔍 ToolHunter: Hybrid mode active (registry + live search) — Suggestions only")
+        self.models_dir = Path("models")
+        self.models_dir.mkdir(exist_ok=True)
+        print("🔍 ToolHunter: Hybrid mode active (registry + live search + auto-download)")
 
     def hunt_and_integrate(self, gap_description: str, subtask: str, challenge_context: str = "") -> Dict[str, Any]:
         registry = load_registry()
@@ -61,14 +63,14 @@ class ToolHunter:
                     "source": "registry"
                 }
 
-        # Step 2: Full live hunt if registry match is weak (suggestions only)
+        # Step 2: Full live hunt
         search_task = f"""Generate precise search queries for this SN63 gap:
 Gap: {gap_description}
 Subtask: {subtask}
 Context: {challenge_context or 'General verifier-driven challenge'}
 
 Reply exactly:
-Queries: ["github query1", "arxiv query2"]"""
+Queries: ["github query1", "huggingface query2"]"""
         queries_response = self.compute.run_on_compute(search_task, task_type="toolhunter")
         queries = self._extract_queries(queries_response)
 
@@ -79,37 +81,53 @@ Queries: ["github query1", "arxiv query2"]"""
 Candidates:
 {json.dumps(candidates, indent=2)}
 
-Choose the SINGLE best (or 'none'). Provide:
-- chosen_tool (repo URL or package name)
-- integration_idea (how it could help)
+Choose the SINGLE best HF model or tool (or 'none'). Provide:
+- chosen_item (repo URL or HF model name)
+- integration_idea
 - confidence (0-10)
 
 JSON only."""
         decision = self.compute.run_on_compute(decision_task, task_type="toolhunter")
         result = self._parse_json(decision)
 
-        if result.get("chosen_tool") in (None, "none") or result.get("confidence", 0) < 5:
-            return self._create_skip_result(result.get("reason", "No suitable tool"))
+        if result.get("chosen_item") in (None, "none") or result.get("confidence", 0) < 6:
+            return self._create_skip_result(result.get("reason", "No suitable item"))
 
-        # Add to registry for future use (suggestion only)
+        # Auto-download if it's a Hugging Face model
+        if "/" in result.get("chosen_item", "") and "github" not in result["chosen_item"].lower():
+            self._auto_download_hf_model(result["chosen_item"])
+
+        # Add to registry
         registry = load_registry()
-        registry["tools"].append({
-            "name": result.get("chosen_tool"),
+        registry["models"].append({
+            "name": result.get("chosen_item"),
             "keywords": [word.lower() for word in subtask.split() if len(word) > 3],
-            "install_cmd": f"Manual: git clone {result.get('chosen_tool')}",
             "added": datetime.now().isoformat()
         })
         save_registry(registry)
 
-        memory.add(text=f"ToolHunter suggestion: {result['chosen_tool']}", metadata={"subtask": subtask, "confidence": result["confidence"]})
+        memory.add(text=f"ToolHunter recommendation: {result['chosen_item']}", metadata={"subtask": subtask, "confidence": result["confidence"]})
 
         return {
             "status": "success",
-            "tool_name": result.get("chosen_tool"),
+            "chosen_item": result.get("chosen_item"),
             "integration_idea": result.get("integration_idea", ""),
             "confidence": result.get("confidence", 5),
-            "miner_action": "Manual install recommended for next run"
+            "miner_action": "Model auto-downloaded and ready for next run"
         }
+
+    def _auto_download_hf_model(self, model_id: str):
+        """Automatically download high-confidence HF models."""
+        try:
+            target_dir = self.models_dir / model_id.replace("/", "__")
+            if target_dir.exists():
+                logger.info(f"Model {model_id} already cached")
+                return
+            print(f"📥 Auto-downloading recommended model: {model_id}")
+            snapshot_download(repo_id=model_id, local_dir=target_dir, local_dir_use_symlinks=False)
+            logger.info(f"✅ Successfully downloaded {model_id}")
+        except Exception as e:
+            logger.warning(f"Auto-download failed for {model_id}: {e}")
 
     def _real_search(self, queries: List[str]) -> List[Dict]:
         candidates = []
@@ -145,7 +163,7 @@ JSON only."""
             end = raw.rfind("}") + 1
             return json.loads(raw[start:end])
         except:
-            return {"chosen_tool": None, "confidence": 0}
+            return {"chosen_item": None, "confidence": 0}
 
     def _create_skip_result(self, reason: str) -> Dict:
         return {"status": "skip", "reason": reason}
