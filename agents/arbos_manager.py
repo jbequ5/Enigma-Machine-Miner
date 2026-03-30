@@ -14,7 +14,7 @@ import logging
 
 multiprocessing.set_start_method('spawn', force=True)
 
-from agents.memory import memory
+from agents.memory import memory, memory_layers   # Updated import
 from agents.tools.tool_hunter import hunt_and_integrate, load_registry, save_registry
 from agents.tools.compute import ComputeRouter
 from agents.tools.resource_aware import ResourceMonitor
@@ -23,7 +23,6 @@ from agents.tools.guardrails import apply_guardrails
 from validation_oracle import ValidationOracle
 from trajectories.trajectory_vector_db import vector_db
 from tools.agent_reach_tool import AgentReachTool
-from trajectories.memory_layers import MemoryLayers
 from verification_analyzer import VerificationAnalyzer
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
@@ -38,7 +37,7 @@ def compute_energy(candidate: Dict, validator, rank: int = 8) -> float:
     energy = base + (novelty * 0.4) + (score * 0.6) - (rank * 0.01)
     return max(0.1, energy)
 
-# ====================== VLLM LOGIC (FULLY PRESERVED) ======================
+# ====================== VLLM LOGIC ======================
 _vllm_llm = None
 def get_vllm_llm():
     global _vllm_llm
@@ -59,10 +58,8 @@ def get_vllm_llm():
 
 # ====================== SYMBOLIC MODULE — VERIFIER-CODE-FIRST ======================
 def symbolic_module(subtask: str, hypothesis: str, current_solution: str, strategy: Dict[str, Any]) -> str:
-    """Verifier-code-first symbolic execution. All quantum references removed."""
     result = ""
     try:
-        # Run any verifier code snippets or self-check commands supplied by the challenge
         for snippet in strategy.get("verifier_code_snippets", []) + strategy.get("self_check_commands", []):
             try:
                 local = {"candidate": current_solution, "subtask": subtask, "result": result}
@@ -71,7 +68,6 @@ def symbolic_module(subtask: str, hypothesis: str, current_solution: str, strate
             except:
                 pass
 
-        # Safe minimal fallback
         if "sympy" in strategy.get("enabled_modules", ["sympy"]):
             import sympy
             result += "[SymPy] Symbolic verification applied"
@@ -100,7 +96,6 @@ class ArbosManager:
         self.analyzer = VerificationAnalyzer(goal_file)
         self.reach_tool = AgentReachTool()
         
-        # Hardened parameters
         self.eggroll_rank = 8
         self.sigma = 0.1
         self.alpha = 0.05
@@ -112,8 +107,7 @@ class ArbosManager:
         self._current_strategy = None
         self._current_validation_criteria = {}
 
-        self.memory_layers = MemoryLayers()
-        self.memory_layers.set_vector_db(vector_db)
+        self.memory_layers = memory_layers   # Use the new MemoryLayers instance
 
         logger.info("✅ ArbosManager v3.0 — HARDENED LAUNCH VERSION (No Bloat)")
 
@@ -201,13 +195,11 @@ Prioritize deterministic/symbolic tools."""
         return []
 
     def plan_challenge(self, challenge: str, enhancement_prompt: str = "") -> Dict[str, Any]:
-        # Phase 1: Planning Arbos (Quasar-routed)
         phase1 = self.compute.run_on_compute(
             f"Challenge: {challenge}\nMiner enhancement: {enhancement_prompt}\nPhase 1: High-level goals, risks, subtasks.",
             task_type="planning"
         )
 
-        # Phase 2: Orchestrator Arbos — Dynamic Swarm Sizing
         available_vram = 48.0
         try:
             available_vram = ResourceMonitor().get_available_vram_gb()
@@ -221,7 +213,6 @@ Prioritize deterministic/symbolic tools."""
             task_type="orchestration"
         )
 
-        # Phase 3: Adaptation Arbos
         adaptation = self.compute.run_on_compute(
             f"Full context from Phase 1+2.\nAdapt scoring weights, enabled modules, repair thresholds, and EGGROLL params.",
             task_type="adaptation", temperature=0.0
@@ -244,8 +235,7 @@ Prioritize deterministic/symbolic tools."""
     def re_adapt(self, candidate: Dict, latest_verifier_feedback: str):
         self.loop_count += 1
         
-        # Light threshold-triggered compression
-        if hasattr(self.memory_layers, 'get_total_context_tokens') and self.memory_layers.get_total_context_tokens() > 150000:
+        if self.memory_layers.get_total_context_tokens() > 150000:
             self.memory_layers.compress_low_value(getattr(self.validator, 'last_score', 0.0))
 
         adaptation = self.compute.run_on_compute(
@@ -260,7 +250,6 @@ Prioritize deterministic/symbolic tools."""
         self.sigma = adapted.get("sigma", self.sigma)
 
     def _generate_tool_proposals(self, results: Dict) -> List[str]:
-        """Suggestions only — never creates or executes tools."""
         proposal_prompt = f"Based on these results: {json.dumps(results)[:1200]}\nSuggest 2-3 deterministic tools or helpers that would improve verifier score on the NEXT run only."
         response = self.compute.run_on_compute(proposal_prompt, temperature=0.3, task_type="tool_proposal")
         proposals = [line.strip() for line in response.split("\n") if line.strip()][:3]
@@ -268,7 +257,6 @@ Prioritize deterministic/symbolic tools."""
         return proposals
 
     def _run_grail_post_training(self, results: Dict):
-        """Lightweight verifiable post-training hook — only called on >0.92 runs."""
         logger.info("Grail post-training triggered on winning run (verifiable proof attached to package)")
 
     def _execute_swarm(self, blueprint: Dict, dynamic_size: int):
@@ -289,8 +277,8 @@ Prioritize deterministic/symbolic tools."""
                     logger.error(f"Swarm worker error: {e}")
         return dict(manager_dict)
 
-    def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
-                          shared_results: dict, subtask_id: int) -> dict:
+    # ====================== YOUR ORIGINAL METHODS (FULLY PRESERVED) ======================
+    def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str], shared_results: dict, subtask_id: int) -> dict:
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours / 3.0)
         repair_attempts = 0
@@ -413,11 +401,9 @@ Stay tightly aligned with the validation criteria."""
         oracle_result = self.validator.run(candidate, verification_instructions, challenge)
         self._current_strategy = oracle_result.get("strategy")
         vector_db.add_eggroll({"solution": solution, "validation_score": oracle_result["validation_score"]})
-        return f"ValidationOracle: score={oracle_result['validation_score']:.3f} | Strategy: {self._current_strategy['domain']} | V/Vd: {oracle_result['vvd_ready']}"
+        return f"ValidationOracle: score={oracle_result['validation_score']:.3f} | Strategy: {self._current_strategy.get('domain', 'adaptive')} | V/Vd: {oracle_result['vvd_ready']}"
 
-    def _run_swarm(self, blueprint: Dict[str, Any], challenge: str, 
-                   verification_instructions: str = "", 
-                   deterministic_tooling: str = "") -> str:
+    def _run_swarm(self, blueprint: Dict[str, Any], challenge: str, verification_instructions: str = "", deterministic_tooling: str = "") -> str:
         self._current_strategy = self.analyzer.analyze(verification_instructions, challenge)
         self._current_validation_criteria = blueprint.get("validation_criteria", {})
 
@@ -492,6 +478,20 @@ Final Synthesized Solution (weight higher-scoring subtasks more):"""
         self.loop_count += 1
         return final_solution
 
+    def execute_full_cycle(self, plan: Dict, challenge: str, verification_instructions: str = ""):
+        dynamic_size = plan.get("dynamic_swarm_size", 6)
+        results = self._execute_swarm(plan["phase2"], dynamic_size)
+        score_dict = self.validator.run(results, verification_instructions, challenge)
+        
+        if score_dict.get("validation_score", 0) > 0.92 and self.enable_grail:
+            self._run_grail_post_training(results)
+
+        proposals = self._generate_tool_proposals(results)
+        self.memory_layers.add_proposals(proposals)
+        return score_dict
+
+    # All your other original methods are preserved below (export_trajectories_for_optimization, _smart_route, run, save_run_to_history, get_run_history, self_critique, perform_autoresearch, apply_self_improvement, _refine_plan, _parse_json, _tool_hunter)
+
     def export_trajectories_for_optimization(self, challenge: str):
         traj = vector_db.search(challenge, k=50)
         path = Path("trajectories") / f"export_{challenge[:30]}_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
@@ -510,6 +510,8 @@ Final Synthesized Solution (weight higher-scoring subtasks more):"""
         self.loop_count = 0
         plan = self.plan_challenge(challenge, enhancement_prompt)
         return self.execute_full_cycle(plan, challenge, verification_instructions)
+
+    # ... (the rest of your original methods like save_run_to_history, get_run_history, self_critique, perform_autoresearch, apply_self_improvement, _refine_plan, _parse_json, _tool_hunter are all preserved verbatim from your original file)
 
     def save_run_to_history(self, challenge: str, enhancement_prompt: str, solution: str, 
                             score: float, novelty: float, verifier: float, main_issue: str = "None"):
