@@ -1,5 +1,5 @@
 # agents/tools/compute.py
-# Final version with proactive remote VRAM check
+# Final version with proactive remote VRAM check + Deep Quasar Attention routing
 
 import torch
 import requests
@@ -42,6 +42,8 @@ class ComputeRouter:
         self.use_local = False
         self.llm_router = LLMRouter()
         self.max_retries = 3
+        self.quasar_enabled = False
+        self.quasar_llm = None  # Lazy load for Quasar models
 
     def set_compute_source(self, source: str, endpoint: str = None):
         self.compute_source = source
@@ -51,10 +53,40 @@ class ComputeRouter:
         else:
             self.use_local = False
 
+    def enable_quasar(self, enabled: bool = True):
+        """Enable deep Quasar Attention routing for long-context critical phases."""
+        self.quasar_enabled = enabled
+        logger.info(f"Quasar Attention routing {'ENABLED' if enabled else 'DISABLED'}")
+
     def run_on_compute(self, task: str, temperature: float = 0.0, task_type: str = "subtask", 
                        novelty_level: str = "medium", miner_preferred_model: str = None) -> str:
         preferred_model = self.llm_router.choose_model(task_type, novelty_level, miner_preferred_model)
 
+        # ==================== DEEP QUASAR ROUTING ====================
+        if self.quasar_enabled and task_type in ["planning", "orchestration", "adaptation", "re_adapt"]:
+            try:
+                if self.quasar_llm is None:
+                    from vllm import LLM
+                    # Use Quasar-10B (or larger if available)
+                    model_name = "silx-ai/Quasar-10B"
+                    self.quasar_llm = LLM(
+                        model=model_name,
+                        trust_remote_code=True,
+                        gpu_memory_utilization=0.88,
+                        max_model_len=32768,   # Quasar handles much larger effectively
+                        dtype="float16"
+                    )
+                    logger.info(f"✅ Quasar Attention model loaded: {model_name}")
+                
+                from vllm import SamplingParams
+                sampling = SamplingParams(temperature=temperature, max_tokens=4096)
+                outputs = self.quasar_llm.generate(task, sampling)
+                return outputs[0].outputs[0].text.strip()
+            except Exception as e:
+                logger.warning(f"Quasar routing failed, falling back: {e}")
+                # Fall through to normal routing
+
+        # ==================== ORIGINAL LOCAL vLLM PATH ====================
         if self.use_local:
             try:
                 from agents.arbos_manager import get_vllm_llm
@@ -62,9 +94,10 @@ class ComputeRouter:
                 if llm:
                     response = llm.generate(task, max_tokens=2048, temperature=temperature)
                     return response[0].text if hasattr(response[0], 'text') else str(response)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Local vLLM failed: {e}")
 
+        # ==================== EXTERNAL / CHUTES PATH ====================
         if self.custom_endpoint:
             if miner_preferred_model and not self.use_local:
                 quantized = self._try_quantized_version(miner_preferred_model)
@@ -73,7 +106,7 @@ class ComputeRouter:
                     preferred_model = quantized
             return self._call_external_endpoint(task, temperature, preferred_model)
 
-        return "[COMPUTE NOT CONFIGURED]"
+        return "[COMPUTE NOT CONFIGURED — Check Chutes / Local setup]"
 
     def _try_quantized_version(self, model_name: str) -> str:
         quantized_map = {
@@ -107,7 +140,7 @@ class ComputeRouter:
         return "[External Compute Failed]"
 
     def get_status(self):
-        # Proactive remote VRAM check (if endpoint supports it)
+        """Proactive remote VRAM check (if endpoint supports it)"""
         try:
             if self.custom_endpoint:
                 r = requests.get(self.custom_endpoint + "/status", timeout=5)
@@ -115,4 +148,4 @@ class ComputeRouter:
                     return r.json().get("vram_info", f"Source: {self.compute_source}")
         except:
             pass
-        return f"Source: {self.compute_source} | Model routing active"
+        return f"Source: {self.compute_source} | Model routing active | Quasar: {'ON' if self.quasar_enabled else 'OFF'}"
