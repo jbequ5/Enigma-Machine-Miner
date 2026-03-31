@@ -81,6 +81,7 @@ class ArbosManager:
         self.compute_source = "local_gpu"  # Default to working local
         self.custom_endpoint = None
 
+        # Pass compute router to validator for intelligent scoring
         self.validator = ValidationOracle(goal_file, compute=self.compute)
         self.analyzer = VerificationAnalyzer(goal_file)
         self.reach_tool = AgentReachTool()
@@ -98,7 +99,7 @@ class ArbosManager:
 
         self.memory_layers = memory_layers
 
-        logger.info("✅ ArbosManager v3.2 — Realism Mode + Honest Cryptography Handling")
+        logger.info("✅ ArbosManager v3.2 — Full-Context Oracle + Deterministic-First Scoring")
 
     def _ensure_history_file(self):
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
@@ -297,7 +298,7 @@ Return ONLY valid JSON."""
     def re_adapt(self, candidate: Dict, latest_verifier_feedback: str):
         self.loop_count += 1
         
-        if self.memory_layers.get_total_context_tokens() > 150000:
+        if hasattr(self.memory_layers, 'get_total_context_tokens') and self.memory_layers.get_total_context_tokens() > 150000:
             self.memory_layers.compress_low_value(getattr(self.validator, 'last_score', 0.0))
 
         adaptation = self.compute.call_llm(
@@ -516,7 +517,6 @@ Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
 
         failed_context = "\nPrevious failed attempts:\n" + "\n---\n".join(memory.query(challenge + " failed", n_results=5)) if memory.query(challenge + " failed", n_results=5) else ""
 
-        # IMPROVED: Strong honesty instruction for hard challenges
         synthesis_task = f"""You are Arbos Orchestrator for SN63 Quantum Innovate.
 Challenge: {challenge}
 Verification Instructions: {verification_instructions or 'General quantum standards'}
@@ -554,11 +554,17 @@ Synthesize final high-quality realistic assessment (weight higher-scoring subtas
         return final_solution
 
     def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = ""):
-        """Updated to match Streamlit call pattern."""
+        """Updated to match Streamlit call pattern + full context to oracle"""
         dynamic_size = blueprint.get("dynamic_swarm_size", blueprint.get("swarm_config", {}).get("total_instances", 5))
         results = self._execute_swarm(blueprint, dynamic_size)
+        
+        # FIXED: Pass full goal_md context to the smarter oracle
         score_dict = self.validator.run(
-        candidate=results,verification_instructions=verification_instructions,challenge=challenge,goal_md=goal_md)
+            candidate=results,
+            verification_instructions=verification_instructions,
+            challenge=challenge,
+            goal_md=self._load_extra_context()   # This was the missing piece
+        )
         
         if score_dict.get("validation_score", 0) > 0.92 and self.enable_grail:
             self._run_grail_post_training(results)
