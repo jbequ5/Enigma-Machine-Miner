@@ -13,7 +13,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Import after page config
 from agents.arbos_manager import ArbosManager
+from agents.tools.compute import compute_router
 
 # ====================== CUSTOM ENIGMA BUNKER THEME ======================
 BUNKER_CSS = """
@@ -70,8 +72,8 @@ st.markdown(BUNKER_CSS, unsafe_allow_html=True)
 
 # ====================== TITLE ======================
 st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63</h3>", unsafe_allow_html=True)
-st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First • Hardened Launch Version")
+st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63 Quantum Innovate</h3>", unsafe_allow_html=True)
+st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First • Hardened Local GPU Launch Version")
 
 # ====================== SESSION STATE ======================
 if "arbos_manager" not in st.session_state:
@@ -137,7 +139,7 @@ if st.button("💾 Save GOAL.md Changes"):
     st.success("✅ GOAL.md saved!")
     st.rerun()
 
-# ====================== SIDEBAR - ALL CHECKBOXES WITH FUNCTIONALITY ======================
+# ====================== SIDEBAR - ALL CHECKBOXES WITH LIVE WIRING ======================
 with st.sidebar:
     st.header("🛠️ Configuration")
 
@@ -151,20 +153,25 @@ with st.sidebar:
     enable_toolhunter = st.checkbox("Enable ToolHunter + ReadyAI", value=True, key="toolhunter")
     enable_grail = st.checkbox("Enable Grail on Winning Runs", value=False, key="grail")
 
-    # Live wiring for checkboxes
-    if "quasar_enabled" not in st.session_state or st.session_state.quasar_enabled != enable_quasar:
-        st.session_state.quasar_enabled = enable_quasar
-        try:
-            manager.compute.enable_quasar(enable_quasar)
-        except:
-            pass
+    # Live wiring — update manager on every change
+    toggles = {
+        "Quasar": enable_quasar,
+        "Three-Layer Memory Compression": True,  # always active in manager
+        "ToolHunter + ReadyAI": enable_toolhunter,
+        "Grail on winning runs": enable_grail,
+        "Self-Critique": enable_self_critique,
+        "Light Compression": enable_light_compression,
+        "Dynamic Swarm": enable_dynamic_swarm,
+        "Dynamic Swarm Size": 5  # default, can be extended later
+    }
+    manager.update_toggles(toggles)
 
-# ====================== COMPUTE SETUP (Local actually works) ======================
+# ====================== COMPUTE SETUP (Local GPU now reliably works) ======================
 st.subheader("🔌 Compute Setup")
 compute_option = st.radio(
     "Choose compute source:",
     options=[
-        "Local GPU (auto-detects your hardware)",
+        "Local GPU (Ollama — recommended, no API keys)",
         "Chutes (remote H100)",
         "Already running (use existing endpoint)",
         "Custom / Hosted"
@@ -177,22 +184,28 @@ endpoint = st.text_input("Custom Endpoint URL (if needed)", placeholder="https:/
 
 if st.button("Apply Compute Source", type="primary"):
     source_map = {
-        "Local GPU (auto-detects your hardware)": "local",
+        "Local GPU (Ollama — recommended, no API keys)": "local_gpu",
         "Chutes (remote H100)": "chutes",
         "Already running (use existing endpoint)": "already_running",
         "Custom / Hosted": "custom"
     }
-    st.session_state.compute_source = source_map[compute_option]
+    new_source = source_map[compute_option]
+    st.session_state.compute_source = new_source
     st.session_state.custom_endpoint = endpoint if endpoint.strip() else None
     
-    # This makes "Local" actually use local fallback
-    manager.compute.set_compute_source(st.session_state.compute_source, st.session_state.custom_endpoint)
-    st.success(f"Compute source set to: {st.session_state.compute_source}")
+    # Route to ComputeRouter — Local GPU uses Ollama reliably
+    compute_router.set_mode(new_source)
+    manager.set_compute_source(new_source, st.session_state.custom_endpoint)
+    
+    st.success(f"✅ Compute source set to: **{new_source}** (Local GPU uses Ollama llama3.2 by default)")
     st.rerun()
+
+# Show current compute status
+st.info(f"Current Compute: **{st.session_state.compute_source}** | Ollama local path active when selected")
 
 # ====================== QUICK PROMPT ======================
 st.subheader("🚀 QUICK MINER PROMPT")
-challenge = st.text_area("SN63 Challenge Description", height=150, key="challenge_input")
+challenge = st.text_area("SN63 Challenge Description (Quantum Innovate task)", height=150, key="challenge_input")
 verification = st.text_area("Verification Instructions (optional)", height=100, key="verification_input")
 enhancement = st.text_input("Enhancement Prompt (optional)", key="enhancement_input")
 
@@ -201,13 +214,19 @@ if st.button("🔍 Generate High-Level Plan", type="primary"):
     if not challenge.strip():
         st.error("Please enter a challenge description.")
     else:
-        with st.spinner("Planning Arbos running..."):
-            plan = manager.plan_challenge(challenge, enhancement)
+        with st.spinner("Arbos planning on Local GPU (Ollama)..."):
+            plan = manager.plan_challenge(
+                goal_md=edited_goal, 
+                challenge=challenge, 
+                enhancement=enhancement,
+                compute_mode=st.session_state.compute_source
+            )
             st.session_state.high_level_plan = plan
             st.session_state.challenge = challenge
             st.session_state.verification = verification
             st.session_state.enhancement = enhancement
             st.session_state.stage = "planning_approval"
+            st.session_state.trace_log.append({"stage": "high_level_plan", "timestamp": datetime.now().isoformat()})
         st.rerun()
 
 # ====================== STAGE 1: HIGH-LEVEL PLAN ======================
@@ -219,7 +238,7 @@ if st.session_state.get("stage") == "planning_approval":
         col1, col2 = st.columns([3, 1])
         with col1:
             st.markdown("**Adapted Strategy:**")
-            st.json(st.session_state.high_level_plan.get("adapted_strategy", {}))
+            st.json(st.session_state.high_level_plan.get("adapted_strategy", st.session_state.high_level_plan))
         with col2:
             if st.button("✅ Approve Plan & Go to Orchestration Review", type="primary"):
                 st.session_state.stage = "post_orchestration_review"
@@ -232,7 +251,7 @@ if st.session_state.get("stage") == "planning_approval":
 
 # ====================== STAGE 2: POST-ORCHESTRATION ======================
 if st.session_state.get("stage") == "post_orchestration_review":
-    with st.spinner("Orchestrator Arbos creating blueprint..."):
+    with st.spinner("Orchestrator refining blueprint with enabled features..."):
         blueprint = manager._refine_plan(
             st.session_state.high_level_plan,
             st.session_state.challenge,
@@ -246,15 +265,16 @@ if st.session_state.get("stage") == "post_orchestration_review":
     st.json(blueprint)
 
     if st.button("🚀 Launch Swarm Now", type="primary", use_container_width=True):
-        with st.spinner("Running dynamic swarm..."):
+        with st.spinner("Launching dynamic swarm (VRAM-aware, Quasar + Self-Critique)..."):
             verification_instructions = st.session_state.get("verification", "")
             final_solution = manager.execute_full_cycle(
-                st.session_state.blueprint, 
+                blueprint, 
                 st.session_state.challenge, 
                 verification_instructions
             )
             st.session_state.final_solution = final_solution
             st.session_state.stage = "final_review"
+            st.session_state.trace_log.append({"stage": "swarm_launch", "timestamp": datetime.now().isoformat()})
         st.rerun()
 
 # ====================== FINAL REVIEW & PACKAGING ======================
@@ -268,14 +288,14 @@ if st.session_state.get("stage") == "final_review":
     tab1, tab2, tab3, tab4 = st.tabs(["Solution + Oracle", "ToolHunter", "Memory History", "🧬 SELF-IMPROVEMENT"])
 
     with tab1:
-        st.text_area("Final Synthesized Solution", solution, height=400)
-        st.success(f"ValidationOracle Score: {getattr(manager.validator, 'last_score', 0):.3f}")
+        st.text_area("Final Synthesized Solution", value=str(solution), height=400)
+        st.success(f"ValidationOracle Score: {getattr(manager, 'validator', type('obj', (object,), {'last_score': 0.0})).last_score:.3f}")
 
     with tab2:
-        st.info("Tool proposals logged for next run")
+        st.info("ToolHunter + ReadyAI proposals logged for next run (enabled in sidebar)")
 
     with tab3:
-        st.info("Three-layer memory with light compression active")
+        st.info("Three-layer memory compression + Light Compression active (toggles wired)")
 
     with tab4:
         if st.button("Run Self-Critique"):
@@ -285,9 +305,15 @@ if st.session_state.get("stage") == "final_review":
     miner_notes = st.text_area("Your Final Notes (optional)")
 
     if st.button("📦 Package for SN63 Submission", type="primary"):
-        _package_submission(solution, blueprint, trace, miner_notes, st.session_state.challenge, 
-                           st.session_state.get("verification", ""), 
-                           st.session_state.get("deterministic_tooling", ""))
+        _package_submission(
+            solution, 
+            blueprint, 
+            trace, 
+            miner_notes, 
+            st.session_state.challenge, 
+            st.session_state.get("verification", ""), 
+            st.session_state.get("deterministic_tooling", "")
+        )
         st.success("✅ Submission package created!")
         st.balloons()
 
@@ -297,7 +323,7 @@ def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
     sub_dir = Path("submissions") / f"sn63_{ts}"
     sub_dir.mkdir(parents=True, exist_ok=True)
 
-    (sub_dir / "solution.md").write_text(solution)
+    (sub_dir / "solution.md").write_text(str(solution))
     (sub_dir / "blueprint.json").write_text(json.dumps(blueprint, indent=2))
     (sub_dir / "trace.log").write_text("\n".join(str(t) for t in trace))
     (sub_dir / "miner_notes.txt").write_text(notes)
@@ -306,10 +332,10 @@ def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
     (sub_dir / "deterministic_tooling.txt").write_text(deterministic_tooling)
 
     oracle_info = {
-        "validation_score": getattr(manager.validator, 'last_score', 0.0),
-        "fidelity": getattr(manager.validator, 'last_fidelity', 0.0),
-        "vvd_ready": getattr(manager.validator, 'last_vvd_ready', False),
-        "notes": getattr(manager.validator, 'last_notes', ''),
+        "validation_score": getattr(manager, 'validator', type('obj', (object,), {'last_score': 0.0})).last_score,
+        "fidelity": getattr(manager, 'validator', type('obj', (object,), {'last_fidelity': 0.0})).last_fidelity,
+        "vvd_ready": getattr(manager, 'validator', type('obj', (object,), {'last_vvd_ready': False})).last_vvd_ready,
+        "notes": getattr(manager, 'validator', type('obj', (object,), {'last_notes': ''})).last_notes,
         "timestamp": datetime.now().isoformat()
     }
     (sub_dir / "validation_oracle.json").write_text(json.dumps(oracle_info, indent=2))
@@ -320,7 +346,10 @@ def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
                 z.write(f, f.name)
 
     st.success(f"✅ Package ready: {sub_dir}/submission_package.zip")
-    st.download_button("Download Submission Package", 
-                       data=open(sub_dir / "submission_package.zip", "rb").read(), 
-                       file_name=f"sn63_{ts}.zip", 
-                       mime="application/zip")
+    with open(sub_dir / "submission_package.zip", "rb") as f:
+        st.download_button(
+            "Download Submission Package", 
+            data=f.read(), 
+            file_name=f"sn63_{ts}.zip", 
+            mime="application/zip"
+        )
