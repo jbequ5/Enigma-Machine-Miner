@@ -223,7 +223,8 @@ Prioritize deterministic/symbolic tools."""
                 "decomposition": ["Full challenge solution"],
                 "swarm_config": {"total_instances": dynamic_size},
                 "tool_map": {},
-                "validation_criteria": {}
+                "validation_criteria": {},
+                "hypothesis_diversity": ["standard"]
             }
 
         adaptation = self.compute.run_on_compute(
@@ -271,11 +272,18 @@ Prioritize deterministic/symbolic tools."""
         blueprint = self._safe_parse_json(blueprint)
         decomposition = blueprint.get("decomposition", ["Full challenge"])
         
+        # Safe handling for hypothesis_diversity to prevent ZeroDivisionError
+        hypothesis_diversity = blueprint.get("hypothesis_diversity", ["standard"])
+        if not hypothesis_diversity:
+            hypothesis_diversity = ["standard"]
+
         manager_dict = multiprocessing.Manager().dict()
         with concurrent.futures.ProcessPoolExecutor(max_workers=min(dynamic_size, 6)) as executor:
             futures = []
             for subtask_id, subtask in enumerate(decomposition):
-                hyp = blueprint.get("hypothesis_diversity", ["standard"])[subtask_id % len(blueprint.get("hypothesis_diversity", []))]
+                # Safe modulo
+                hyp_index = subtask_id % len(hypothesis_diversity)
+                hyp = hypothesis_diversity[hyp_index]
                 tools = blueprint.get("tool_map", {}).get(subtask, ["none"])
                 futures.append(executor.submit(
                     self._sub_arbos_worker, subtask, hyp, tools, manager_dict, subtask_id
@@ -602,7 +610,7 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
             end = raw.rfind("}") + 1
             return json.loads(raw[start:end])
         except:
-            return {"decomposition": ["Fallback"], "swarm_config": {"total_instances": 1}, "tool_map": {}, "validation_criteria": {}}
+            return {"decomposition": ["Fallback"], "swarm_config": {"total_instances": 1}, "tool_map": {}, "validation_criteria": {}, "hypothesis_diversity": ["standard"]}
 
     def _tool_hunter(self, gap: str, subtask: str) -> str:
         result = tool_hunter.hunt_and_integrate(gap, subtask)
