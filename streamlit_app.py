@@ -94,6 +94,23 @@ BUNKER_CSS = """
 
 st.markdown(BUNKER_CSS, unsafe_allow_html=True)
 
+# Extra overlay for top header text
+st.markdown("""
+<style>
+    /* Strong overlay for the main title area */
+    .stApp header, .stApp .block-container {
+        background: rgba(0, 0, 0, 0.85) !important;
+        padding: 1rem 2rem;
+        border-radius: 8px;
+    }
+    
+    /* Make title and subtitle stand out more */
+    h1, .stMarkdown h1 {
+        text-shadow: 0 0 20px #00ff9d, 0 0 40px #00ff9d !important;
+        color: #00ff9d !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63</h3>", unsafe_allow_html=True)
 st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First • Hardened Launch Version")
