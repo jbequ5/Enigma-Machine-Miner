@@ -76,13 +76,6 @@ BUNKER_CSS = """
 """
 st.markdown(BUNKER_CSS, unsafe_allow_html=True)
 
-st.set_page_config(
-    page_title="ALLIED ENIGMA MINER - SN63",
-    page_icon="🔒",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
 st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63</h3>", unsafe_allow_html=True)
 st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First • Hardened Launch Version")
