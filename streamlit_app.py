@@ -138,30 +138,34 @@ st.markdown("---")
 
 # ====================== SIDEBAR ======================
 st.sidebar.title("🛠️ ALLIED OPERATIONS")
-st.sidebar.metric("Mode", "Production + Recursive Self-Improvement + Quasar")
-
-quasar_toggle = st.sidebar.checkbox("Enable Quasar Attention (5M+ stable context)", value=True)
-if quasar_toggle:
-    manager.compute.enable_quasar(True)
-else:
-    manager.compute.enable_quasar(False)
-
-swarm_max = st.sidebar.slider("Max Swarm Size (dynamic based on compute)", 4, 24, 12)
-manager.max_swarm_size = swarm_max
-
-grail_toggle = st.sidebar.checkbox("Enable Grail verifiable post-training on winning runs (>0.92)", value=True)
-manager.enable_grail = grail_toggle
-
-st.sidebar.caption(f"EGGROLL Rank: **{manager.eggroll_rank}** | σ: **{manager.sigma:.3f}**")
-st.sidebar.caption("Agent-Reach: **ON**")
-st.sidebar.caption("ValidationOracle: **LIVE**")
-st.sidebar.caption(f"Max Repair Attempts: **{manager.max_repair_attempts}**")
-
-pause_on_verification = st.sidebar.checkbox("Pause on Verification (Phase 8)", value=False)
-early_stop_enabled = st.sidebar.checkbox("Enable Early-Stop", value=True)
-
-enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True, key="three_layer_memory")
-enable_self_diagnostics = st.sidebar.checkbox("Run Self-Diagnostics on Reconvene", value=True)
+with st.sidebar:
+    st.header("🛠️ Configuration")
+    
+    st.subheader("Core Intelligence")
+    enable_quasar = st.checkbox("Enable Quasar Long-Context Attention (Planning + Adaptation)", 
+                                value=True, key="quasar_attention")
+    
+    enable_grail = st.checkbox("Enable Grail verifiable post-training on winning runs (>0.92)", 
+                               value=False, key="grail_post_training")
+    
+    enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", 
+                                     value=True, key="three_layer_memory")
+    
+    enable_light_compression = st.checkbox("Enable Light Context Compression after each loop", 
+                                           value=True, key="light_compression")
+    
+    st.subheader("Tool & Swarm")
+    enable_toolhunter = st.checkbox("Enable ToolHunter + ReadyAI llms.txt Grounding", 
+                                    value=True, key="toolhunter_enabled")
+    enable_dynamic_swarm = st.checkbox("Enable Dynamic VRAM-aware Swarm", 
+                                       value=True, key="dynamic_swarm")
+    
+    st.subheader("Safety & Limits")
+    max_hours = st.slider("Max Compute Hours (H100/Chutes)", 1.0, 4.0, 3.8, key="max_hours_slider")
+    
+    st.subheader("Advanced")
+    enable_self_critique = st.checkbox("Enable Self-Critique + Autoresearch", 
+                                       value=True, key="self_critique")
 
 if st.sidebar.button("🔍 Pre-Run ToolHunter Discovery (GOAL.md)"):
     with st.spinner("Analyzing goals/killer_base.md..."):
