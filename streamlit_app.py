@@ -30,7 +30,7 @@ BUNKER_CSS = """
         position: absolute;
         top: 0; left: 0;
         width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.85);
+        background: rgba(0, 0, 0, 0.75);
         z-index: -1;
     }
 
@@ -71,14 +71,14 @@ st.markdown(BUNKER_CSS, unsafe_allow_html=True)
 # ====================== TITLE ======================
 st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63</h3>", unsafe_allow_html=True)
-st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First • Hardened Launch Version")
+st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First")
 
 # ====================== SESSION STATE ======================
 if "arbos_manager" not in st.session_state:
     st.session_state.arbos_manager = ArbosManager()
 manager = st.session_state.arbos_manager
 
-# ====================== GOAL.MD EDITOR (Prominent) ======================
+# ====================== GOAL.MD EDITOR ======================
 st.subheader("🎯 GOAL.md / Strategy File")
 st.caption("Single source of truth — edit toggles and base strategy here.")
 
@@ -123,160 +123,101 @@ challenge = st.text_area("SN63 Challenge Description", height=150, key="challeng
 verification = st.text_area("Verification Instructions (optional)", height=100, key="verification_input")
 enhancement = st.text_input("Enhancement Prompt (optional)", key="enhancement_input")
 
-# ====================== SIDEBAR (All unique keys) ======================
-with st.sidebar:
-    st.header("🛠️ Configuration")
-
-    st.subheader("Core Intelligence")
-    enable_quasar = st.checkbox("Enable Quasar Long-Context Attention", value=True, key="quasar_attention")
-    enable_grail = st.checkbox("Enable Grail verifiable post-training (>0.92)", value=False, key="grail_post_training")
-    enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True, key="three_layer_memory")  # Unique key
-    enable_light_compression = st.checkbox("Enable Light Context Compression after loops", value=True, key="light_compression")
-
-    st.subheader("Tools & Swarm")
-    enable_toolhunter = st.checkbox("Enable ToolHunter + ReadyAI", value=True, key="toolhunter_enabled")
-    enable_dynamic_swarm = st.checkbox("Enable Dynamic VRAM-aware Swarm", value=True, key="dynamic_swarm")
-
-    st.subheader("Safety & Limits")
-    max_hours = st.slider("Max Compute Hours", 1.0, 4.0, 3.8, key="max_hours_slider")
-
-    st.subheader("Advanced")
-    enable_self_critique = st.checkbox("Enable Self-Critique + Autoresearch", value=True, key="self_critique")
-
-# ====================== LAUNCH BUTTON ======================
-if st.button("🚀 LAUNCH ARBOS MINER", type="primary"):
+# ====================== Generate Plan Button (First Action) ======================
+if st.button("🔍 Generate High-Level Plan", type="primary"):
     if not challenge.strip():
-        st.error("Please enter a challenge.")
+        st.error("Please enter a challenge description.")
     else:
-        with st.spinner("Running full Arbos cycle..."):
-            result = manager.run(
-                challenge=challenge,
-                verification_instructions=verification,
-                enhancement_prompt=enhancement
-            )
-            st.success("Run completed!")
-            st.json(result)
-
-# ====================== STAGE 0: COMPUTE SETUP ======================
-if "compute_source" not in st.session_state:
-    st.subheader("🔌 Compute Setup")
-    compute_option = st.radio(
-        "Choose compute source:",
-        options=[
-            "Local GPU (if available)",
-            "Chutes (decentralized GPUs - recommended if no local GPU)",
-            "Already running (use existing endpoint)",
-            "Custom / Hosted (RunPod, Vast, AWS, etc.)"
-        ],
-        index=1
-    )
-    endpoint = st.text_input("Endpoint URL (if needed)", placeholder="https://...")
-    if st.button("Continue with this compute source", type="primary"):
-        source_map = {
-            "Local GPU (if available)": "local",
-            "Chutes (decentralized GPUs - recommended if no local GPU)": "chutes",
-            "Already running (use existing endpoint)": "already_running",
-            "Custom / Hosted (RunPod, Vast, AWS, etc.)": "custom"
-        }
-        st.session_state.compute_source = source_map[compute_option]
-        st.session_state.custom_endpoint = endpoint if endpoint and endpoint.strip() else None
-        manager.compute.set_compute_source(st.session_state.compute_source, st.session_state.custom_endpoint)
-        st.session_state.stage = "planning_approval"
+        with st.spinner("Planning Arbos running..."):
+            plan = manager.plan_challenge(challenge, enhancement)
+            st.session_state.high_level_plan = plan
+            st.session_state.challenge = challenge
+            st.session_state.verification = verification
+            st.session_state.enhancement = enhancement
+            st.session_state.stage = "planning_approval"
         st.rerun()
-    st.stop()
 
-# ====================== STAGE 1: HIGH-LEVEL PLANNING ======================
+# ====================== STAGE 1: HIGH-LEVEL PLANNING REVIEW ======================
 if st.session_state.get("stage") == "planning_approval":
-    if "challenge" not in st.session_state:
-        st.session_state.challenge = st.text_area("SN63 Challenge + Verification Code", height=180, placeholder="Paste full challenge + any verification code blocks...")
-
-    with st.spinner("Planning Arbos + Orchestrator Arbos + Adaptation Arbos running..."):
-        plan = manager.plan_challenge(
-            st.session_state.challenge,
-            st.session_state.get("enhancement_prompt", "")
-        )
-        st.session_state.high_level_plan = plan
-
     st.subheader("📋 Stage 1: High-Level Plan – Strategic Review")
-    st.json(plan)
+    st.json(st.session_state.high_level_plan)
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.markdown("**Adapted Strategy (post-ToolHunter + Adaptation Arbos):**")
-        st.json(plan.get("adapted_strategy", {}))
+        st.markdown("**Adapted Strategy:**")
+        st.json(st.session_state.high_level_plan.get("adapted_strategy", {}))
+
     with col2:
-        if st.button("✅ Approve Plan & Launch Swarm", type="primary"):
+        if st.button("✅ Approve Plan & Go to Orchestration Review", type="primary"):
             st.session_state.stage = "post_orchestration_review"
             st.rerun()
-        if st.button("🔄 Tweak & Re-plan"):
-            st.session_state.stage = "planning_approval"
+        if st.button("🔄 Re-plan"):
+            st.session_state.stage = None
             st.rerun()
 
-# ====================== PHASE 4: POST-ORCHESTRATION REVIEW DASHBOARD ======================
+# ====================== STAGE 2: POST-ORCHESTRATION REVIEW & LAUNCH SWARM ======================
 if st.session_state.get("stage") == "post_orchestration_review":
     with st.spinner("Orchestrator Arbos creating detailed blueprint..."):
         blueprint = manager._refine_plan(
-            st.session_state.approved_plan if "approved_plan" in st.session_state else st.session_state.high_level_plan, 
+            st.session_state.high_level_plan,
             st.session_state.challenge,
             st.session_state.get("deterministic_tooling", ""),
-            st.session_state.get("enhancement_prompt", "")
+            st.session_state.get("enhancement", "")
         )
         st.session_state.blueprint = blueprint
 
-    st.header("🚀 Phase 4: Post-Orchestration Review Dashboard")
+    st.header("🚀 Post-Orchestration Review Dashboard")
     st.subheader("Blueprint & Swarm Dynamics")
     st.json(blueprint)
-    st.caption("**NO-BS ASSESSMENT:** Per-subtask validation_criteria + self-scoring + dynamic prompt improvement active.")
 
     col1, col2 = st.columns(2)
     with col1:
-        apply_arbo = st.checkbox("⭐ Apply Arbos Recommended patterns", value=True)
-        enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True, key="three_layer_memory")
+        apply_arbo = st.checkbox("Apply Arbos Recommended patterns", value=True, key="apply_arbo")
+        enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True, key="three_layer_memory_review")
     with col2:
-        add_context = st.checkbox("➕ Add My Context / Tools / Tests", value=False)
-        user_context = st.text_area("Your custom input (tools, tests, constraints)", "")
-        enable_runtime_tools = st.checkbox("Allow Safe Runtime Tool Creation", value=False)
+        add_context = st.checkbox("Add My Custom Context / Tools", value=False)
+        user_context = st.text_area("Your custom input", "", key="user_context")
 
-    if st.button("**Encode & Launch Swarm**", type="primary", use_container_width=True):
+    if st.button("🚀 Launch Swarm Now", type="primary", use_container_width=True):
         if apply_arbo:
-            st.success("Applied Arbos Recommended patterns")
+            st.success("Arbos patterns applied")
         if add_context and user_context:
             st.success("Custom context added")
         if enable_three_layer:
-            st.info("Three-layer memory compression enabled")
-        if enable_runtime_tools:
-            st.info("Safe runtime tool creation enabled")
-        st.session_state.stage = "final_review"
-        verification_instructions = st.session_state.get("verification_instructions", "")
-        final_solution = manager.execute_full_cycle(st.session_state.blueprint, st.session_state.challenge, verification_instructions)
-        st.session_state.final_solution = final_solution
+            st.info("Three-layer memory enabled")
+
+        with st.spinner("Running dynamic swarm..."):
+            verification_instructions = st.session_state.get("verification", "")
+            final_solution = manager.execute_full_cycle(
+                st.session_state.blueprint, 
+                st.session_state.challenge, 
+                verification_instructions
+            )
+            st.session_state.final_solution = final_solution
+            st.session_state.stage = "final_review"
         st.rerun()
 
-# ====================== FINAL REVIEW (Phase 11) ======================
+# ====================== FINAL REVIEW ======================
 if st.session_state.get("stage") == "final_review":
     solution = st.session_state.get("final_solution", "")
     blueprint = st.session_state.get("blueprint", {})
     trace = st.session_state.get("trace_log", [])
 
-    st.subheader("🔍 Phase 11: Final Review & Packaging")
+    st.subheader("🔍 Final Review & Packaging")
 
     tab1, tab2, tab3, tab4 = st.tabs(["Solution + Oracle", "ToolHunter", "Memory History", "🧬 SELF-IMPROVEMENT"])
 
     with tab1:
         st.text_area("Final Synthesized Solution", solution, height=400)
-        st.markdown("### ValidationOracle Results")
-        st.success(f"Score: {getattr(manager.validator, 'last_score', 0):.3f}")
+        st.success(f"ValidationOracle Score: {getattr(manager.validator, 'last_score', 0):.3f}")
 
     with tab2:
-        st.markdown("### ToolHunter Results")
-        st.info("Tool proposals logged for next run (no creation performed)")
+        st.info("Tool proposals logged for next run")
 
     with tab3:
-        st.markdown("### Memory History")
         st.info("Three-layer memory with light compression active")
 
     with tab4:
-        st.markdown("### SELF-IMPROVEMENT")
         if st.button("Run Self-Critique"):
             critique = manager.self_critique(st.session_state.challenge)
             st.json(critique)
@@ -286,7 +227,7 @@ if st.session_state.get("stage") == "final_review":
     if st.button("📦 Package for SN63 Submission", type="primary"):
         manager.save_run_to_history(
             challenge=st.session_state.challenge,
-            enhancement_prompt=st.session_state.get("enhancement_prompt", ""),
+            enhancement_prompt=st.session_state.get("enhancement", ""),
             solution=solution,
             score=getattr(manager.validator, 'last_score', 0),
             novelty=8.0,
@@ -294,7 +235,7 @@ if st.session_state.get("stage") == "final_review":
             main_issue="None"
         )
         _package_submission(solution, blueprint, trace, miner_notes, st.session_state.challenge, 
-                           st.session_state.get("verification_instructions", ""), 
+                           st.session_state.get("verification", ""), 
                            st.session_state.get("deterministic_tooling", ""))
         st.success("✅ Submission package created!")
         st.balloons()
