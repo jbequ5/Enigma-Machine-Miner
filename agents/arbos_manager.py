@@ -356,15 +356,18 @@ Return ONLY valid JSON."""
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours / 3.0)
         repair_attempts = 0
-        validation_criteria = getattr(self, "_current_validation_criteria", {}).get(subtask, None)
+        
+        # Show what criteria THIS specific sub-agent is using
+        validation_criteria = self._current_validation_criteria.get(subtask, self._current_validation_criteria)
+        trace = [f"Sub-Arbos {subtask_id} started | Using Criteria: {json.dumps(validation_criteria, indent=2)[:400]}..."]
 
         if self.config.get("resource_aware") and monitor.elapsed_hours() > max_hours * 0.75:
             solution = "Early abort: time budget exceeded."
-            trace = ["Resource-aware early abort"]
+            trace.append("Resource-aware early abort")
             local_score = 0.0
         else:
             solution = f"Subtask: {subtask}\nHypothesis: {hypothesis}"
-            trace = [f"Sub-Arbos {subtask_id} started"]
+            trace.append(f"Sub-Arbos {subtask_id} started with hypothesis: {hypothesis}")
 
             symbolic_result = symbolic_module(subtask, hypothesis, solution, getattr(self, "_current_strategy", {"enabled_modules": ["sympy"]}))
             if symbolic_result:
@@ -387,7 +390,7 @@ Current solution:
 {solution[:1500] if solution else 'None yet'}
 Give a score (0.0-1.0) and short explanation."""
                     local_eval = self.compute.call_llm(eval_prompt, temperature=0.0, max_tokens=400)
-                    trace.append(f"Self-eval: {local_eval[:150]}...")
+                    trace.append(f"Self-eval (loop {loop+1}): {local_eval[:150]}...")
                     try:
                         score_str = local_eval.split("0.")[1][:3] if "0." in local_eval else "0.5"
                         local_score = float(score_str)
@@ -474,8 +477,10 @@ Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
 
     def _run_swarm(self, blueprint: Dict[str, Any], challenge: str, verification_instructions: str = "", deterministic_tooling: str = "") -> str:
         self._current_strategy = self.analyzer.analyze(verification_instructions, challenge)
+        
+        # FIXED & IMPROVED: Properly extract and store validation criteria
         self._current_validation_criteria = blueprint.get("validation_criteria", {})
-
+        
         decomposition = blueprint.get("decomposition", ["Full quantum challenge"])
         swarm_config = blueprint.get("swarm_config", {"total_instances": 1})
 
@@ -485,6 +490,11 @@ Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
 
         manager_dict = multiprocessing.Manager().dict()
         trace_log = [f"🚀 Event-driven Swarm launched with {total_instances} threads (Quasar: {self.quasar_enabled})"]
+        
+        # === SHOW DECIDED VALIDATION CRITERIA ===
+        criteria_str = json.dumps(self._current_validation_criteria, indent=2)
+        trace_log.append(f"DECIDED VALIDATION CRITERIA FOR SUB-ARBOS AGENTS:\n{criteria_str}")
+        logger.info(f"Validation Criteria for this swarm:\n{criteria_str}")
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=total_instances) as executor:
             futures = []
