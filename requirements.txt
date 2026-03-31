@@ -1,36 +1,36 @@
-# Core dependencies - pinned for stability
-streamlit==1.38.0
-pandas==2.2.2
+# Core UI & Data
+streamlit>=1.40.0
+pandas>=2.2.0
 numpy==1.26.4
 psutil==5.9.0
 PyYAML==6.0.1
 requests==2.32.0
 python-dotenv==1.0.1
 
-# Vector DB & Embeddings (critical for trajectory_vector_db and memory)
+# Memory & Embeddings (critical for trajectory_vector_db + memory)
 chromadb==0.5.0
 sentence-transformers==3.0.0
 
-# FAISS - CPU only (works on Windows without CUDA)
+# FAISS CPU version (stable on Windows)
 faiss-cpu==1.10.0
 
-# ML / Torch base (CPU-friendly, no CUDA required for this project)
+# Torch CPU-only (no CUDA needed)
 torch==2.3.1+cpu
 torchvision==0.18.1+cpu
 torchaudio==2.3.1+cpu
 --index-url https://download.pytorch.org/whl/cpu
 
-# Other project dependencies
+# Text processing & Tooling
 beautifulsoup4==4.12.3
 huggingface-hub==0.23.4
 transformers==4.41.2
 tqdm==4.66.4
 
-# Optional but recommended for ToolHunter / external calls
-openai==1.40.0
-anthropic==0.34.0
-google-generativeai==0.8.0
+# Optional LLM providers (safe to have)
+openai>=1.40.0
+anthropic>=0.34.0
+google-generativeai>=0.8.0
 
-# Development / formatting (optional)
+# Formatting (optional)
 black==24.4.2
 isort==5.13.2
