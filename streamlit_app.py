@@ -73,9 +73,25 @@ st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", uns
 st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63</h3>", unsafe_allow_html=True)
 st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First • Hardened Launch Version")
 
-# ====================== SESSION STATE ======================
+# ====================== SESSION STATE INITIALIZATION ======================
 if "arbos_manager" not in st.session_state:
     st.session_state.arbos_manager = ArbosManager()
+
+if "stage" not in st.session_state:
+    st.session_state.stage = None
+
+if "high_level_plan" not in st.session_state:
+    st.session_state.high_level_plan = None
+
+if "blueprint" not in st.session_state:
+    st.session_state.blueprint = None
+
+if "final_solution" not in st.session_state:
+    st.session_state.final_solution = None
+
+if "trace_log" not in st.session_state:
+    st.session_state.trace_log = []
+
 manager = st.session_state.arbos_manager
 
 # ====================== GOAL.MD EDITOR ======================
@@ -117,7 +133,7 @@ if st.button("💾 Save GOAL.md Changes"):
     st.success("✅ GOAL.md saved!")
     st.rerun()
 
-# ====================== SIDEBAR (All unique keys - restored) ======================
+# ====================== SIDEBAR ======================
 with st.sidebar:
     st.header("🛠️ Configuration")
 
@@ -137,7 +153,7 @@ with st.sidebar:
     st.subheader("Advanced")
     enable_self_critique = st.checkbox("Enable Self-Critique + Autoresearch", value=True, key="self_critique")
 
-# ====================== COMPUTE SETUP (Restored) ======================
+# ====================== COMPUTE SETUP ======================
 if "compute_source" not in st.session_state:
     st.subheader("🔌 Compute Setup")
     compute_option = st.radio(
@@ -188,20 +204,23 @@ if st.button("🔍 Generate High-Level Plan", type="primary"):
 # ====================== STAGE 1: HIGH-LEVEL PLANNING REVIEW ======================
 if st.session_state.get("stage") == "planning_approval":
     st.subheader("📋 Stage 1: High-Level Plan – Strategic Review")
-    st.json(st.session_state.high_level_plan)
+    
+    if st.session_state.high_level_plan:
+        st.json(st.session_state.high_level_plan)
 
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown("**Adapted Strategy:**")
-        st.json(st.session_state.high_level_plan.get("adapted_strategy", {}))
-
-    with col2:
-        if st.button("✅ Approve Plan & Go to Orchestration Review", type="primary"):
-            st.session_state.stage = "post_orchestration_review"
-            st.rerun()
-        if st.button("🔄 Re-plan"):
-            st.session_state.stage = None
-            st.rerun()
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown("**Adapted Strategy:**")
+            st.json(st.session_state.high_level_plan.get("adapted_strategy", {}))
+        with col2:
+            if st.button("✅ Approve Plan & Go to Orchestration Review", type="primary"):
+                st.session_state.stage = "post_orchestration_review"
+                st.rerun()
+            if st.button("🔄 Re-plan"):
+                st.session_state.stage = None
+                st.rerun()
+    else:
+        st.warning("No plan generated yet.")
 
 # ====================== STAGE 2: POST-ORCHESTRATION REVIEW & LAUNCH SWARM ======================
 if st.session_state.get("stage") == "post_orchestration_review":
@@ -221,7 +240,7 @@ if st.session_state.get("stage") == "post_orchestration_review":
     col1, col2 = st.columns(2)
     with col1:
         apply_arbo = st.checkbox("Apply Arbos Recommended patterns", value=True, key="apply_arbo")
-        enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True, key="three_layer_memory_review")  # Unique key
+        enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True, key="three_layer_memory_review")
     with col2:
         add_context = st.checkbox("Add My Custom Context / Tools", value=False)
         user_context = st.text_area("Your custom input", "", key="user_context")
