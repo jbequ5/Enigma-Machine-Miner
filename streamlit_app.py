@@ -7,6 +7,13 @@ from datetime import datetime
 
 from agents.arbos_manager import ArbosManager
 
+# ←←← MOVE THIS TO THE VERY TOP (first Streamlit command)
+st.set_page_config(
+    page_title="Enigma Machine Miner",
+    page_icon="🔒",
+    layout="wide",
+    initial_sidebar_state="expanded"
+
 # ====================== BUNKER THEME ======================
 BUNKER_CSS = """
 <style>
