@@ -23,18 +23,34 @@ BUNKER_CSS = """
         background-position: center;
         background-attachment: fixed;
     }
+    
+    /* Stronger dark overlay for much better text readability */
+    [data-testid="stAppViewContainer"]::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.85);   /* Increased to 0.85 as requested */
+        z-index: -1;
+    }
+
     [data-testid="stHeader"], footer, [data-testid="stToolbar"] {
         visibility: hidden;
     }
+
     .stApp {
         background: linear-gradient(rgba(0, 5, 3, 0.98), rgba(0, 12, 8, 0.99));
     }
+
     h1, h2, h3, .stMarkdown h1, .stMarkdown h2 {
         color: #00ff9d !important;
         font-family: 'Courier New', monospace;
         text-shadow: 0 0 25px #00ff9d, 0 0 45px #00aa77;
         letter-spacing: 3px;
     }
+
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea {
         background-color: #000a06 !important;
@@ -45,35 +61,37 @@ BUNKER_CSS = """
         line-height: 1.6;
         box-shadow: 0 0 18px rgba(0, 255, 150, 0.6);
     }
+
     .stButton > button {
         background-color: #001a0f;
         color: #00ff9d;
         border: 3px solid #00ff9d;
         font-family: 'Courier New', monospace;
-        font-weight: bold;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        padding: 14px 32px;
-        box-shadow: 0 0 35px #00ff9d;
+        font-size: 16px;
+        padding: 12px 24px;
+        border-radius: 4px;
+        box-shadow: 0 0 15px rgba(0, 255, 150, 0.5);
     }
+
     .stButton > button:hover {
         background-color: #003322;
-        box-shadow: 0 0 55px #00ff9d;
+        box-shadow: 0 0 25px rgba(0, 255, 150, 0.8);
     }
-    .stApp::before {
-        content: "ALLIED COMMAND POST — US ARMY SIGNALS INTELLIGENCE";
-        position: fixed;
-        top: 28px;
-        right: 45px;
-        color: rgba(200, 255, 180, 0.22);
-        font-family: 'Courier New', monospace;
-        font-size: 15px;
-        transform: rotate(-7deg);
-        z-index: 9999;
-        letter-spacing: 6px;
+
+    /* Sidebar improvements */
+    [data-testid="stSidebar"] {
+        background-color: rgba(0, 10, 6, 0.95) !important;
+        border-right: 2px solid #00ff9d;
+    }
+
+    /* Make all text more readable */
+    .stMarkdown, p, span, label {
+        color: #00ff9d !important;
+        text-shadow: 0 0 8px rgba(0, 255, 150, 0.6);
     }
 </style>
 """
+
 st.markdown(BUNKER_CSS, unsafe_allow_html=True)
 
 st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", unsafe_allow_html=True)
