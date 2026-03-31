@@ -198,54 +198,50 @@ Prioritize deterministic/symbolic tools."""
             pass
         return {}
 
-        def plan_challenge(self, challenge: str, enhancement_prompt: str = "") -> Dict[str, Any]:
+           def plan_challenge(self, challenge: str, enhancement_prompt: str = "") -> Dict[str, Any]:
         if not challenge or len(challenge.strip()) < 10:
             return {"error": "Challenge too short", "phase1": "", "phase2": {}, "dynamic_swarm_size": 4}
 
-        # Phase 1
-        phase1_prompt = f"""You are Planning Arbos.
+        # Force local compute for RTX 3060
+        logger.info(f"Using Local GPU (RTX 3060) for planning - VRAM: checking...")
+
+        phase1_prompt = f"""You are Planning Arbos for SN63 challenge.
 Challenge: {challenge}
 Enhancement: {enhancement_prompt or 'None'}
 
-Provide a high-level strategy:
+Provide high-level strategy:
 - Main goals
-- Key risks
-- 5-8 suggested subtasks
+- Key risks  
+- 5-8 concrete subtasks
 
-Return ONLY valid JSON like: {{"goals": [...], "risks": [...], "subtasks": [...]}}"""
+Return ONLY valid JSON."""
 
         phase1 = self.compute.run_on_compute(phase1_prompt, temperature=0.3, task_type="planning")
 
-        # Debug output
-        logger.info(f"Phase1 raw response: {phase1[:500]}...")
+        logger.info(f"Phase1 raw: {phase1[:600]}...")
 
-        available_vram = 48.0
-        try:
-            available_vram = ResourceMonitor().get_available_vram_gb()
-        except:
-            pass
-        dynamic_size = min(self.max_swarm_size, max(3, int(available_vram // 6.0)))
+        # Calculate dynamic size based on 3060 (12GB VRAM)
+        dynamic_size = 4  # Safe default for 3060 (6GB per agent approx)
 
-        # Phase 2
         phase2_prompt = f"""You are Orchestrator Arbos.
 Phase 1: {phase1}
 
-Create FULL executable blueprint as clean JSON with these exact keys:
+Create FULL executable blueprint as clean JSON:
 - "decomposition": list of 5-10 subtasks
 - "swarm_config": {{"total_instances": {dynamic_size}}}
-- "tool_map": object mapping subtask to list of tools
-- "validation_criteria": object with per-subtask criteria
-- "hypothesis_diversity": ["standard", "novel", "conservative"]
+- "tool_map": {{}}
+- "validation_criteria": {{}}
+- "hypothesis_diversity": ["standard", "novel"]
 
 Return ONLY valid JSON. No extra text."""
 
         phase2_raw = self.compute.run_on_compute(phase2_prompt, temperature=0.0, task_type="orchestration")
-        logger.info(f"Phase2 raw response: {phase2_raw[:500]}...")
+        logger.info(f"Phase2 raw: {phase2_raw[:600]}...")
 
         blueprint = self._safe_parse_json(phase2_raw)
-        if not blueprint or "decomposition" not in blueprint or len(blueprint.get("decomposition", [])) == 0:
+        if not blueprint or "decomposition" not in blueprint or len(blueprint.get("decomposition", [])) < 2:
             blueprint = {
-                "decomposition": ["Solve the full challenge using verifier-first approach", "Implement symbolic checks", "Run verification code", "Synthesize results", "Validate novelty"],
+                "decomposition": ["Analyze challenge requirements", "Run verifier code first", "Apply symbolic tools", "Generate solution", "Validate with oracle", "Synthesize final output"],
                 "swarm_config": {"total_instances": dynamic_size},
                 "tool_map": {},
                 "validation_criteria": {},
@@ -254,7 +250,7 @@ Return ONLY valid JSON. No extra text."""
 
         # Adaptation
         adaptation = self.compute.run_on_compute(
-            "Adapt scoring weights, enabled modules, and thresholds for best possible verifier score.",
+            "Adapt scoring weights, enabled modules, and thresholds for best verifier score on local GPU.",
             task_type="adaptation", temperature=0.0
         )
         
@@ -268,7 +264,7 @@ Return ONLY valid JSON. No extra text."""
             "adapted_strategy": self._current_strategy,
             "dynamic_swarm_size": dynamic_size
         }
-
+        
     def re_adapt(self, candidate: Dict, latest_verifier_feedback: str):
         self.loop_count += 1
         
