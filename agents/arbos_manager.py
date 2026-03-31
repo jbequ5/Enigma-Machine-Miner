@@ -198,37 +198,63 @@ Prioritize deterministic/symbolic tools."""
             pass
         return {}
 
-    def plan_challenge(self, challenge: str, enhancement_prompt: str = "") -> Dict[str, Any]:
-        phase1 = self.compute.run_on_compute(
-            f"Challenge: {challenge}\nMiner enhancement: {enhancement_prompt}\nPhase 1: High-level goals, risks, subtasks.",
-            task_type="planning"
-        )
+        def plan_challenge(self, challenge: str, enhancement_prompt: str = "") -> Dict[str, Any]:
+        if not challenge or len(challenge.strip()) < 10:
+            return {"error": "Challenge too short", "phase1": "", "phase2": {}, "dynamic_swarm_size": 4}
+
+        # Phase 1
+        phase1_prompt = f"""You are Planning Arbos.
+Challenge: {challenge}
+Enhancement: {enhancement_prompt or 'None'}
+
+Provide a high-level strategy:
+- Main goals
+- Key risks
+- 5-8 suggested subtasks
+
+Return ONLY valid JSON like: {{"goals": [...], "risks": [...], "subtasks": [...]}}"""
+
+        phase1 = self.compute.run_on_compute(phase1_prompt, temperature=0.3, task_type="planning")
+
+        # Debug output
+        logger.info(f"Phase1 raw response: {phase1[:500]}...")
 
         available_vram = 48.0
         try:
             available_vram = ResourceMonitor().get_available_vram_gb()
         except:
             pass
-        per_agent_gb = 6.0
-        dynamic_size = min(self.max_swarm_size, max(3, int(available_vram // per_agent_gb)))
+        dynamic_size = min(self.max_swarm_size, max(3, int(available_vram // 6.0)))
 
-        phase2_raw = self.compute.run_on_compute(
-            f"Phase 1 output: {phase1}\nAvailable compute supports {dynamic_size} Sub-Arbos.\nPhase 2: Full executable blueprint.",
-            task_type="orchestration"
-        )
+        # Phase 2
+        phase2_prompt = f"""You are Orchestrator Arbos.
+Phase 1: {phase1}
+
+Create FULL executable blueprint as clean JSON with these exact keys:
+- "decomposition": list of 5-10 subtasks
+- "swarm_config": {{"total_instances": {dynamic_size}}}
+- "tool_map": object mapping subtask to list of tools
+- "validation_criteria": object with per-subtask criteria
+- "hypothesis_diversity": ["standard", "novel", "conservative"]
+
+Return ONLY valid JSON. No extra text."""
+
+        phase2_raw = self.compute.run_on_compute(phase2_prompt, temperature=0.0, task_type="orchestration")
+        logger.info(f"Phase2 raw response: {phase2_raw[:500]}...")
 
         blueprint = self._safe_parse_json(phase2_raw)
-        if not blueprint or "decomposition" not in blueprint:
+        if not blueprint or "decomposition" not in blueprint or len(blueprint.get("decomposition", [])) == 0:
             blueprint = {
-                "decomposition": ["Full challenge solution"],
+                "decomposition": ["Solve the full challenge using verifier-first approach", "Implement symbolic checks", "Run verification code", "Synthesize results", "Validate novelty"],
                 "swarm_config": {"total_instances": dynamic_size},
                 "tool_map": {},
                 "validation_criteria": {},
-                "hypothesis_diversity": ["standard"]
+                "hypothesis_diversity": ["standard", "novel"]
             }
 
+        # Adaptation
         adaptation = self.compute.run_on_compute(
-            f"Full context from Phase 1+2.\nAdapt scoring weights, enabled modules, thresholds.",
+            "Adapt scoring weights, enabled modules, and thresholds for best possible verifier score.",
             task_type="adaptation", temperature=0.0
         )
         
