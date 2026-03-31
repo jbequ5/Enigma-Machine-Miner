@@ -262,17 +262,24 @@ Prioritize deterministic/symbolic tools."""
         proposal_prompt = f"Based on these results: {json.dumps(results)[:1200]}\nSuggest 2-3 deterministic tools or helpers that would improve verifier score on the NEXT run only."
         response = self.compute.run_on_compute(proposal_prompt, temperature=0.3, task_type="tool_proposal")
         proposals = [line.strip() for line in response.split("\n") if line.strip()][:3]
-        self.memory_layers.add_proposals(proposals)
+        
+        # Safe add without triggering embedding download
+        for p in proposals:
+            try:
+                memory.add(f"TOOL PROPOSAL: {p}", {"type": "tool_proposal"})
+            except Exception as e:
+                logger.warning(f"Failed to add proposal to memory: {e}")
+        
         return proposals
 
     def _run_grail_post_training(self, results: Dict):
         logger.info("Grail post-training triggered on winning run (verifiable proof attached to package)")
 
-    def _execute_swarm(self, blueprint: Any, dynamic_size: int):
+def _execute_swarm(self, blueprint: Any, dynamic_size: int):
         blueprint = self._safe_parse_json(blueprint)
         decomposition = blueprint.get("decomposition", ["Full challenge"])
         
-        # Safe handling for hypothesis_diversity to prevent ZeroDivisionError
+        # Safe hypothesis_diversity handling
         hypothesis_diversity = blueprint.get("hypothesis_diversity", ["standard"])
         if not hypothesis_diversity:
             hypothesis_diversity = ["standard"]
@@ -281,7 +288,6 @@ Prioritize deterministic/symbolic tools."""
         with concurrent.futures.ProcessPoolExecutor(max_workers=min(dynamic_size, 6)) as executor:
             futures = []
             for subtask_id, subtask in enumerate(decomposition):
-                # Safe modulo
                 hyp_index = subtask_id % len(hypothesis_diversity)
                 hyp = hypothesis_diversity[hyp_index]
                 tools = blueprint.get("tool_map", {}).get(subtask, ["none"])
@@ -294,6 +300,7 @@ Prioritize deterministic/symbolic tools."""
                 except Exception as e:
                     logger.error(f"Swarm worker error: {e}")
         return dict(manager_dict)
+
 
     def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
                           shared_results: dict, subtask_id: int) -> dict:
