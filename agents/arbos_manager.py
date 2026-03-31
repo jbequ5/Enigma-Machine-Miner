@@ -263,7 +263,7 @@ Prioritize deterministic/symbolic tools."""
         response = self.compute.run_on_compute(proposal_prompt, temperature=0.3, task_type="tool_proposal")
         proposals = [line.strip() for line in response.split("\n") if line.strip()][:3]
         
-        # Safe add without triggering embedding download
+        # Safe add without triggering embedding download (fixes ChunkedEncodingError)
         for p in proposals:
             try:
                 memory.add(f"TOOL PROPOSAL: {p}", {"type": "tool_proposal"})
@@ -275,11 +275,11 @@ Prioritize deterministic/symbolic tools."""
     def _run_grail_post_training(self, results: Dict):
         logger.info("Grail post-training triggered on winning run (verifiable proof attached to package)")
 
-def _execute_swarm(self, blueprint: Any, dynamic_size: int):
+    def _execute_swarm(self, blueprint: Any, dynamic_size: int):
         blueprint = self._safe_parse_json(blueprint)
         decomposition = blueprint.get("decomposition", ["Full challenge"])
         
-        # Safe hypothesis_diversity handling
+        # Safe hypothesis_diversity handling to prevent ZeroDivisionError
         hypothesis_diversity = blueprint.get("hypothesis_diversity", ["standard"])
         if not hypothesis_diversity:
             hypothesis_diversity = ["standard"]
@@ -300,7 +300,6 @@ def _execute_swarm(self, blueprint: Any, dynamic_size: int):
                 except Exception as e:
                     logger.error(f"Swarm worker error: {e}")
         return dict(manager_dict)
-
 
     def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
                           shared_results: dict, subtask_id: int) -> dict:
