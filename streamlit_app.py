@@ -160,7 +160,7 @@ st.sidebar.caption(f"Max Repair Attempts: **{manager.max_repair_attempts}**")
 pause_on_verification = st.sidebar.checkbox("Pause on Verification (Phase 8)", value=False)
 early_stop_enabled = st.sidebar.checkbox("Enable Early-Stop", value=True)
 
-enable_three_layer_memory = st.sidebar.checkbox("Enable Three-Layer Memory Compression", value=True)
+enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True, key="three_layer_memory")
 enable_self_diagnostics = st.sidebar.checkbox("Run Self-Diagnostics on Reconvene", value=True)
 
 if st.sidebar.button("🔍 Pre-Run ToolHunter Discovery (GOAL.md)"):
@@ -250,7 +250,7 @@ if st.session_state.get("stage") == "post_orchestration_review":
     col1, col2 = st.columns(2)
     with col1:
         apply_arbo = st.checkbox("⭐ Apply Arbos Recommended patterns", value=True)
-        enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True)
+        enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True, key="three_layer_memory")
     with col2:
         add_context = st.checkbox("➕ Add My Context / Tools / Tests", value=False)
         user_context = st.text_area("Your custom input (tools, tests, constraints)", "")
