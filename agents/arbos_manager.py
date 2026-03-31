@@ -16,7 +16,7 @@ multiprocessing.set_start_method('spawn', force=True)
 
 from agents.memory import memory, memory_layers
 from agents.tools.tool_hunter import tool_hunter, load_registry, save_registry
-from agents.tools.compute import ComputeRouter
+from agents.tools.compute import ComputeRouter, compute_router  # ensure singleton
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
 
@@ -63,12 +63,13 @@ class ArbosManager:
         self.goal_file = goal_file
         self.arbos_path = "agents/arbos"
         
-        self.compute = ComputeRouter()
+        # Use the shared ComputeRouter singleton for reliable Local GPU
+        self.compute = compute_router
         
         # === INTELLIGENT COMPUTE ROUTING SETUP ===
-        self.compute.enable_quasar(True)
-        if self.compute.quasar_enabled:
-            self.compute.run_on_compute("Warm-up: Quasar model ready", task_type="planning")
+        self.compute.set_mode("local_gpu")  # Force local first for planning
+        self.quasar_enabled = True
+        logger.info("Quasar Long-Context Attention: Enabled")
 
         self.config = self._load_config()
         self.extra_context = self._load_extra_context()
@@ -77,9 +78,8 @@ class ArbosManager:
         self.history_file = Path("submissions/run_history.json")
         self._ensure_history_file()
 
-        self.compute_source = self.config.get("compute_source", "chutes")
+        self.compute_source = "local_gpu"  # Default to working local
         self.custom_endpoint = None
-        self.compute.set_compute_source(self.compute_source, self.custom_endpoint)
 
         self.validator = ValidationOracle(goal_file)
         self.analyzer = VerificationAnalyzer(goal_file)
@@ -98,7 +98,7 @@ class ArbosManager:
 
         self.memory_layers = memory_layers
 
-        logger.info("✅ ArbosManager v3.0 — Hardened + ReadyAI llms.txt + Quasar Auto-Download")
+        logger.info("✅ ArbosManager v3.1 — Hardened Local GPU + Quasar + SN63 Quantum Innovate Ready")
 
     def _ensure_history_file(self):
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
@@ -111,7 +111,7 @@ class ArbosManager:
             try:
                 subprocess.run(["git", "clone", "https://github.com/unarbos/arbos.git", self.arbos_path], check=True)
             except:
-                pass
+                logger.warning("Arbos repo already present or clone skipped")
 
     def _load_config(self):
         config = {
@@ -123,7 +123,7 @@ class ArbosManager:
             "guardrails": True,
             "toolhunter_escalation": True,
             "manual_tool_installs_allowed": True,
-            "compute_source": "chutes"
+            "compute_source": "local_gpu"
         }
         try:
             with open(self.goal_file, "r") as f:
@@ -150,6 +150,26 @@ class ArbosManager:
         except Exception:
             return ""
 
+    def update_toggles(self, toggles: dict):
+        """Live wiring from Streamlit sidebar — affects all behavior."""
+        self.quasar_enabled = toggles.get("Quasar", True)
+        self.enable_grail = toggles.get("Grail on winning runs", False)
+        self.config["toolhunter_escalation"] = toggles.get("ToolHunter + ReadyAI", True)
+        self.config["resource_aware"] = toggles.get("Light Compression", True)  # reuse for light comp
+        # Dynamic swarm size can be passed separately if needed
+        logger.info(f"Toggles updated: Quasar={self.quasar_enabled}, Grail={self.enable_grail}, ToolHunter={self.config['toolhunter_escalation']}")
+
+    def set_compute_source(self, source: str, custom_endpoint: str = None):
+        """Support Streamlit compute selection — prioritizes Local GPU."""
+        self.compute_source = source
+        self.custom_endpoint = custom_endpoint
+        if source == "local_gpu" or source == "local":
+            self.compute.set_mode("local_gpu")
+            logger.info("ComputeRouter set to Local GPU (Ollama) — no API keys required")
+        else:
+            self.compute.set_mode(source)
+            logger.info(f"Compute source set to: {source}")
+
     def discover_from_goal(self, goal_content: str) -> list:
         registry = load_registry()
         discovery_task = f"""You are ToolHunter in pre-run discovery mode.
@@ -157,9 +177,9 @@ class ArbosManager:
 GOAL.md content:
 {goal_content[:5000]}
 
-Task: Analyze the goals and suggest the most relevant tools, libraries, or Hugging Face models.
-Prioritize deterministic/symbolic tools."""
-        response = self.compute.run_on_compute(discovery_task, temperature=0.0, task_type="toolhunter")
+Task: Analyze the goals and suggest the most relevant tools, libraries, or Hugging Face models for SN63 Quantum Innovate challenges.
+Prioritize deterministic/symbolic tools and quantum circuit libraries."""
+        response = self.compute.call_llm(discovery_task, temperature=0.0, max_tokens=1200)
         new_items = []
         try:
             lines = response.split("\n")
@@ -198,60 +218,63 @@ Prioritize deterministic/symbolic tools."""
             pass
         return {}
 
-    def plan_challenge(self, challenge: str, enhancement_prompt: str = "") -> Dict[str, Any]:
+    def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu") -> Dict[str, Any]:
+        """Updated to accept goal_md from Streamlit editor and use reliable Local GPU path."""
+        self.set_compute_source(compute_mode)
+        
         if not challenge or len(challenge.strip()) < 10:
             return {"error": "Challenge too short", "phase1": "", "phase2": {}, "dynamic_swarm_size": 4}
 
-        # Force local compute for RTX 3060 style GPUs
-        logger.info(f"Using Local GPU for planning - VRAM: checking...")
+        logger.info(f"Planning with {compute_mode} — Quasar: {self.quasar_enabled}")
 
-        phase1_prompt = f"""You are Planning Arbos for SN63 challenge.
+        phase1_prompt = f"""You are Planning Arbos for Bittensor SN63 Quantum Innovate.
+GOAL.md:
+{goal_md[:3000]}
+
 Challenge: {challenge}
 Enhancement: {enhancement_prompt or 'None'}
 
-Provide high-level strategy:
+Provide high-level strategy for quantum circuit simulation/optimization:
 - Main goals
 - Key risks  
 - 5-8 concrete subtasks
+- How Quasar, memory compression, and self-critique will be applied
 
-Return ONLY valid JSON."""
+Return ONLY valid JSON with keys: phase1_plan, key_insights, subtasks."""
 
-        phase1 = self.compute.run_on_compute(phase1_prompt, temperature=0.3, task_type="planning")
+        phase1 = self.compute.call_llm(phase1_prompt, temperature=0.6, max_tokens=1500)
 
-        logger.info(f"Phase1 raw: {phase1[:600]}...")
+        logger.info(f"Phase1 raw length: {len(phase1)}")
 
-        # Calculate dynamic size based on typical consumer GPU (safe default)
-        dynamic_size = 4
+        dynamic_size = 5 if self.quasar_enabled else 4
 
-        phase2_prompt = f"""You are Orchestrator Arbos.
-Phase 1: {phase1}
+        phase2_prompt = f"""You are Orchestrator Arbos for SN63.
+Phase 1 output: {phase1[:2000]}
 
 Create FULL executable blueprint as clean JSON:
-- "decomposition": list of 5-10 subtasks
+- "decomposition": list of 5-10 quantum-focused subtasks
 - "swarm_config": {{"total_instances": {dynamic_size}}}
 - "tool_map": {{}}
 - "validation_criteria": {{}}
-- "hypothesis_diversity": ["standard", "novel"]
+- "hypothesis_diversity": ["standard", "novel", "quantum_optimized"]
 
-Return ONLY valid JSON. No extra text."""
+Incorporate Quasar long-context if enabled. Return ONLY valid JSON."""
 
-        phase2_raw = self.compute.run_on_compute(phase2_prompt, temperature=0.0, task_type="orchestration")
-        logger.info(f"Phase2 raw: {phase2_raw[:600]}...")
-
+        phase2_raw = self.compute.call_llm(phase2_prompt, temperature=0.0, max_tokens=1200)
         blueprint = self._safe_parse_json(phase2_raw)
-        if not blueprint or "decomposition" not in blueprint or len(blueprint.get("decomposition", [])) < 2:
+
+        if not blueprint or "decomposition" not in blueprint:
             blueprint = {
-                "decomposition": ["Analyze challenge requirements", "Run verifier code first", "Apply symbolic tools", "Generate solution", "Validate with oracle", "Synthesize final output"],
+                "decomposition": ["Parse quantum requirements", "Symbolic circuit modeling", "Run verifier first", "Generate candidates with EGGROLL", "Validate with oracle", "Synthesize final solution"],
                 "swarm_config": {"total_instances": dynamic_size},
                 "tool_map": {},
                 "validation_criteria": {},
-                "hypothesis_diversity": ["standard", "novel"]
+                "hypothesis_diversity": ["standard", "novel", "quantum_optimized"]
             }
 
-        # Adaptation
-        adaptation = self.compute.run_on_compute(
-            "Adapt scoring weights, enabled modules, and thresholds for best verifier score on local GPU.",
-            task_type="adaptation", temperature=0.0
+        adaptation = self.compute.call_llm(
+            "Adapt scoring weights and thresholds for best quantum verifier score on local GPU with enabled features.",
+            temperature=0.0, max_tokens=800
         )
         
         adapted = self._safe_parse_json(adaptation)
@@ -262,7 +285,8 @@ Return ONLY valid JSON. No extra text."""
             "phase1": phase1,
             "phase2": blueprint,
             "adapted_strategy": self._current_strategy,
-            "dynamic_swarm_size": dynamic_size
+            "dynamic_swarm_size": dynamic_size,
+            "quasar_enabled": self.quasar_enabled
         }
         
     def re_adapt(self, candidate: Dict, latest_verifier_feedback: str):
@@ -271,9 +295,9 @@ Return ONLY valid JSON. No extra text."""
         if self.memory_layers.get_total_context_tokens() > 150000:
             self.memory_layers.compress_low_value(getattr(self.validator, 'last_score', 0.0))
 
-        adaptation = self.compute.run_on_compute(
-            f"Adaptation Arbos — RE-RUN (loop {self.loop_count})\nLatest feedback: {latest_verifier_feedback}",
-            task_type="re_adapt", temperature=0.0
+        adaptation = self.compute.call_llm(
+            f"Adaptation Arbos — RE-RUN (loop {self.loop_count})\nLatest feedback: {latest_verifier_feedback}\nQuasar: {self.quasar_enabled}",
+            temperature=0.0, max_tokens=1000
         )
         
         adapted = self._safe_parse_json(adaptation)
@@ -281,16 +305,15 @@ Return ONLY valid JSON. No extra text."""
         self.validator.adapt_scoring(self._current_strategy)
 
     def _generate_tool_proposals(self, results: Dict) -> List[str]:
-        proposal_prompt = f"Based on these results: {json.dumps(results)[:1200]}\nSuggest 2-3 deterministic tools or helpers that would improve verifier score on the NEXT run only."
-        response = self.compute.run_on_compute(proposal_prompt, temperature=0.3, task_type="tool_proposal")
+        proposal_prompt = f"Based on these swarm results: {json.dumps(results)[:1500]}\nSuggest 2-3 deterministic or quantum-related tools that would improve verifier score on the NEXT run."
+        response = self.compute.call_llm(proposal_prompt, temperature=0.3, max_tokens=600)
         proposals = [line.strip() for line in response.split("\n") if line.strip()][:3]
         
-        # Safe add without triggering embedding download
         for p in proposals:
             try:
                 memory.add(f"TOOL PROPOSAL: {p}", {"type": "tool_proposal"})
             except Exception as e:
-                logger.warning(f"Failed to add proposal to memory: {e}")
+                logger.warning(f"Failed to add proposal: {e}")
         
         return proposals
 
@@ -299,7 +322,7 @@ Return ONLY valid JSON. No extra text."""
 
     def _execute_swarm(self, blueprint: Any, dynamic_size: int):
         blueprint = self._safe_parse_json(blueprint)
-        decomposition = blueprint.get("decomposition", ["Full challenge"])
+        decomposition = blueprint.get("decomposition", ["Full quantum challenge"])
         
         hypothesis_diversity = blueprint.get("hypothesis_diversity", ["standard"])
         if not hypothesis_diversity:
@@ -357,7 +380,7 @@ Subtask criteria: {criteria.get('criteria', 'None')}
 Current solution:
 {solution[:1500] if solution else 'None yet'}
 Give a score (0.0-1.0) and short explanation."""
-                    local_eval = self.compute.run_on_compute(eval_prompt, temperature=0.0, task_type="sub_eval")
+                    local_eval = self.compute.call_llm(eval_prompt, temperature=0.0, max_tokens=400)
                     trace.append(f"Self-eval: {local_eval[:150]}...")
                     try:
                         score_str = local_eval.split("0.")[1][:3] if "0." in local_eval else "0.5"
@@ -365,30 +388,25 @@ Give a score (0.0-1.0) and short explanation."""
                     except:
                         local_score = 0.5
 
-                if current_reflect_prompt:
-                    reflect_task = current_reflect_prompt
-                else:
-                    reflect_task = f"""You are a focused sub-Arbos.
+                reflect_task = f"""You are a focused sub-Arbos for SN63 Quantum.
 Subtask: {subtask}
 Hypothesis: {hypothesis}
 Current: {solution[:800]}
-{'Self-evaluation from last attempt: ' + (local_eval[:400] if local_eval else '')}
-Prefer deterministic tools.
-Decide: Improve / Call Tool / Finalize
-Stay tightly aligned with the validation criteria."""
+{'Self-evaluation: ' + (local_eval[:400] if local_eval else '')}
+Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
 
-                response = self.compute.run_on_compute(reflect_task, temperature=0.0, task_type="subtask", novelty_level="medium")
+                response = self.compute.call_llm(reflect_task, temperature=0.0, max_tokens=600)
                 trace.append(f"Loop {loop+1}")
 
                 if "Finalize" in response or "final" in response.lower():
                     break
 
-                if "ToolHunter" in str(tools) or "hunter" in response.lower():
+                if self.config.get("toolhunter_escalation") and ("ToolHunter" in str(tools) or "hunter" in response.lower()):
                     gap = f"Gap in {subtask}"
                     hunt = self._tool_hunter(gap, subtask)
-                    solution += f"\n[ToolHunter]\n{hunt}"
+                    solution += f"\n[ToolHunter + ReadyAI]\n{hunt}"
                 elif tools and tools[0] != "none":
-                    output = self.compute.run_on_compute(f"Apply {tools[0]} to: {solution[:600]}", temperature=0.0, task_type="subtask")
+                    output = self.compute.call_llm(f"Apply {tools[0]} to quantum subtask: {solution[:600]}", temperature=0.0, max_tokens=500)
                     solution += f"\n[{tools[0]}]\n{output}"
 
                 if self.config.get("guardrails"):
@@ -422,7 +440,7 @@ Stay tightly aligned with the validation criteria."""
                 result["recommendation"] += f"\n[Agent-Reach] {link.get('url')}: {clean[:200]}..."
         if result.get("status") == "success":
             return f"ToolHunter + Agent-Reach ({result.get('source', 'unknown')}): {result.get('recommendation')}"
-        return "ToolHunter + Agent-Reach found no strong match."
+        return "ToolHunter + Agent-Reach found no strong match for this quantum subtask."
 
     def _generate_candidates_eggroll(self, subtask: str, hypothesis: str, current_solution: str) -> str:
         base = {"solution": current_solution, "novelty_proxy": 0.5, "est_compute": 1.0}
@@ -446,29 +464,28 @@ Stay tightly aligned with the validation criteria."""
         oracle_result = self.validator.run(candidate, verification_instructions, challenge)
         self._current_strategy = oracle_result.get("strategy")
         vector_db.add_eggroll({"solution": solution, "validation_score": oracle_result["validation_score"]})
-        return f"ValidationOracle: score={oracle_result['validation_score']:.3f} | Strategy: {self._current_strategy.get('domain', 'adaptive')} | V/Vd: {oracle_result['vvd_ready']}"
+        return f"ValidationOracle: score={oracle_result['validation_score']:.3f} | Strategy: {self._current_strategy.get('domain', 'quantum_adaptive')} | V/Vd: {oracle_result['vvd_ready']}"
 
     def _run_swarm(self, blueprint: Dict[str, Any], challenge: str, verification_instructions: str = "", deterministic_tooling: str = "") -> str:
         self._current_strategy = self.analyzer.analyze(verification_instructions, challenge)
         self._current_validation_criteria = blueprint.get("validation_criteria", {})
 
-        decomposition = blueprint.get("decomposition", ["Full challenge"])
+        decomposition = blueprint.get("decomposition", ["Full quantum challenge"])
         swarm_config = blueprint.get("swarm_config", {"total_instances": 1})
-        tool_map = blueprint.get("tool_map", {})
 
         total_instances = min(swarm_config.get("total_instances", 4), 6)
         if self.config.get("resource_aware"):
             total_instances = min(total_instances, 4)
 
         manager_dict = multiprocessing.Manager().dict()
-        trace_log = [f"🚀 Event-driven Swarm launched with {total_instances} threads"]
+        trace_log = [f"🚀 Event-driven Swarm launched with {total_instances} threads (Quasar: {self.quasar_enabled})"]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=total_instances) as executor:
             futures = []
             subtask_id = 0
             for i, subtask in enumerate(decomposition):
                 count = swarm_config.get("assignment", {}).get(subtask, 1)
-                tools = tool_map.get(subtask, ["none"])
+                tools = blueprint.get("tool_map", {}).get(subtask, ["none"])
                 for _ in range(count):
                     hyp = swarm_config.get("hypothesis_diversity", ["standard"] * len(decomposition))[i % len(decomposition)]
                     futures.append(executor.submit(
@@ -494,16 +511,16 @@ Stay tightly aligned with the validation criteria."""
 
         failed_context = "\nPrevious failed attempts:\n" + "\n---\n".join(memory.query(challenge + " failed", n_results=5)) if memory.query(challenge + " failed", n_results=5) else ""
 
-        synthesis_task = f"""You are Arbos Orchestrator.
+        synthesis_task = f"""You are Arbos Orchestrator for SN63 Quantum Innovate.
 Challenge: {challenge}
-Verification Instructions: {verification_instructions or 'General SN63 standards'}
+Verification Instructions: {verification_instructions or 'General quantum standards'}
 Miner Deterministic Tooling: {deterministic_tooling or 'None specified'}
 {failed_context}
-Swarm results (with local scores): {json.dumps(all_results, indent=2)}
+Swarm results: {json.dumps(all_results, indent=2)[:2000]}
 MARL-weighted sub-avg score: {weighted_avg:.3f}
-Final Synthesized Solution (weight higher-scoring subtasks more):"""
+Synthesize final high-quality quantum solution (weight higher-scoring subtasks):"""
 
-        final_solution = self.compute.run_on_compute(synthesis_task, temperature=0.0, task_type="synthesis", novelty_level="high")
+        final_solution = self.compute.call_llm(synthesis_task, temperature=0.0, max_tokens=2000)
 
         if verification_instructions and verification_instructions.strip():
             verification_result = self._run_verification(final_solution, verification_instructions, challenge)
@@ -515,17 +532,22 @@ Final Synthesized Solution (weight higher-scoring subtasks more):"""
         memory.add(text=final_solution[:1500], metadata={"challenge": challenge, "status": "final", "sub_avg_score": weighted_avg})
         trace_log.append("Synthesis + Verification complete")
 
-        import streamlit as st
-        if "trace_log" not in st.session_state:
-            st.session_state.trace_log = []
-        st.session_state.trace_log.extend(trace_log)
+        # Safe Streamlit session update
+        try:
+            import streamlit as st
+            if "trace_log" not in st.session_state:
+                st.session_state.trace_log = []
+            st.session_state.trace_log.extend(trace_log)
+        except:
+            pass
 
         self.loop_count += 1
         return final_solution
 
-    def execute_full_cycle(self, plan: Dict, challenge: str, verification_instructions: str = ""):
-        dynamic_size = plan.get("dynamic_swarm_size", 6)
-        results = self._execute_swarm(plan.get("phase2", {}), dynamic_size)
+    def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = ""):
+        """Updated to match Streamlit call pattern."""
+        dynamic_size = blueprint.get("dynamic_swarm_size", blueprint.get("swarm_config", {}).get("total_instances", 5))
+        results = self._execute_swarm(blueprint, dynamic_size)
         score_dict = self.validator.run(results, verification_instructions, challenge)
         
         if score_dict.get("validation_score", 0) > 0.92 and self.enable_grail:
@@ -533,14 +555,14 @@ Final Synthesized Solution (weight higher-scoring subtasks more):"""
 
         proposals = self._generate_tool_proposals(results)
         self.memory_layers.add_proposals(proposals)
-        return score_dict
+        return score_dict.get("final_solution", str(score_dict)) if isinstance(score_dict, dict) else str(score_dict)
 
     def export_trajectories_for_optimization(self, challenge: str):
         traj = vector_db.search(challenge, k=50)
         path = Path("trajectories") / f"export_{challenge[:30]}_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(traj, indent=2))
-        logger.info(f"Exported {len(traj)} trajectories to {path} for offline optimization")
+        logger.info(f"Exported {len(traj)} trajectories to {path}")
         return str(path)
 
     def save_run_to_history(self, challenge: str, enhancement_prompt: str, solution: str, 
@@ -579,7 +601,7 @@ Final Synthesized Solution (weight higher-scoring subtasks more):"""
     def self_critique(self, challenge: str, n_runs: int = 5) -> Dict[str, Any]:
         history = self.get_run_history(n_runs)
         trajectories = vector_db.search(challenge, k=20)
-        critique_task = f"""You are Arbos Self-Improvement Analyst.
+        critique_task = f"""You are Arbos Self-Improvement Analyst for SN63 Quantum.
 
 Challenge: {challenge}
 Recent run history:
@@ -593,7 +615,7 @@ Extract:
 - recommended_prompt_additions
 
 Return clean JSON."""
-        response = self.compute.run_on_compute(critique_task, temperature=0.3, task_type="self_critique")
+        response = self.compute.call_llm(critique_task, temperature=0.3, max_tokens=1000)
         try:
             start = response.find("{")
             end = response.rfind("}") + 1
@@ -608,27 +630,14 @@ Return clean JSON."""
                 "recommended_prompt_additions": ""
             }
 
-    def perform_autoresearch(self, critique: Dict) -> str:
-        patches = critique.get("autoresearch_patches", [])
-        if not patches:
-            return "No autoresearch patches proposed this cycle."
-        logger.info(f"Applying {len(patches)} autoresearch patches to Arbos")
-        return json.dumps(patches, indent=2)
-
-    def apply_self_improvement(self, current_prompt: str, critique: Dict) -> str:
-        addition = critique.get("recommended_prompt_additions", "")
-        if addition and addition.strip():
-            return current_prompt.strip() + "\n\n" + addition.strip()
-        return current_prompt
-
     def _refine_plan(self, approved_plan: Dict, challenge: str, deterministic_tooling: str = "", enhancement_prompt: str = "") -> Dict:
         extra = f"\nMiner deterministic tooling: {deterministic_tooling}" if deterministic_tooling else ""
         extra += f"\nMiner enhancement instructions: {enhancement_prompt}" if enhancement_prompt else ""
-        task = f"""You are Arbos Orchestrator.
+        task = f"""You are Arbos Orchestrator for SN63 Quantum Innovate.
 Approved plan: {json.dumps(approved_plan)}{extra}
 Time left: {self.config.get('max_compute_hours', 3.8)}h
 Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_recommendations, validation_criteria."""
-        response = self.compute.run_on_compute(task, temperature=0.0, task_type="orchestration")
+        response = self.compute.call_llm(task, temperature=0.0, max_tokens=1500)
         return self._parse_json(response)
 
     def _parse_json(self, raw: str) -> Dict:
@@ -637,9 +646,9 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
             end = raw.rfind("}") + 1
             return json.loads(raw[start:end])
         except:
-            return {"decomposition": ["Fallback"], "swarm_config": {"total_instances": 1}, "tool_map": {}, "validation_criteria": {}, "hypothesis_diversity": ["standard"]}
+            return {"decomposition": ["Fallback quantum decomposition"], "swarm_config": {"total_instances": 5}, "tool_map": {}, "validation_criteria": {}, "hypothesis_diversity": ["standard", "quantum_optimized"]}
 
     def run(self, challenge: str, verification_instructions: str = "", enhancement_prompt: str = ""):
         self.loop_count = 0
-        plan = self.plan_challenge(challenge, enhancement_prompt)
+        plan = self.plan_challenge(challenge=challenge, enhancement_prompt=enhancement_prompt)
         return self.execute_full_cycle(plan, challenge, verification_instructions)
