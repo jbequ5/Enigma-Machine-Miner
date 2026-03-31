@@ -183,6 +183,21 @@ Prioritize deterministic/symbolic tools."""
             logger.warning(f"Discovery parsing error: {e}")
         return []
 
+    def _safe_parse_json(self, raw: Any) -> Dict:
+        """Safe JSON parser that handles string, dict, or bad LLM output."""
+        if isinstance(raw, dict):
+            return raw
+        if not isinstance(raw, str):
+            return {}
+        try:
+            start = raw.find("{")
+            end = raw.rfind("}") + 1
+            if start != -1 and end > start:
+                return json.loads(raw[start:end])
+        except Exception:
+            pass
+        return {}
+
     def plan_challenge(self, challenge: str, enhancement_prompt: str = "") -> Dict[str, Any]:
         phase1 = self.compute.run_on_compute(
             f"Challenge: {challenge}\nMiner enhancement: {enhancement_prompt}\nPhase 1: High-level goals, risks, subtasks.",
@@ -197,33 +212,32 @@ Prioritize deterministic/symbolic tools."""
         per_agent_gb = 6.0
         dynamic_size = min(self.max_swarm_size, max(3, int(available_vram // per_agent_gb)))
 
-        phase2 = self.compute.run_on_compute(
+        phase2_raw = self.compute.run_on_compute(
             f"Phase 1 output: {phase1}\nAvailable compute supports {dynamic_size} Sub-Arbos.\nPhase 2: Full executable blueprint.",
             task_type="orchestration"
         )
+
+        blueprint = self._safe_parse_json(phase2_raw)
+        if not blueprint or "decomposition" not in blueprint:
+            blueprint = {
+                "decomposition": ["Full challenge solution"],
+                "swarm_config": {"total_instances": dynamic_size},
+                "tool_map": {},
+                "validation_criteria": {}
+            }
 
         adaptation = self.compute.run_on_compute(
             f"Full context from Phase 1+2.\nAdapt scoring weights, enabled modules, thresholds.",
             task_type="adaptation", temperature=0.0
         )
         
-        # Safer JSON parsing to prevent crashes
-        adapted = {}
-        try:
-            if isinstance(adaptation, str):
-                start = adaptation.find("{")
-                end = adaptation.rfind("}") + 1
-                if start != -1 and end > start:
-                    adapted = json.loads(adaptation[start:end])
-        except:
-            adapted = {}
-
+        adapted = self._safe_parse_json(adaptation)
         self._current_strategy = adapted.get("strategy", self.analyzer.analyze("", challenge))
         self.validator.adapt_scoring(self._current_strategy)
 
         return {
             "phase1": phase1,
-            "phase2": phase2,
+            "phase2": blueprint,
             "adapted_strategy": self._current_strategy,
             "dynamic_swarm_size": dynamic_size
         }
@@ -239,16 +253,7 @@ Prioritize deterministic/symbolic tools."""
             task_type="re_adapt", temperature=0.0
         )
         
-        adapted = {}
-        try:
-            if isinstance(adaptation, str):
-                start = adaptation.find("{")
-                end = adaptation.rfind("}") + 1
-                if start != -1 and end > start:
-                    adapted = json.loads(adaptation[start:end])
-        except:
-            adapted = {}
-
+        adapted = self._safe_parse_json(adaptation)
         self._current_strategy = adapted.get("strategy", self._current_strategy)
         self.validator.adapt_scoring(self._current_strategy)
 
@@ -262,12 +267,14 @@ Prioritize deterministic/symbolic tools."""
     def _run_grail_post_training(self, results: Dict):
         logger.info("Grail post-training triggered on winning run (verifiable proof attached to package)")
 
-    def _execute_swarm(self, blueprint: Dict, dynamic_size: int):
-        num_sub_arbos = dynamic_size
+    def _execute_swarm(self, blueprint: Any, dynamic_size: int):
+        blueprint = self._safe_parse_json(blueprint)
+        decomposition = blueprint.get("decomposition", ["Full challenge"])
+        
         manager_dict = multiprocessing.Manager().dict()
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_sub_arbos) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=min(dynamic_size, 6)) as executor:
             futures = []
-            for subtask_id, subtask in enumerate(blueprint.get("decomposition", [])):
+            for subtask_id, subtask in enumerate(decomposition):
                 hyp = blueprint.get("hypothesis_diversity", ["standard"])[subtask_id % len(blueprint.get("hypothesis_diversity", []))]
                 tools = blueprint.get("tool_map", {}).get(subtask, ["none"])
                 futures.append(executor.submit(
@@ -483,7 +490,7 @@ Final Synthesized Solution (weight higher-scoring subtasks more):"""
 
     def execute_full_cycle(self, plan: Dict, challenge: str, verification_instructions: str = ""):
         dynamic_size = plan.get("dynamic_swarm_size", 6)
-        results = self._execute_swarm(plan["phase2"], dynamic_size)
+        results = self._execute_swarm(plan.get("phase2", {}), dynamic_size)
         score_dict = self.validator.run(results, verification_instructions, challenge)
         
         if score_dict.get("validation_score", 0) > 0.92 and self.enable_grail:
