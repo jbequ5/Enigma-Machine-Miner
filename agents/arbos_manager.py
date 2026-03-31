@@ -198,12 +198,12 @@ Prioritize deterministic/symbolic tools."""
             pass
         return {}
 
-                def plan_challenge(self, challenge: str, enhancement_prompt: str = "") -> Dict[str, Any]:
-                    if not challenge or len(challenge.strip()) < 10:
-                return {"error": "Challenge too short", "phase1": "", "phase2": {}, "dynamic_swarm_size": 4}
+    def plan_challenge(self, challenge: str, enhancement_prompt: str = "") -> Dict[str, Any]:
+        if not challenge or len(challenge.strip()) < 10:
+            return {"error": "Challenge too short", "phase1": "", "phase2": {}, "dynamic_swarm_size": 4}
 
-        # Force local compute for RTX 3060
-        logger.info(f"Using Local GPU (RTX 3060) for planning - VRAM: checking...")
+        # Force local compute for RTX 3060 style GPUs
+        logger.info(f"Using Local GPU for planning - VRAM: checking...")
 
         phase1_prompt = f"""You are Planning Arbos for SN63 challenge.
 Challenge: {challenge}
@@ -220,8 +220,8 @@ Return ONLY valid JSON."""
 
         logger.info(f"Phase1 raw: {phase1[:600]}...")
 
-        # Calculate dynamic size based on 3060 (12GB VRAM)
-        dynamic_size = 4  # Safe default for 3060 (6GB per agent approx)
+        # Calculate dynamic size based on typical consumer GPU (safe default)
+        dynamic_size = 4
 
         phase2_prompt = f"""You are Orchestrator Arbos.
 Phase 1: {phase1}
@@ -285,7 +285,7 @@ Return ONLY valid JSON. No extra text."""
         response = self.compute.run_on_compute(proposal_prompt, temperature=0.3, task_type="tool_proposal")
         proposals = [line.strip() for line in response.split("\n") if line.strip()][:3]
         
-        # Safe add without triggering embedding download (fixes ChunkedEncodingError)
+        # Safe add without triggering embedding download
         for p in proposals:
             try:
                 memory.add(f"TOOL PROPOSAL: {p}", {"type": "tool_proposal"})
@@ -301,7 +301,6 @@ Return ONLY valid JSON. No extra text."""
         blueprint = self._safe_parse_json(blueprint)
         decomposition = blueprint.get("decomposition", ["Full challenge"])
         
-        # Safe hypothesis_diversity handling to prevent ZeroDivisionError
         hypothesis_diversity = blueprint.get("hypothesis_diversity", ["standard"])
         if not hypothesis_diversity:
             hypothesis_diversity = ["standard"]
@@ -639,22 +638,6 @@ Output EXACT JSON with decomposition, swarm_config, tool_map, deterministic_reco
             return json.loads(raw[start:end])
         except:
             return {"decomposition": ["Fallback"], "swarm_config": {"total_instances": 1}, "tool_map": {}, "validation_criteria": {}, "hypothesis_diversity": ["standard"]}
-
-    def _tool_hunter(self, gap: str, subtask: str) -> str:
-        result = tool_hunter.hunt_and_integrate(gap, subtask)
-        if result.get("status") == "success" and result.get("links"):
-            for link in result.get("links", [])[:3]:
-                clean = self.reach_tool.fetch_url_content(link.get("url", ""))
-                vector_db.add({
-                    "type": "external_reach",
-                    "url": link.get("url"),
-                    "content_summary": clean[:500],
-                    "validation_score": 0.0
-                })
-                result["recommendation"] += f"\n[Agent-Reach] {link.get('url')}: {clean[:200]}..."
-        if result.get("status") == "success":
-            return f"ToolHunter + Agent-Reach ({result.get('source', 'unknown')}): {result.get('recommendation')}"
-        return "ToolHunter + Agent-Reach found no strong match."
 
     def run(self, challenge: str, verification_instructions: str = "", enhancement_prompt: str = ""):
         self.loop_count = 0
