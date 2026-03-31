@@ -69,7 +69,6 @@ BUNKER_CSS = """
 """
 st.markdown(BUNKER_CSS, unsafe_allow_html=True)
 
-# ====================== TITLE ======================
 st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63 Quantum Innovate</h3>", unsafe_allow_html=True)
 st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First • Hardened Local GPU Launch Version")
@@ -95,6 +94,9 @@ if "trace_log" not in st.session_state:
 
 if "compute_source" not in st.session_state:
     st.session_state.compute_source = "local"
+
+if "validation_criteria" not in st.session_state:
+    st.session_state.validation_criteria = {}
 
 manager = st.session_state.arbos_manager
 
@@ -138,12 +140,12 @@ if st.button("💾 Save GOAL.md Changes"):
     st.success("✅ GOAL.md saved!")
     st.rerun()
 
-# ====================== SIDEBAR - ALL CHECKBOXES WITH LIVE WIRING ======================
+# ====================== SIDEBAR ======================
 with st.sidebar:
     st.header("🛠️ Configuration")
 
     st.subheader("Core Intelligence")
-    enable_quasar = st.checkbox("Enable Quasar Long-Context Attention", value=False, key="quasar_attention")  # Default False for fast startup
+    enable_quasar = st.checkbox("Enable Quasar Long-Context Attention", value=False, key="quasar_attention")
     enable_dynamic_swarm = st.checkbox("Enable Dynamic Swarm (VRAM-aware)", value=True, key="dynamic_swarm")
     enable_light_compression = st.checkbox("Enable Light Context Compression", value=True, key="light_compression")
     enable_self_critique = st.checkbox("Enable Self-Critique & Autoresearch", value=True, key="self_critique")
@@ -152,20 +154,19 @@ with st.sidebar:
     enable_toolhunter = st.checkbox("Enable ToolHunter + ReadyAI", value=True, key="toolhunter")
     enable_grail = st.checkbox("Enable Grail on Winning Runs", value=False, key="grail")
 
-    # Live wiring — update manager on every change
     toggles = {
         "Quasar": enable_quasar,
-        "Three-Layer Memory Compression": True,  # always active in manager
+        "Three-Layer Memory Compression": True,
         "ToolHunter + ReadyAI": enable_toolhunter,
         "Grail on winning runs": enable_grail,
         "Self-Critique": enable_self_critique,
         "Light Compression": enable_light_compression,
         "Dynamic Swarm": enable_dynamic_swarm,
-        "Dynamic Swarm Size": 5  # default, can be extended later
+        "Dynamic Swarm Size": 5
     }
     manager.update_toggles(toggles)
 
-# ====================== COMPUTE SETUP (Local GPU now reliably works) ======================
+# ====================== COMPUTE SETUP ======================
 st.subheader("🔌 Compute Setup")
 compute_option = st.radio(
     "Choose compute source:",
@@ -192,14 +193,12 @@ if st.button("Apply Compute Source", type="primary"):
     st.session_state.compute_source = new_source
     st.session_state.custom_endpoint = endpoint if endpoint.strip() else None
     
-    # Route to ComputeRouter — Local GPU uses Ollama reliably
     compute_router.set_mode(new_source)
     manager.set_compute_source(new_source, st.session_state.custom_endpoint)
     
-    st.success(f"✅ Compute source set to: **{new_source}** (Local GPU uses Ollama llama3.2 by default)")
+    st.success(f"✅ Compute source set to: **{new_source}**")
     st.rerun()
 
-# Show current compute status
 st.info(f"Current Compute: **{st.session_state.compute_source}** | Ollama local path active when selected")
 
 # ====================== QUICK PROMPT ======================
@@ -214,11 +213,10 @@ if st.button("🔍 Generate High-Level Plan", type="primary"):
         st.error("Please enter a challenge description.")
     else:
         with st.spinner("Arbos planning on Local GPU (Ollama)..."):
-            # Fixed call to match ArbosManager.plan_challenge signature
             plan = manager.plan_challenge(
                 goal_md=edited_goal, 
                 challenge=challenge, 
-                enhancement_prompt=enhancement,   # renamed from 'enhancement'
+                enhancement_prompt=enhancement,
                 compute_mode=st.session_state.compute_source
             )
             st.session_state.high_level_plan = plan
@@ -259,6 +257,7 @@ if st.session_state.get("stage") == "post_orchestration_review":
             st.session_state.get("enhancement", "")
         )
         st.session_state.blueprint = blueprint
+        st.session_state.validation_criteria = blueprint.get("validation_criteria", {})
 
     st.header("🚀 Post-Orchestration Review Dashboard")
     st.subheader("Blueprint & Swarm Dynamics")
@@ -282,10 +281,11 @@ if st.session_state.get("stage") == "final_review":
     solution = st.session_state.get("final_solution", "")
     blueprint = st.session_state.get("blueprint", {})
     trace = st.session_state.get("trace_log", [])
+    validation_criteria = st.session_state.get("validation_criteria", {})
 
     st.subheader("🔍 Final Review & Packaging")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Solution + Oracle", "ToolHunter", "Memory History", "🧬 SELF-IMPROVEMENT"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Solution + Oracle", "ToolHunter", "Memory History", "🧬 SELF-IMPROVEMENT", "📋 Validation Criteria"])
 
     with tab1:
         st.text_area("Final Synthesized Solution", value=str(solution), height=400)
@@ -301,6 +301,15 @@ if st.session_state.get("stage") == "final_review":
         if st.button("Run Self-Critique"):
             critique = manager.self_critique(st.session_state.challenge)
             st.json(critique)
+
+    # NEW TAB: Validation Criteria
+    with tab5:
+        st.subheader("📋 Decided Validation Criteria for Sub-Arbos Swarm Agents")
+        if validation_criteria:
+            st.json(validation_criteria)
+            st.caption("This is what each sub-Arbos worker was judged against during the swarm.")
+        else:
+            st.info("No validation criteria generated yet. Run a full swarm to see them.")
 
     miner_notes = st.text_area("Your Final Notes (optional)")
 
