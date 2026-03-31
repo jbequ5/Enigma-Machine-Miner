@@ -73,7 +73,7 @@ st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", uns
 st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63</h3>", unsafe_allow_html=True)
 st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First • Hardened Launch Version")
 
-# ====================== SESSION STATE INITIALIZATION ======================
+# ====================== SESSION STATE ======================
 if "arbos_manager" not in st.session_state:
     st.session_state.arbos_manager = ArbosManager()
 
@@ -133,25 +133,51 @@ if st.button("💾 Save GOAL.md Changes"):
     st.success("✅ GOAL.md saved!")
     st.rerun()
 
-# ====================== SIDEBAR ======================
+# ====================== SIDEBAR - All checkboxes now functional ======================
 with st.sidebar:
     st.header("🛠️ Configuration")
 
     st.subheader("Core Intelligence")
-    enable_quasar = st.checkbox("Enable Quasar Long-Context Attention", value=True, key="quasar_attention")
-    enable_grail = st.checkbox("Enable Grail verifiable post-training (>0.92)", value=False, key="grail_post_training")
-    enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True, key="three_layer_memory")
-    enable_light_compression = st.checkbox("Enable Light Context Compression after loops", value=True, key="light_compression")
+    enable_quasar = st.checkbox("Enable Quasar Long-Context Attention", 
+                                value=True, key="quasar_attention")
+    
+    enable_grail = st.checkbox("Enable Grail verifiable post-training on >0.92 runs", 
+                               value=False, key="grail_post_training")
+    
+    enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", 
+                                     value=True, key="three_layer_memory")
+    
+    enable_light_compression = st.checkbox("Enable Light Context Compression after loops", 
+                                           value=True, key="light_compression")
 
     st.subheader("Tools & Swarm")
-    enable_toolhunter = st.checkbox("Enable ToolHunter + ReadyAI", value=True, key="toolhunter_enabled")
-    enable_dynamic_swarm = st.checkbox("Enable Dynamic VRAM-aware Swarm", value=True, key="dynamic_swarm")
+    enable_toolhunter = st.checkbox("Enable ToolHunter + ReadyAI", 
+                                    value=True, key="toolhunter_enabled")
+    enable_dynamic_swarm = st.checkbox("Enable Dynamic VRAM-aware Swarm", 
+                                       value=True, key="dynamic_swarm")
 
     st.subheader("Safety & Limits")
     max_hours = st.slider("Max Compute Hours", 1.0, 4.0, 3.8, key="max_hours_slider")
 
     st.subheader("Advanced")
-    enable_self_critique = st.checkbox("Enable Self-Critique + Autoresearch", value=True, key="self_critique")
+    enable_self_critique = st.checkbox("Enable Self-Critique + Autoresearch", 
+                                       value=True, key="self_critique")
+
+    # Apply toggles live
+    if "quasar_enabled" not in st.session_state or st.session_state.quasar_enabled != enable_quasar:
+        st.session_state.quasar_enabled = enable_quasar
+        try:
+            manager.compute.enable_quasar(enable_quasar)
+        except:
+            pass
+
+    # Store other toggles in session_state so ArbosManager can read them later
+    st.session_state.enable_grail = enable_grail
+    st.session_state.enable_three_layer = enable_three_layer
+    st.session_state.enable_light_compression = enable_light_compression
+    st.session_state.enable_toolhunter = enable_toolhunter
+    st.session_state.enable_dynamic_swarm = enable_dynamic_swarm
+    st.session_state.enable_self_critique = enable_self_critique
 
 # ====================== COMPUTE SETUP ======================
 if "compute_source" not in st.session_state:
@@ -159,20 +185,20 @@ if "compute_source" not in st.session_state:
     compute_option = st.radio(
         "Choose compute source:",
         options=[
-            "Local GPU (if available)",
-            "Chutes (decentralized GPUs - recommended if no local GPU)",
-            "Already running (use existing endpoint)",
-            "Custom / Hosted (RunPod, Vast, AWS, etc.)"
+            "Local GPU (RTX 3060)",
+            "Chutes (decentralized GPUs)",
+            "Already running",
+            "Custom / Hosted"
         ],
-        index=1
+        index=0
     )
     endpoint = st.text_input("Endpoint URL (if needed)", placeholder="https://...")
     if st.button("Continue with this compute source", type="primary"):
         source_map = {
-            "Local GPU (if available)": "local",
-            "Chutes (decentralized GPUs - recommended if no local GPU)": "chutes",
-            "Already running (use existing endpoint)": "already_running",
-            "Custom / Hosted (RunPod, Vast, AWS, etc.)": "custom"
+            "Local GPU (RTX 3060)": "local",
+            "Chutes (decentralized GPUs)": "chutes",
+            "Already running": "already_running",
+            "Custom / Hosted": "custom"
         }
         st.session_state.compute_source = source_map[compute_option]
         st.session_state.custom_endpoint = endpoint if endpoint and endpoint.strip() else None
@@ -187,7 +213,7 @@ challenge = st.text_area("SN63 Challenge Description", height=150, key="challeng
 verification = st.text_area("Verification Instructions (optional)", height=100, key="verification_input")
 enhancement = st.text_input("Enhancement Prompt (optional)", key="enhancement_input")
 
-# ====================== Generate High-Level Plan Button ======================
+# ====================== Generate High-Level Plan ======================
 if st.button("🔍 Generate High-Level Plan", type="primary"):
     if not challenge.strip():
         st.error("Please enter a challenge description.")
@@ -201,10 +227,9 @@ if st.button("🔍 Generate High-Level Plan", type="primary"):
             st.session_state.stage = "planning_approval"
         st.rerun()
 
-# ====================== STAGE 1: HIGH-LEVEL PLANNING REVIEW ======================
+# ====================== STAGE 1: HIGH-LEVEL PLANNING ======================
 if st.session_state.get("stage") == "planning_approval":
     st.subheader("📋 Stage 1: High-Level Plan – Strategic Review")
-    
     if st.session_state.high_level_plan:
         st.json(st.session_state.high_level_plan)
 
@@ -222,7 +247,7 @@ if st.session_state.get("stage") == "planning_approval":
     else:
         st.warning("No plan generated yet.")
 
-# ====================== STAGE 2: POST-ORCHESTRATION REVIEW & LAUNCH SWARM ======================
+# ====================== STAGE 2: POST-ORCHESTRATION REVIEW ======================
 if st.session_state.get("stage") == "post_orchestration_review":
     with st.spinner("Orchestrator Arbos creating detailed blueprint..."):
         blueprint = manager._refine_plan(
@@ -240,7 +265,6 @@ if st.session_state.get("stage") == "post_orchestration_review":
     col1, col2 = st.columns(2)
     with col1:
         apply_arbo = st.checkbox("Apply Arbos Recommended patterns", value=True, key="apply_arbo")
-        enable_three_layer = st.checkbox("Enable Three-Layer Memory Compression", value=True, key="three_layer_memory_review")
     with col2:
         add_context = st.checkbox("Add My Custom Context / Tools", value=False)
         user_context = st.text_area("Your custom input", "", key="user_context")
@@ -250,8 +274,6 @@ if st.session_state.get("stage") == "post_orchestration_review":
             st.success("Arbos patterns applied")
         if add_context and user_context:
             st.success("Custom context added")
-        if enable_three_layer:
-            st.info("Three-layer memory enabled")
 
         with st.spinner("Running dynamic swarm..."):
             verification_instructions = st.session_state.get("verification", "")
