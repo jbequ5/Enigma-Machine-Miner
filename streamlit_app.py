@@ -69,9 +69,9 @@ BUNKER_CSS = """
 """
 st.markdown(BUNKER_CSS, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER v4.5</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #aaffaa;'>US ARMY SIGNALS INTELLIGENCE • BUNKER COMMAND POST 1944 • SN63 Quantum Innovate</h3>", unsafe_allow_html=True)
-st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First • Hardened Local GPU Launch Version")
+st.caption("Challenge-Agnostic • Quasar Long-Context • Dynamic Swarm • Verifier-First • Mature Message Bus + Grail Compounding")
 
 # ====================== SESSION STATE ======================
 if "arbos_manager" not in st.session_state:
@@ -97,6 +97,9 @@ if "compute_source" not in st.session_state:
 
 if "validation_criteria" not in st.session_state:
     st.session_state.validation_criteria = {}
+
+if "toolhunter_results" not in st.session_state:
+    st.session_state.toolhunter_results = None
 
 manager = st.session_state.arbos_manager
 
@@ -145,7 +148,7 @@ with st.sidebar:
     st.header("🛠️ Configuration")
 
     st.subheader("Core Intelligence")
-    enable_quasar = st.checkbox("Enable Quasar Long-Context Attention", value=False, key="quasar_attention")
+    enable_quasar = st.checkbox("Enable Quasar Long-Context Attention", value=True, key="quasar_attention")
     enable_dynamic_swarm = st.checkbox("Enable Dynamic Swarm (VRAM-aware)", value=True, key="dynamic_swarm")
     enable_light_compression = st.checkbox("Enable Light Context Compression", value=True, key="light_compression")
     enable_self_critique = st.checkbox("Enable Self-Critique & Autoresearch", value=True, key="self_critique")
@@ -165,6 +168,14 @@ with st.sidebar:
         "Dynamic Swarm Size": 5
     }
     manager.update_toggles(toggles)
+
+    st.divider()
+    st.caption("Advanced Controls")
+    if st.button("🧹 Clear All Session Data"):
+        for key in list(st.session_state.keys()):
+            if key != "arbos_manager":
+                del st.session_state[key]
+        st.rerun()
 
 # ====================== COMPUTE SETUP ======================
 st.subheader("🔌 Compute Setup")
@@ -199,14 +210,50 @@ if st.button("Apply Compute Source", type="primary"):
     st.success(f"✅ Compute source set to: **{new_source}**")
     st.rerun()
 
-st.info(f"Current Compute: **{st.session_state.compute_source}** | Ollama local path active when selected")
+st.info(f"Current Compute: **{st.session_state.compute_source}**")
+
+# ====================== TOOLHUNTER SWARM (NEW - RUN ANYTIME) ======================
+st.subheader("🛠️ ToolHunter Swarm • Run at Any Time")
+st.caption("Describe a gap and get immediate tool/library/model recommendations + install commands")
+
+hunter_gap = st.text_area(
+    "Current Gap or Subtask",
+    height=100,
+    placeholder="e.g., Need better quantum circuit simulator, missing symbolic invariant checker, or faster matrix operations for SN63...",
+    key="hunter_gap_input"
+)
+
+col_th1, col_th2 = st.columns([2, 1])
+with col_th1:
+    if st.button("🚀 Launch ToolHunter Swarm", type="secondary", use_container_width=True):
+        if not hunter_gap.strip():
+            st.error("Please describe a gap or subtask.")
+        else:
+            with st.spinner("Scanning ToolHunter + ReadyAI + Agent-Reach across knowledge bases..."):
+                # Call dedicated swarm (falls back gracefully)
+                hunt_result = manager._tool_hunter(hunter_gap, "miner_requested_swarm")
+                st.session_state.toolhunter_results = hunt_result
+                
+                st.success("✅ ToolHunter Swarm completed!")
+                st.subheader("🧪 ToolHunter Recommendations")
+                st.markdown(hunt_result)
+
+                if st.button("✅ Add Top Recommendations to GOAL.md as Grail Pattern"):
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                    with open(goal_path, "a", encoding="utf-8") as f:
+                        f.write(f"\n\n## TOOLHUNTER_MINER_APPROVED_{timestamp}\n{hunt_result}\n")
+                    manager.save_to_memdir(f"toolhunter_{timestamp}", {"content": hunt_result, "gap": hunter_gap})
+                    st.success("Added to GOAL.md and Grail! Will compound into future runs.")
+                    st.rerun()
+
+with col_th2:
+    st.info("Pro tip: Run this anytime — even mid-challenge — to discover new deterministic tools.")
 
 # ====================== QUICK MINER PROMPT ======================
 st.subheader("🚀 QUICK MINER PROMPT")
 challenge = st.text_area("SN63 Challenge Description (Quantum Innovate task)", height=150, key="challenge_input")
 verification = st.text_area("Verification Instructions (optional)", height=100, key="verification_input")
 
-# v4: Auto-populate from Planning Arbos generated challenge-specific enhancement
 default_enhancement = ""
 if st.session_state.get("high_level_plan") and isinstance(st.session_state.high_level_plan, dict):
     default_enhancement = st.session_state.high_level_plan.get("generated_post_planning_enhancement", "")
@@ -218,10 +265,9 @@ enhancement = st.text_area(
     key="enhancement_input"
 )
 
-# v4: Compounding Evolution Button
 col_a, col_b = st.columns([3, 1])
 with col_a:
-    st.caption("Edit above if needed. Edits are passed to Orchestrator Arbos and can be saved for future compounding.")
+    st.caption("Edits here are passed to Orchestrator Arbos and can be saved as Grail patterns.")
 with col_b:
     if st.button("💾 Save Edited Enhancement as Grail Pattern", type="secondary"):
         if enhancement and enhancement.strip():
@@ -229,27 +275,26 @@ with col_b:
             grail_section = f"\n\n## GRAIL_ENHANCEMENT_{timestamp} (Miner-Edited)\n{enhancement}\n"
             with open(goal_path, "a", encoding="utf-8") as f:
                 f.write(grail_section)
-            # Also save to memdir for immediate recall in Adaptation Arbos
             manager.save_to_memdir(f"grail_enhancement_{timestamp}", {
                 "content": enhancement,
-                "challenge": st.session_state.get("challenge", "unknown"),
+                "challenge": challenge or "unknown",
                 "timestamp": timestamp
             })
-            st.success(f"✅ Saved as Grail pattern. It will now compound into future base context + memdir recall.")
+            st.success("✅ Saved as Grail pattern.")
             st.rerun()
         else:
-            st.warning("Enhancement is empty — nothing to save.")
+            st.warning("Enhancement is empty.")
 
 # ====================== Generate High-Level Plan ======================
 if st.button("🔍 Generate High-Level Plan", type="primary"):
     if not challenge.strip():
         st.error("Please enter a challenge description.")
     else:
-        with st.spinner("Arbos planning on Local GPU (Ollama)..."):
+        with st.spinner("Planning Arbos running on Local GPU..."):
             plan = manager.plan_challenge(
                 goal_md=edited_goal, 
                 challenge=challenge, 
-                enhancement_prompt=enhancement,   # Use the (possibly edited) value
+                enhancement_prompt=enhancement,
                 compute_mode=st.session_state.compute_source
             )
             st.session_state.high_level_plan = plan
@@ -269,7 +314,7 @@ if st.session_state.get("stage") == "planning_approval":
         col1, col2 = st.columns([3, 1])
         with col1:
             st.markdown("**Adapted Strategy:**")
-            st.json(st.session_state.high_level_plan.get("adapted_strategy", st.session_state.high_level_plan))
+            st.json(st.session_state.high_level_plan.get("adapted_strategy", {}))
         with col2:
             if st.button("✅ Approve Plan & Go to Orchestration Review", type="primary"):
                 st.session_state.stage = "post_orchestration_review"
@@ -282,29 +327,26 @@ if st.session_state.get("stage") == "planning_approval":
 
 # ====================== STAGE 2: POST-ORCHESTRATION ======================
 if st.session_state.get("stage") == "post_orchestration_review":
-    with st.spinner("Orchestrator refining blueprint with enabled features..."):
+    with st.spinner("Orchestrator Arbos refining blueprint..."):
         blueprint = manager._refine_plan(
             st.session_state.high_level_plan,
             st.session_state.challenge,
             st.session_state.get("deterministic_tooling", ""),
-            st.session_state.get("enhancement", "")   # Use miner-edited version
+            st.session_state.get("enhancement", "")
         )
         st.session_state.blueprint = blueprint
         st.session_state.validation_criteria = blueprint.get("validation_criteria", {})
-
-        # v4: Show the specialized pre-launch context
-        pre_launch_context = blueprint.get("generated_pre_launch_context", "No specialized pre-launch context generated yet.")
-        st.session_state.pre_launch_context = pre_launch_context
 
     st.header("🚀 Post-Orchestration Review Dashboard")
     st.subheader("Blueprint & Swarm Dynamics")
     st.json(blueprint)
 
-    st.subheader("📜 Auto-Generated Pre-Launch Context (Challenge-Specific)")
-    st.info(pre_launch_context[:800] + "..." if len(pre_launch_context) > 800 else pre_launch_context)
+    pre_launch = blueprint.get("generated_pre_launch_context", "No pre-launch context generated.")
+    st.subheader("📜 Auto-Generated Pre-Launch Context")
+    st.info(pre_launch[:1000] + "..." if len(pre_launch) > 1000 else pre_launch)
 
     if st.button("🚀 Launch Swarm Now", type="primary", use_container_width=True):
-        with st.spinner("Launching dynamic swarm (VRAM-aware, Quasar + Self-Critique)..."):
+        with st.spinner("Launching dynamic swarm with verifier-first execution..."):
             verification_instructions = st.session_state.get("verification", "")
             final_solution = manager.execute_full_cycle(
                 blueprint, 
@@ -325,40 +367,59 @@ if st.session_state.get("stage") == "final_review":
 
     st.subheader("🔍 Final Review & Packaging")
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Solution + Oracle", "ToolHunter", "Memory History", "🧬 SELF-IMPROVEMENT", "📋 Validation Criteria"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Solution + Oracle", "ToolHunter Results", "Grail & Messages", "Self-Improvement", "Trace Log", "Validation Criteria"])
 
     with tab1:
         st.text_area("Final Synthesized Solution", value=str(solution), height=400)
-        st.success(f"ValidationOracle Score: {getattr(manager, 'validator', type('obj', (object,), {'last_score': 0.0})).last_score:.3f}")
+        score = getattr(manager.validator, 'last_score', 0.0)
+        st.success(f"ValidationOracle Score: **{score:.3f}**")
 
     with tab2:
-        st.info("ToolHunter + ReadyAI proposals logged for next run (enabled in sidebar)")
+        if st.session_state.toolhunter_results:
+            st.markdown(st.session_state.toolhunter_results)
+        else:
+            st.info("No ToolHunter results yet. Run the ToolHunter Swarm above.")
 
     with tab3:
-        st.info("Three-layer memory compression + Light Compression active (toggles wired)")
+        st.subheader("Recent Messages (Mature Message Bus)")
+        recent_msgs = manager.get_recent_messages(limit=10)
+        if recent_msgs:
+            for msg in recent_msgs:
+                st.markdown(f"**{msg['type']}** (score: {msg['validation_score']:.2f}, fidelity: {msg['fidelity']:.2f})")
+                st.caption(msg['content'][:300] + "...")
+        else:
+            st.info("No messages yet.")
+
+        st.subheader("Latest Grail Entry")
+        grail = manager.load_from_memdir("latest_grail")
+        if grail:
+            st.json(grail)
 
     with tab4:
-        if st.button("Run Self-Critique"):
-            critique = manager.self_critique(st.session_state.challenge)
+        if st.button("Run Self-Critique Now"):
+            critique = manager.self_critique(st.session_state.get("challenge", "unknown"))
             st.json(critique)
+        
+        if st.button("Force Adaptation Arbos (re_adapt)"):
+            current_sol = str(solution)[:2000] if solution else "No solution yet"
+            manager.re_adapt({"solution": current_sol}, "miner_forced_adaptation")
+            st.success("✅ Adaptation Arbos executed. Check Grail & Messages tab.")
 
     with tab5:
-        st.subheader("📋 Decided Validation Criteria for Sub-Arbos Swarm Agents")
-        if validation_criteria:
-            st.json(validation_criteria)
-            st.caption("This is what each sub-Arbos worker was judged against during the swarm.")
-        else:
-            st.info("No validation criteria generated yet. Run a full swarm to see them.")
+        st.subheader("Live Trace Log")
+        for entry in trace[-20:]:  # last 20 entries
+            st.caption(str(entry))
+
+    with tab6:
+        st.json(validation_criteria)
+        st.caption("These criteria were used by each Sub-Arbos worker during the swarm.")
 
     miner_notes = st.text_area("Your Final Notes (optional)")
 
     if st.button("📦 Package for SN63 Submission", type="primary"):
         _package_submission(
-            solution, 
-            blueprint, 
-            trace, 
-            miner_notes, 
-            st.session_state.challenge, 
+            solution, blueprint, trace, miner_notes, 
+            st.session_state.get("challenge", ""), 
             st.session_state.get("verification", ""), 
             st.session_state.get("deterministic_tooling", "")
         )
@@ -380,10 +441,7 @@ def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
     (sub_dir / "deterministic_tooling.txt").write_text(deterministic_tooling)
 
     oracle_info = {
-        "validation_score": getattr(manager, 'validator', type('obj', (object,), {'last_score': 0.0})).last_score,
-        "fidelity": getattr(manager, 'validator', type('obj', (object,), {'last_fidelity': 0.0})).last_fidelity,
-        "vvd_ready": getattr(manager, 'validator', type('obj', (object,), {'last_vvd_ready': False})).last_vvd_ready,
-        "notes": getattr(manager, 'validator', type('obj', (object,), {'last_notes': ''})).last_notes,
+        "validation_score": getattr(manager.validator, 'last_score', 0.0),
         "timestamp": datetime.now().isoformat()
     }
     (sub_dir / "validation_oracle.json").write_text(json.dumps(oracle_info, indent=2))
@@ -393,7 +451,6 @@ def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
             if f.is_file() and f.suffix != ".zip":
                 z.write(f, f.name)
 
-    st.success(f"✅ Package ready: {sub_dir}/submission_package.zip")
     with open(sub_dir / "submission_package.zip", "rb") as f:
         st.download_button(
             "Download Submission Package", 
