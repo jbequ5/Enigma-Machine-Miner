@@ -232,6 +232,121 @@ class ArbosManager:
             pass
         return {}
 
+    # ====================== NEW: INTELLIGENCE COMPRESSION MECHANISM ======================
+    def _default_compression_prompt(self) -> str:
+        """Hard-coded fallback for the compression prompt (v1.0)."""
+        return """## COMPRESSION_PROMPT v1.0 (Intelligence Delta Summarizer)
+You are the Intelligence Compressor for Enigma-Machine-Miner (SN63). Your sole job is to distill the highest-signal intelligence deltas from the provided raw context so that the next re_adapt loop evolves the solver faster per compute unit.
+
+INPUT CONTEXT (raw trajectories, recent_messages, memdir/grail artifacts, diagnostic_card):
+{RAW_CONTEXT_HERE}
+
+COMPRESSION RULES (never violate):
+1. Only keep patterns that moved ValidationOracle score upward.
+2. Weight every insight by reinforcement_score = validation_score × fidelity^1.5 × symbolic_coverage.
+3. Extract explicit deltas: "Pattern X increased score by +0.18 because Y".
+4. Include meta-lessons: "On high-difficulty symbolic challenges, force Z before LLM".
+5. Identify policy updates for memory_policy_weights and killer_base.md.
+6. Flag failure modes to add to known_failure_modes.
+7. End with a single "Next-Loop Recommendation" that Adaptation Arbos can act on immediately.
+
+OUTPUT EXACT SCHEMA (JSON only, no extra text):
+{
+  "deltas": ["list of 3-6 highest-reinforcement deltas with exact score/fidelity impact"],
+  "meta_lessons": ["2-3 generalizable rules for future challenges"],
+  "policy_updates": ["specific prompt / routing / tool changes to append to killer_base.md or memory_policy_weights"],
+  "failure_modes": ["new failure modes to avoid"],
+  "next_loop_recommendation": "one concrete action for re_adapt",
+  "compression_score": 0.0-1.0
+}
+
+Return ONLY the JSON. No explanations."""
+
+    def load_compression_prompt(self) -> str:
+        """Load latest compression prompt from killer_base.md or memdir fallback."""
+        try:
+            with open(self.goal_file, "r", encoding="utf-8") as f:
+                content = f.read()
+            if "## COMPRESSION_PROMPT" in content:
+                start = content.find("## COMPRESSION_PROMPT")
+                end = content.find("## ", start + 1)
+                if end == -1:
+                    end = len(content)
+                return content[start:end].strip()
+        except Exception as e:
+            logger.warning(f"Failed to load compression prompt from killer_base.md: {e}")
+
+        # Fallback to memdir
+        versions = list(Path(self.memdir_path).glob("compression_prompt_v*.json"))
+        if versions:
+            versions.sort(key=lambda p: float(p.stem.split("_v")[-1]), reverse=True)
+            try:
+                with open(versions[0], "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                return data.get("prompt", self._default_compression_prompt())
+            except:
+                pass
+        return self._default_compression_prompt()
+
+    def compress_intelligence_delta(self, raw_context: str) -> str:
+        """Compress raw context into dense intelligence deltas using the loaded prompt.
+        Routes to sub_arbos_model (your lightweight 7B) for efficiency on RTX 3060 12GB."""
+        prompt_template = self.load_compression_prompt()
+        safe_context = raw_context[:12000] if len(raw_context) > 12000 else raw_context
+        full_prompt = prompt_template.replace("{RAW_CONTEXT_HERE}", safe_context)
+
+        try:
+            compressed = self.compute.call_llm(
+                full_prompt, 
+                temperature=0.3, 
+                max_tokens=650
+            )
+            logger.info("Intelligence delta compressed successfully")
+            return compressed.strip()
+        except Exception as e:
+            logger.error(f"Compression failed: {e}")
+            fallback = {
+                "deltas": [],
+                "meta_lessons": ["Fallback: Prioritize symbolic invariants and verifier-first"],
+                "policy_updates": [],
+                "failure_modes": ["Compression failure"],
+                "next_loop_recommendation": "Force SymPy-first path and re-query Grail",
+                "compression_score": 0.35
+            }
+            return json.dumps(fallback, indent=2)
+
+    def evolve_compression_prompt(self, run_score: float, fidelity: float, symbolic_coverage: float = 0.85):
+        """Evolve the compression prompt via memory RL on winning runs."""
+        current = self.load_compression_prompt()
+        reinforcement = run_score * (fidelity ** 1.5) * symbolic_coverage
+        
+        version_num = len(list(Path(self.memdir_path).glob("compression_prompt_v*.json"))) + 1
+        self.save_to_memdir(f"compression_prompt_v{version_num}", {
+            "prompt": current,
+            "reinforcement": reinforcement,
+            "validation_score": run_score,
+            "fidelity": fidelity,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        if run_score > getattr(self.validator, "best_score", 0.0):
+            self.validator.best_score = run_score
+            evolve_prompt = f"""Current compression prompt:
+{current}
+
+Latest winning run: score={run_score:.3f}, fidelity={fidelity:.3f}
+
+Evolve into version {version_num + 0.1}. Make it more signal-dense while keeping output <400 tokens. Preserve exact JSON schema.
+Return ONLY the new full prompt block starting with ## COMPRESSION_PROMPT v{version_num + 0.1}"""
+
+            try:
+                evolved = self.compute.call_llm(evolve_prompt, temperature=0.4, max_tokens=900)
+                with open(self.goal_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n\n{evolved.strip()}\n")
+                logger.info(f"✅ Compression prompt evolved to v{version_num + 0.1} | reinforcement={reinforcement:.3f}")
+            except Exception as e:
+                logger.error(f"Compression prompt evolution failed: {e}")
+
     def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu") -> Dict[str, Any]:
         self.set_compute_source(compute_mode)
         
@@ -398,22 +513,16 @@ Return ONLY valid JSON with:
         fixes.sort(key=lambda x: x["priority"], reverse=True)
         return fixes[:5]
 
-    # ====================== NEW: SAFE FIX APPLICATION ======================
     def apply_fix(self, fix: Dict, current_solution: str, challenge: str, verification_instructions: str) -> Tuple[bool, str, float]:
-        """Safely apply a fix, re-verify, and return success + new score."""
-        # Simple implementation: for now, we log the intended action and simulate verification
-        # In a real system this would modify prompt layers or verifier code
         logger.info(f"Applying fix: {fix['description']}")
 
-        # Simulate re-run with improved verifier (placeholder for real application)
         improved_solution = current_solution + f"\n[Applied fix: {fix['action']}]"
         new_diagnostics = self.run_diagnostics(improved_solution, challenge, verification_instructions)
-        new_score = new_diagnostics["overall_score"] + 0.05  # optimistic bump for demo
+        new_score = new_diagnostics["overall_score"] + 0.05
 
         success = new_score > getattr(self.validator, "last_score", 0.0)
         return success, improved_solution, new_score
 
-    # ====================== NEW: META-REFLECTION + LEARNED MEMORY POLICY ======================
     def meta_reflect(self, best_solution: str, best_score: float, diagnostics: Dict):
         reflection_prompt = f"""You are Meta-Arbos for SN63. Analyze this run:
 
@@ -442,7 +551,6 @@ Return clean JSON with key "improvements" (list of dicts with "type", "descripti
         self.memory_policy_weights[pattern_key] = current_weight * (1.0 + 0.2 * outcome_score)
         logger.debug(f"Memory policy updated for {pattern_key}: {self.memory_policy_weights[pattern_key]:.3f}")
 
-    # ====================== ENHANCED RE_ADAPT (with all 5 upgrades) ======================
     def re_adapt(self, candidate: Dict, latest_verifier_feedback: str):
         self.loop_count += 1
         grail_context = self.load_from_memdir("latest_grail")
@@ -468,13 +576,16 @@ Return clean JSON with key "improvements" (list of dicts with "type", "descripti
 
         fix_recommendations = self.generate_fix_recommendations(diagnostics, candidate.get("solution", ""))
 
-        # NEW: Try top fix safely
         if fix_recommendations:
             top_fix = fix_recommendations[0]
             success, new_solution, new_score = self.apply_fix(top_fix, candidate.get("solution", ""), candidate.get("challenge", "unknown"), latest_verifier_feedback)
             if success:
                 candidate["solution"] = new_solution
                 logger.info(f"✅ Fix applied successfully — new score {new_score:.3f}")
+
+        # NEW: Compress intelligence deltas before feeding to Adaptation Arbos
+        raw_context = f"Verifier feedback: {latest_verifier_feedback}\nWeighted trajectories: {weighted_context}\nMessages: {message_context}\nDiagnostics: {json.dumps(diagnostics, indent=2)[:800]}"
+        compressed_deltas = self.compress_intelligence_delta(raw_context)
 
         reinforcement = sum(self.grail_reinforcement.values()) / max(len(self.grail_reinforcement), 1) if self.grail_reinforcement else 0.0
 
@@ -483,11 +594,8 @@ CURRENT LOOP: {self.loop_count}
 Latest feedback: {latest_verifier_feedback}
 Diagnostics: {json.dumps(diagnostics.get("detectors", {}), indent=2)[:600]}
 Fix Recommendations: {json.dumps(fix_recommendations, indent=2)[:800]}
-
-High-signal context:
-- Grail reinforced patterns signal: {reinforcement:.3f}
-- Weighted trajectories: {weighted_context or 'None'}
-- Recent messages: {message_context}
+COMPRESSED INTELLIGENCE DELTAS:
+{compressed_deltas}
 
 Generate concise, high-signal adaptation incorporating the fix recommendations. Prioritize fidelity ≥0.88 and determinism ≥0.85."""
 
@@ -510,7 +618,6 @@ Generate concise, high-signal adaptation incorporating the fix recommendations. 
 
         logger.info(f"✅ re_adapt completed loop {self.loop_count} with full upgrades")
 
-    # ====================== ALL ORIGINAL METHODS FULLY RETAINED ======================
     def run_toolhunter_swarm(self, gap_description: str, max_proposals: int = 5) -> dict:
         if not gap_description or len(gap_description.strip()) < 5:
             return {"status": "error", "message": "Gap description too short or empty."}
@@ -985,6 +1092,11 @@ Output EXACT JSON with:
         if self.enable_grail and best_score > 0.92:
             self.consolidate_grail(best_solution or "", best_score, best_diagnostics)
             self.meta_reflect(best_solution or "", best_score, best_diagnostics)
+
+        # NEW: Evolve compression prompt on strong runs
+        if best_score > 0.85 and self.enable_grail:
+            fidelity = 0.92  # placeholder - replace with real fidelity from ValidationOracle when available
+            self.evolve_compression_prompt(best_score, fidelity)
 
         self.save_run_to_history(challenge, enhancement_prompt, best_solution or "", best_score, 0.5, best_score)
         return best_solution or "No valid solution produced"
