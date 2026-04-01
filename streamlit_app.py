@@ -15,6 +15,7 @@ st.set_page_config(
 # Import after page config
 from agents.arbos_manager import ArbosManager
 from agents.tools.compute import compute_router
+from code_editor import code_editor  # Dedicated verification code editor
 
 # ====================== CUSTOM ENIGMA BUNKER THEME ======================
 BUNKER_CSS = """
@@ -143,6 +144,88 @@ if st.button("💾 Save GOAL.md Changes"):
     st.success("✅ GOAL.md saved!")
     st.rerun()
 
+# ====================== CHALLENGE DEFINITION & VERIFICATION (DEDICATED SECTION) ======================
+st.subheader("🎯 Challenge Definition")
+challenge = st.text_area(
+    "SN63 Challenge Description (Quantum Innovate task)",
+    height=160,
+    placeholder="Describe the full problem in detail...",
+    key="challenge_input"
+)
+
+st.subheader("✅ Verification Code / Instructions")
+st.caption("Write the exact verification logic, test cases, or SymPy invariants. This is passed directly to ValidationOracle.")
+
+default_verification = '''def verify_solution(solution, params=None):
+    """Return (passed: bool, explanation: str, score: float)"""
+    # Example for quantum / crypto challenges:
+    # score = compute_fidelity(solution)
+    # return score >= 0.95, f"Fidelity: {score:.3f}", score
+    return False, "Verification not implemented yet", 0.0
+'''
+
+verification_response = code_editor(
+    default_verification,
+    lang="python",
+    theme="vs-dark",
+    height=320,
+    allow_reset=True,
+    key="verification_editor_unique"
+)
+
+# Safely extract the code
+if isinstance(verification_response, dict):
+    verification_instructions = verification_response.get("text", default_verification)
+else:
+    verification_instructions = str(verification_response) if verification_response else default_verification
+
+# ====================== TOOLHUNTER SWARM ======================
+st.subheader("🛠️ ToolHunter Swarm • Run at Any Time")
+st.caption("Describe a gap and get immediate tool/library/model recommendations + install commands")
+
+hunter_gap = st.text_area(
+    "Current Gap or Subtask",
+    height=100,
+    placeholder="e.g., Need better quantum circuit simulator, missing symbolic invariant checker...",
+    key="hunter_gap_input"
+)
+
+col_th1, col_th2 = st.columns([2, 1])
+with col_th1:
+    if st.button("🚀 Launch ToolHunter Swarm", type="secondary", use_container_width=True):
+        if not hunter_gap.strip():
+            st.error("Please describe a gap or subtask.")
+        else:
+            with st.spinner("Scanning ToolHunter + ReadyAI + Agent-Reach..."):
+                hunt_result = manager.run_toolhunter_swarm(hunter_gap, max_proposals=6)
+                st.session_state.toolhunter_results = hunt_result
+                st.success("✅ ToolHunter Swarm completed!")
+
+                if hunt_result.get("status") == "success":
+                    st.markdown("**Gap Analyzed:** " + hunt_result["gap"])
+                    if hunt_result.get("proposals"):
+                        st.subheader("Recommended Tools / Approaches")
+                        for i, prop in enumerate(hunt_result["proposals"], 1):
+                            st.markdown(f"{i}. {prop}")
+                    if hunt_result.get("install_commands"):
+                        st.subheader("Install Commands")
+                        for cmd in hunt_result["install_commands"]:
+                            st.code(cmd, language="bash")
+                    st.caption(f"Confidence: {hunt_result.get('confidence', 0.7):.2f} | Loop: {hunt_result.get('loop', 0)}")
+
+                if hunt_result.get("status") == "success" and hunt_result.get("proposals"):
+                    if st.button("✅ Add Top Recommendations to GOAL.md as Grail Pattern", type="primary"):
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                        content = "\n".join(hunt_result["proposals"]) + "\n\nInstall commands:\n" + "\n".join(hunt_result.get("install_commands", []))
+                        with open(goal_path, "a", encoding="utf-8") as f:
+                            f.write(f"\n\n## TOOLHUNTER_MINER_APPROVED_{timestamp}\n{content}\n")
+                        manager.save_to_memdir(f"toolhunter_{timestamp}", {"content": content, "gap": hunter_gap})
+                        st.success("✅ Added to GOAL.md and Grail!")
+                        st.rerun()
+
+with col_th2:
+    st.info("Pro tip: Run this anytime — even mid-challenge — to discover new deterministic tools.")
+
 # ====================== SIDEBAR ======================
 with st.sidebar:
     st.header("🛠️ Configuration")
@@ -212,75 +295,8 @@ if st.button("Apply Compute Source", type="primary"):
 
 st.info(f"Current Compute: **{st.session_state.compute_source}**")
 
-# ====================== TOOLHUNTER SWARM (NEW - RUN ANYTIME) ======================
-st.subheader("🛠️ ToolHunter Swarm • Run at Any Time")
-st.caption("Describe a gap and get immediate tool/library/model recommendations + install commands")
-
-hunter_gap = st.text_area(
-    "Current Gap or Subtask",
-    height=100,
-    placeholder="e.g., Need better quantum circuit simulator, missing symbolic invariant checker, or faster matrix operations for SN63...",
-    key="hunter_gap_input"
-)
-
-col_th1, col_th2 = st.columns([2, 1])
-with col_th1:
-    if st.button("🚀 Launch ToolHunter Swarm", type="secondary", use_container_width=True):
-        if not hunter_gap.strip():
-            st.error("Please describe a gap or subtask.")
-        else:
-            with st.spinner("Scanning ToolHunter + ReadyAI + Agent-Reach across knowledge bases..."):
-                # Use the new dedicated public method
-                hunt_result = manager.run_toolhunter_swarm(hunter_gap, max_proposals=6)
-                st.session_state.toolhunter_results = hunt_result
-                
-                st.success("✅ ToolHunter Swarm completed!")
-                st.subheader("🧪 ToolHunter Recommendations")
-
-                # Nice formatted display
-                if hunt_result.get("status") == "success":
-                    st.markdown("**Gap Analyzed:** " + hunt_result["gap"])
-                    
-                    if hunt_result.get("proposals"):
-                        st.subheader("Recommended Tools / Approaches")
-                        for i, prop in enumerate(hunt_result["proposals"], 1):
-                            st.markdown(f"{i}. {prop}")
-                    
-                    if hunt_result.get("install_commands"):
-                        st.subheader("Install Commands")
-                        for cmd in hunt_result["install_commands"]:
-                            st.code(cmd, language="bash")
-                    
-                    st.caption(f"Confidence: {hunt_result.get('confidence', 0.7):.2f} | Loop: {hunt_result.get('loop', 0)}")
-                else:
-                    st.error(hunt_result.get("message", "Unknown error"))
-
-                # Miner approval button
-                if hunt_result.get("status") == "success" and hunt_result.get("proposals"):
-                    if st.button("✅ Add Top Recommendations to GOAL.md as Grail Pattern", type="primary"):
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                        content = "\n".join(hunt_result["proposals"]) + "\n\nInstall commands:\n" + "\n".join(hunt_result["install_commands"])
-                        
-                        with open(goal_path, "a", encoding="utf-8") as f:
-                            f.write(f"\n\n## TOOLHUNTER_MINER_APPROVED_{timestamp}\n{content}\n")
-                        
-                        manager.save_to_memdir(f"toolhunter_{timestamp}", {
-                            "content": content,
-                            "gap": hunter_gap,
-                            "proposals": hunt_result["proposals"]
-                        })
-                        
-                        st.success("✅ Added to GOAL.md and Grail! Will now compound into future runs via message bus + re_adapt.")
-                        st.rerun()
-
-with col_th2:
-    st.info("Pro tip: Run this anytime — even mid-challenge — to discover new deterministic tools. Results are automatically logged to the mature message bus and Grail for compounding.")
-
-# ====================== QUICK MINER PROMPT ======================
-st.subheader("🚀 QUICK MINER PROMPT")
-challenge = st.text_area("SN63 Challenge Description (Quantum Innovate task)", height=150, key="challenge_input")
-verification = st.text_area("Verification Instructions (optional)", height=100, key="verification_input")
-
+# ====================== QUICK MINER PROMPT & ENHANCEMENT ======================
+st.subheader("🚀 Enhancement Prompt (Optional)")
 default_enhancement = ""
 if st.session_state.get("high_level_plan") and isinstance(st.session_state.high_level_plan, dict):
     default_enhancement = st.session_state.high_level_plan.get("generated_post_planning_enhancement", "")
@@ -326,7 +342,7 @@ if st.button("🔍 Generate High-Level Plan", type="primary"):
             )
             st.session_state.high_level_plan = plan
             st.session_state.challenge = challenge
-            st.session_state.verification = verification
+            st.session_state.verification = verification_instructions
             st.session_state.enhancement = enhancement
             st.session_state.stage = "planning_approval"
             st.session_state.trace_log.append({"stage": "high_level_plan", "timestamp": datetime.now().isoformat()})
@@ -374,11 +390,10 @@ if st.session_state.get("stage") == "post_orchestration_review":
 
     if st.button("🚀 Launch Swarm Now", type="primary", use_container_width=True):
         with st.spinner("Launching dynamic swarm with verifier-first execution..."):
-            verification_instructions = st.session_state.get("verification", "")
             final_solution = manager.execute_full_cycle(
                 blueprint, 
-                st.session_state.challenge, 
-                verification_instructions
+                challenge, 
+                verification_instructions   # Uses the dedicated editor
             )
             st.session_state.final_solution = final_solution
             st.session_state.stage = "final_review"
@@ -403,7 +418,7 @@ if st.session_state.get("stage") == "final_review":
 
     with tab2:
         if st.session_state.toolhunter_results:
-            st.markdown(st.session_state.toolhunter_results)
+            st.json(st.session_state.toolhunter_results)
         else:
             st.info("No ToolHunter results yet. Run the ToolHunter Swarm above.")
 
@@ -434,7 +449,7 @@ if st.session_state.get("stage") == "final_review":
 
     with tab5:
         st.subheader("Live Trace Log")
-        for entry in trace[-20:]:  # last 20 entries
+        for entry in trace[-20:]:
             st.caption(str(entry))
 
     with tab6:
@@ -446,8 +461,8 @@ if st.session_state.get("stage") == "final_review":
     if st.button("📦 Package for SN63 Submission", type="primary"):
         _package_submission(
             solution, blueprint, trace, miner_notes, 
-            st.session_state.get("challenge", ""), 
-            st.session_state.get("verification", ""), 
+            challenge, 
+            verification_instructions, 
             st.session_state.get("deterministic_tooling", "")
         )
         st.success("✅ Submission package created!")
