@@ -59,8 +59,12 @@ flowchart TD
 7. **Sub-Arbos Workers** — Each performs dynamic verifier-first scoring, ToolHunter integration, hypothesis diversity, symbolic checks, and can post high-value discoveries to other workers via the lightweight inter-Sub-Arbos message bus.
 8. **Synthesis Arbos** — Takes outputs from all Sub-Arbos workers (including inter-Sub-Arbos messages), applies strict MARL credit assignment (weighted only by ValidationOracle fidelity and determinism), and produces one coherent final solution.
 9. **ValidationOracle** — The unbreakable gate. Executes your exact verifier code snippets + SymPy invariants + 0-1 edge-case checks on the synthesized solution.
-10. **Adaptation Arbos Loop** — When ValidationOracle score is low, `re_adapt` intelligently pulls from trajectory_vector_db + Memdir Grail + recent inter-Sub-Arbos messages + score+fidelity-weighted intelligence and loops back to the swarm.
-11. **Memdir Grail & Compounding Evolution** — High-score runs auto-extract invariants, best models, verifier snippets, reflections, and inter-Sub-Arbos messages into persistent `memdir/grail`. Miner-saved enhancements become permanent intelligence for future runs.
+10. **AgentFixer-style Diagnostics**: Rich multi-detector failure analysis (symbolic invariants, prompt coherence, parsing, novelty drift) now feeds directly into Grail consolidation and re_adapt, turning silent failures into precise, self-improving adaptations.
+11. **Adaptation Arbos Loop** — When ValidationOracle score is low, `re_adapt` intelligently pulls from trajectory_vector_db + Memdir Grail + recent inter-Sub-Arbos messages + score+fidelity-weighted intelligence and loops back to the swarm.
+12. **Grail + Reinforcement**: High-value symbolic patterns are automatically extracted and reinforced using a MemFactory-inspired signal (score × fidelity¹·⁵ × symbolic_coverage). This enables lighter context windows while retaining proven high-fidelity trajectories longer.
+13. **Memdir Grail & Compounding Evolution** — High-score runs auto-extract invariants, best models, verifier snippets, reflections, and inter-Sub-Arbos messages into persistent `memdir/grail`. Miner-saved enhancements become permanent intelligence for future runs.
+
+
 
 ### Prompt Evolution Intelligence
 The system is powered by layered, compounding English prompts.  
