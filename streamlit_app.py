@@ -74,7 +74,7 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER v4.5</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER v4.6</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #ffaa00;'>TOP SECRET • BUNKER COMMAND POST 1944 • SN63 QUANTUM INNOVATE</h3>", unsafe_allow_html=True)
 st.caption("🔴 ENIGMA ROTORS SPINNING • LIVE DECRYPTION MISSION ACTIVE")
 
@@ -246,39 +246,41 @@ with col_th1:
 with col_th2:
     st.info("Pro tip: Run this anytime — even mid-challenge.")
 
-# ====================== SIDEBAR ======================
-with st.sidebar:
-    st.header("🛠️ BUNKER COMMAND CONSOLE")
+# ====================== 🧠 MEMORY & DIAGNOSTICS (New Tab - Non-Invasive) ======================
+st.subheader("🧠 Memory & Diagnostics Intelligence")
+st.caption("Grail reinforcement + AgentFixer-style failure diagnostics (view when needed)")
 
-    st.subheader("Core Intelligence")
-    enable_quasar = st.checkbox("Enable Quasar Long-Context Attention", value=True, key="quasar_attention")
-    enable_dynamic_swarm = st.checkbox("Enable Dynamic Swarm (VRAM-aware)", value=True, key="dynamic_swarm")
-    enable_light_compression = st.checkbox("Enable Light Context Compression", value=True, key="light_compression")
-    enable_self_critique = st.checkbox("Enable Self-Critique & Autoresearch", value=True, key="self_critique")
+# Live Grail Reinforcement
+reinforcement_avg = sum(manager.grail_reinforcement.values()) / max(len(manager.grail_reinforcement), 1) if hasattr(manager, 'grail_reinforcement') and manager.grail_reinforcement else 0.0
+st.metric("Grail Reinforcement Signal", f"{reinforcement_avg:.3f}", help="Higher = stronger retained high-value patterns")
 
-    st.subheader("Safety & Tooling")
-    enable_toolhunter = st.checkbox("Enable ToolHunter + ReadyAI", value=True, key="toolhunter")
-    enable_grail = st.checkbox("Enable Grail on Winning Runs", value=False, key="grail")
+# Top reinforced patterns
+if hasattr(manager, 'grail_reinforcement') and manager.grail_reinforcement:
+    top_patterns = sorted(manager.grail_reinforcement.items(), key=lambda x: x[1], reverse=True)[:5]
+    st.subheader("Top Reinforced Grail Patterns")
+    for key, score in top_patterns:
+        st.caption(f"{key} — Reinforcement: **{score:.3f}**")
 
-    toggles = {
-        "Quasar": enable_quasar,
-        "Three-Layer Memory Compression": True,
-        "ToolHunter + ReadyAI": enable_toolhunter,
-        "Grail on winning runs": enable_grail,
-        "Self-Critique": enable_self_critique,
-        "Light Compression": enable_light_compression,
-        "Dynamic Swarm": enable_dynamic_swarm,
-        "Dynamic Swarm Size": 5
-    }
-    manager.update_toggles(toggles)
+# Latest Diagnostics
+if hasattr(manager, 'diagnostic_history') and manager.diagnostic_history:
+    latest_diag = manager.diagnostic_history[-1]
+    st.subheader("Latest Rich Diagnostics")
+    for detector_name, data in latest_diag.get("detectors", {}).items():
+        status = "✅ Passed" if data.get("passed") else "⚠️ Failed"
+        st.write(f"**{detector_name.replace('_', ' ').title()}**: {status} — {data.get('details', '')[:120]}...")
 
-    st.divider()
-    st.caption("Advanced Controls")
-    if st.button("🧹 Clear All Session Data"):
-        for key in list(st.session_state.keys()):
-            if key != "arbos_manager":
-                del st.session_state[key]
+    with st.expander("Full Diagnostics JSON"):
+        st.json(latest_diag)
+else:
+    st.info("No diagnostics run yet. Generate a plan or run a swarm to see them.")
+
+if st.button("🔄 Force Grail Consolidation Now"):
+    if st.session_state.get("final_solution"):
+        manager.consolidate_grail(st.session_state.final_solution, getattr(manager.validator, 'last_score', 0.0))
+        st.success("✅ Grail consolidation forced")
         st.rerun()
+    else:
+        st.warning("No solution yet to consolidate")
 
 # ====================== COMPUTE SETUP ======================
 st.subheader("🔌 Compute Setup")
@@ -324,7 +326,7 @@ if st.button("🔍 Generate High-Level Plan", type="primary", use_container_widt
             plan = manager.plan_challenge(
                 goal_md=edited_goal, 
                 challenge=challenge, 
-                enhancement_prompt="",   # No separate enhancement - use GOAL.md as base
+                enhancement_prompt="",   
                 compute_mode=st.session_state.compute_source
             )
             st.session_state.high_level_plan = plan
@@ -362,7 +364,7 @@ if st.session_state.get("stage") == "post_orchestration_review":
             st.session_state.high_level_plan,
             st.session_state.challenge,
             st.session_state.get("deterministic_tooling", ""),
-            ""  # No separate enhancement
+            ""  
         )
         st.session_state.blueprint = blueprint
         st.session_state.validation_criteria = blueprint.get("validation_criteria", {})
@@ -396,20 +398,27 @@ if st.session_state.get("stage") == "final_review":
 
     st.subheader("🔍 Final Review & Packaging")
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Solution + Oracle", "ToolHunter Results", "Grail & Messages", "Self-Improvement", "Trace Log", "Validation Criteria"])
+    tab_sol, tab_tool, tab_grail, tab_self, tab_trace, tab_criteria = st.tabs([
+        "Solution + Oracle", 
+        "ToolHunter Results", 
+        "Grail & Messages", 
+        "Self-Improvement", 
+        "Trace Log", 
+        "Validation Criteria"
+    ])
 
-    with tab1:
+    with tab_sol:
         st.text_area("Final Synthesized Solution", value=str(solution), height=400)
         score = getattr(manager.validator, 'last_score', 0.0)
         st.success(f"ValidationOracle Score: **{score:.3f}**")
 
-    with tab2:
+    with tab_tool:
         if st.session_state.toolhunter_results:
             st.json(st.session_state.toolhunter_results)
         else:
             st.info("No ToolHunter results yet.")
 
-    with tab3:
+    with tab_grail:
         st.subheader("Recent Messages (Mature Message Bus)")
         recent_msgs = manager.get_recent_messages(limit=10)
         if recent_msgs:
@@ -424,7 +433,7 @@ if st.session_state.get("stage") == "final_review":
         if grail:
             st.json(grail)
 
-    with tab4:
+    with tab_self:
         if st.button("Run Self-Critique Now"):
             critique = manager.self_critique(st.session_state.get("challenge", "unknown"))
             st.json(critique)
@@ -434,12 +443,12 @@ if st.session_state.get("stage") == "final_review":
             manager.re_adapt({"solution": current_sol}, "miner_forced_adaptation")
             st.success("✅ Adaptation Arbos executed.")
 
-    with tab5:
+    with tab_trace:
         st.subheader("Live Trace Log")
         for entry in trace[-20:]:
             st.caption(str(entry))
 
-    with tab6:
+    with tab_criteria:
         st.json(validation_criteria)
         st.caption("These criteria were used by each Sub-Arbos worker during the swarm.")
 
