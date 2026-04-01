@@ -16,7 +16,7 @@ multiprocessing.set_start_method('spawn', force=True)
 
 from agents.memory import memory, memory_layers
 from agents.tools.tool_hunter import tool_hunter, load_registry, save_registry
-from agents.tools.compute import ComputeRouter, compute_router  # ensure singleton
+from agents.tools.compute import ComputeRouter, compute_router
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
 
@@ -93,11 +93,11 @@ class ArbosManager:
         self._current_strategy = None
         self._current_validation_criteria = {}
 
-        # v4.5: Store evolving prompt layers for re_adapt
+        # v4.5: Evolving prompt layers for re_adapt and compounding
         self._current_enhancement = ""
         self._current_pre_launch = ""
 
-        # Mature Message Bus with typed channels and fidelity-aware conflict resolution
+        # Mature Message Bus
         self.message_bus = []
         self.memory_layers = memory_layers
 
@@ -121,13 +121,12 @@ class ArbosManager:
                 return json.load(f)
         return {}
 
-    # UPGRADED: Typed message bus with conflict resolution and fidelity weighting
     def post_message(self, sender: str, content: str, msg_type: str = "general", 
                      importance: float = 0.5, validation_score: float = None, fidelity: float = None):
         message = {
             "sender": sender,
             "content": content,
-            "type": msg_type,                    # e.g. "symbolic_invariant", "tool_recommendation", "verifier_snippet"
+            "type": msg_type,
             "importance": importance,
             "validation_score": validation_score or 0.0,
             "fidelity": fidelity or 0.0,
@@ -135,17 +134,16 @@ class ArbosManager:
             "loop": self.loop_count
         }
         
-        # Simple conflict resolution: keep only the best message per type per loop
+        # Keep only the best message per type per loop
         self.message_bus = [m for m in self.message_bus 
                            if not (m.get("type") == msg_type and m.get("loop") == self.loop_count)]
         
         self.message_bus.append(message)
         
-        # Persist high-value or high-fidelity messages
         if importance > 0.6 or (validation_score and validation_score > 0.85):
             self.save_to_memdir(f"message_{msg_type}_{int(time.time())}", message)
         
-        logger.debug(f"Sub-Arbos message posted by {sender} | type={msg_type} | score={validation_score:.2f} | fidelity={fidelity:.2f}")
+        logger.debug(f"Message posted by {sender} | type={msg_type} | score={validation_score:.2f} | fidelity={fidelity:.2f}")
 
     def get_recent_messages(self, min_importance: float = 0.4, limit: int = 12, msg_type: str = None) -> list:
         recent = [m for m in self.message_bus if m["importance"] >= min_importance]
@@ -182,19 +180,21 @@ class ArbosManager:
         try:
             with open(self.goal_file, "r") as f:
                 for line in f:
-                    if ":" not in line: continue
+                    if ":" not in line:
+                        continue
                     key = line.split(":")[0].strip().lower()
                     value = line.split(":", 1)[1].strip()
-                    if key in config and isinstance(config[key], bool):
-                        config[key] = "true" in value.lower()
-                    elif key in ["max_loops"]:
-                        config[key] = int(value)
-                    elif key == "max_compute_hours":
-                        config[key] = float(value)
-                    elif key == "compute_source":
-                        config[key] = value.lower()
-        except Exception:
-            pass
+                    if key in config:
+                        if isinstance(config[key], bool):
+                            config[key] = "true" in value.lower()
+                        elif key == "max_loops":
+                            config[key] = int(value)
+                        elif key == "max_compute_hours":
+                            config[key] = float(value)
+                        else:
+                            config[key] = value
+        except Exception as e:
+            logger.warning(f"Config loading issue: {e}")
         return config
 
     def _load_extra_context(self) -> str:
@@ -205,59 +205,21 @@ class ArbosManager:
             return ""
 
     def update_toggles(self, toggles: dict):
-        """Live wiring from Streamlit sidebar — affects all behavior."""
         self.quasar_enabled = toggles.get("Quasar", True)
         self.enable_grail = toggles.get("Grail on winning runs", False)
         self.config["toolhunter_escalation"] = toggles.get("ToolHunter + ReadyAI", True)
         self.config["resource_aware"] = toggles.get("Light Compression", True)
-        logger.info(f"Toggles updated: Quasar={self.quasar_enabled}, Grail={self.enable_grail}, ToolHunter={self.config['toolhunter_escalation']}")
+        logger.info(f"Toggles updated: Quasar={self.quasar_enabled}, Grail={self.enable_grail}")
 
     def set_compute_source(self, source: str, custom_endpoint: str = None):
-        """Support Streamlit compute selection — prioritizes Local GPU."""
         self.compute_source = source
         self.custom_endpoint = custom_endpoint
-        if source == "local_gpu" or source == "local":
+        if source in ["local_gpu", "local"]:
             self.compute.set_mode("local_gpu")
-            logger.info("ComputeRouter set to Local GPU (Ollama) — no API keys required")
         else:
             self.compute.set_mode(source)
-            logger.info(f"Compute source set to: {source}")
-
-    def discover_from_goal(self, goal_content: str) -> list:
-        registry = load_registry()
-        discovery_task = f"""You are ToolHunter in pre-run discovery mode.
-
-GOAL.md content:
-{goal_content[:5000]}
-
-Task: Analyze the goals and suggest the most relevant tools, libraries, or Hugging Face models for SN63 Quantum Innovate challenges.
-Prioritize deterministic/symbolic tools and quantum circuit libraries."""
-        response = self.compute.call_llm(discovery_task, temperature=0.0, max_tokens=1200)
-        new_items = []
-        try:
-            lines = response.split("\n")
-            current = {}
-            for line in lines:
-                line = line.strip()
-                if line.startswith("- ") or line.startswith("•"):
-                    if current:
-                        new_items.append(current)
-                    current = {"name": line[2:], "keywords": [], "install_cmd": "", "added": datetime.now().isoformat()}
-                elif "install" in line.lower() or "pip" in line.lower():
-                    if current:
-                        current["install_cmd"] = line
-            if current:
-                new_items.append(current)
-            if new_items:
-                registry["tools"].extend(new_items)
-                save_registry(registry)
-                return new_items
-        except Exception as e:
-            logger.warning(f"Discovery parsing error: {e}")
-        return []
 
     def _safe_parse_json(self, raw: Any) -> Dict:
-        """Safe JSON parser that handles string, dict, or bad LLM output."""
         if isinstance(raw, dict):
             return raw
         if not isinstance(raw, str):
@@ -277,7 +239,7 @@ Prioritize deterministic/symbolic tools and quantum circuit libraries."""
         if not challenge or len(challenge.strip()) < 10:
             return {"error": "Challenge too short", "phase1": "", "phase2": {}, "dynamic_swarm_size": 4}
 
-        logger.info(f"Planning with {compute_mode} — Quasar: {self.quasar_enabled}")
+        logger.info(f"Planning challenge with {compute_mode} — Quasar: {self.quasar_enabled}")
 
         phase1_prompt = f"""You are Planning Arbos for Bittensor SN63 Quantum Innovate.
 You MUST be brutally honest about cryptographic feasibility.
@@ -288,59 +250,44 @@ GOAL.md (full agnostic base):
 Challenge: {challenge}
 Enhancement: {enhancement_prompt or 'None'}
 
-Your job:
-1. Generate the high-level plan (existing keys).
-2. ALSO generate a CHALLENGE-SPECIFIC post-planning enhancement prompt by specializing the AUTO_POST_PLANNING_ENHANCEMENT_TEMPLATE + ENGLISH_MEMDIR_GRAIL_MODULE + ENGLISH_TOOL_SWARM_MODULE + ENGLISH_AMDAHL_COORDINATION_MODULE.
-3. Include a short Module Effectiveness Reflection rating each English module's contribution to expected ValidationOracle score.
-
 Return ONLY valid JSON with these keys:
 - phase1_plan
-- key_insights (list of honest insights)
-- feasibility: "low" | "medium" | "high" | "impossible_with_current_tech"
+- key_insights (list)
+- feasibility ("low" | "medium" | "high" | "impossible_with_current_tech")
 - recommended_approach
 - risks (list)
 - estimated_difficulty
 - generated_post_planning_enhancement"""
 
-        phase1 = self.compute.call_llm(phase1_prompt, temperature=0.65, max_tokens=1600)
+        phase1_raw = self.compute.call_llm(phase1_prompt, temperature=0.65, max_tokens=1600)
+        phase1 = self._safe_parse_json(phase1_raw)
         self._current_enhancement = phase1.get("generated_post_planning_enhancement", "")
-
-        logger.info(f"Phase1 raw length: {len(phase1)}")
 
         dynamic_size = 5 if self.quasar_enabled else 4
 
         phase2_prompt = f"""You are Orchestrator Arbos for SN63.
-Phase 1 output: {phase1[:2000]}
+Phase 1 output: {str(phase1)[:2000]}
 
-Create FULL executable blueprint as clean JSON.
-Focus on honesty for the challenge "{challenge}".
-- "decomposition": list of realistic subtasks
-- "swarm_config": {{"total_instances": {dynamic_size}}}
-- "tool_map": {{}}
-- "validation_criteria": {{}}
-- "hypothesis_diversity": ["realistic", "conservative"]
-
-Return ONLY valid JSON."""
+Return ONLY valid JSON with:
+- decomposition (list of subtasks)
+- swarm_config (dict with total_instances)
+- tool_map
+- validation_criteria
+- hypothesis_diversity (list)"""
 
         phase2_raw = self.compute.call_llm(phase2_prompt, temperature=0.3, max_tokens=1200)
         blueprint = self._safe_parse_json(phase2_raw)
 
         if not blueprint or "decomposition" not in blueprint:
             blueprint = {
-                "decomposition": ["Assess cryptographic hardness", "Review known attacks", "Analyze implementation vectors", "Evaluate quantum threat", "Synthesize realistic assessment"],
+                "decomposition": ["Assess feasibility", "Review known methods", "Analyze quantum threat", "Synthesize realistic assessment"],
                 "swarm_config": {"total_instances": dynamic_size},
                 "tool_map": {},
                 "validation_criteria": {},
                 "hypothesis_diversity": ["realistic", "conservative"]
             }
 
-        adaptation = self.compute.call_llm(
-            "Adapt scoring weights and thresholds for best quantum verifier score on local GPU with enabled features.",
-            temperature=0.0, max_tokens=800
-        )
-        
-        adapted = self._safe_parse_json(adaptation)
-        self._current_strategy = adapted.get("strategy", self.analyzer.analyze("", challenge))
+        self._current_strategy = self.analyzer.analyze("", challenge)
         self.validator.adapt_scoring(self._current_strategy)
 
         return {
@@ -350,16 +297,12 @@ Return ONLY valid JSON."""
             "dynamic_swarm_size": dynamic_size,
             "quasar_enabled": self.quasar_enabled
         }
-        
+
     def re_adapt(self, candidate: Dict, latest_verifier_feedback: str):
         self.loop_count += 1
-        
         grail_context = self.load_from_memdir("latest_grail")
-        
-        recent_trajectories = vector_db.search(
-            getattr(self, '_current_strategy', {}).get("challenge", ""), 
-            k=20
-        )
+        recent_trajectories = vector_db.search(getattr(self, '_current_strategy', {}).get("challenge", ""), k=20)
+
         weighted_context = ""
         if recent_trajectories:
             scored_traj = []
@@ -369,56 +312,42 @@ Return ONLY valid JSON."""
                 weight = max(0.1, (score ** 2) * (fidelity ** 1.5))
                 scored_traj.append((weight, traj.get("solution", "")[:700]))
             scored_traj.sort(key=lambda x: x[0], reverse=True)
-            weighted_context = "\n".join([f"[High-score+fidelity pattern {i+1} | weight {w:.2f}]: {text}" 
+            weighted_context = "\n".join([f"[High-score+fidelity {i+1} | w={w:.2f}]: {text}" 
                                         for i, (w, text) in enumerate(scored_traj[:10])])
 
         recent_messages = self.get_recent_messages(min_importance=0.5, limit=12)
-        message_context = "\n".join([f"[Inter-Sub-Arbos {m.get('type', 'general')}] score {m['validation_score']:.2f} | fidelity {m['fidelity']:.2f}: {m['content'][:500]}" 
+        message_context = "\n".join([f"[{m.get('type')}] score={m['validation_score']:.2f} fid={m['fidelity']:.2f}: {m['content'][:500]}" 
                                   for m in recent_messages]) if recent_messages else "None"
 
-        adaptation_prompt = f"""You are Adaptation Arbos for SN63 Quantum Innovate.
-
+        adaptation_prompt = f"""You are Adaptation Arbos for SN63.
 CURRENT LOOP: {self.loop_count}
-Latest verifier feedback: {latest_verifier_feedback}
+Latest feedback: {latest_verifier_feedback}
 
-BUILT-UP INTELLIGENCE (use heavily — prioritize high-score + high-fidelity patterns):
-- Grail / Memdir context: {json.dumps(grail_context, indent=2)[:900] if grail_context else 'None yet'}
-- Score+Fidelity-weighted prior trajectories: {weighted_context or 'None yet'}
-- Recent inter-Sub-Arbos messages: {message_context}
+High-signal context:
+- Grail: {json.dumps(grail_context, indent=2)[:900] if grail_context else 'None'}
+- Weighted trajectories: {weighted_context or 'None'}
+- Recent messages: {message_context}
 
-CURRENT PROMPT LAYERS (respect and build upon):
-Base strategy from killer_base.md: {self._load_extra_context()[:1200]}
-Current challenge-specific enhancement: {getattr(self, '_current_enhancement', 'None')[:900]}
-Pre-launch context: {getattr(self, '_current_pre_launch', 'None')[:700]}
+Current layers:
+Base: {self._load_extra_context()[:1200]}
+Enhancement: {getattr(self, '_current_enhancement', 'None')[:900]}
+Pre-launch: {getattr(self, '_current_pre_launch', 'None')[:700]}
 
-STRICT RULES (never violate):
-{self.config.get('marl_credit_rule', 'Strictly weight by ValidationOracle fidelity ≥0.88 and determinism ≥0.85')}
+Generate concise, high-signal adaptation to improve ValidationOracle score. Prioritize fidelity ≥0.88 and determinism ≥0.85."""
 
-Task: Generate a targeted, high-signal adaptation for the next swarm iteration.
-Prioritize ONLY patterns from high-scoring, high-fidelity previous loops and recent verified messages.
-Avoid repeating low-fidelity or low-determinism paths.
-Focus on improving symbolic invariants, ToolHunter usage, and alignment with verifier expectations.
-
-Return concise, actionable adaptation guidance that will measurably improve ValidationOracle score."""
-
-        adaptation = self.compute.call_llm(
-            adaptation_prompt,
-            temperature=0.15,
-            max_tokens=1400
-        )
-        
-        adapted = self._safe_parse_json(adaptation)
+        adaptation_raw = self.compute.call_llm(adaptation_prompt, temperature=0.15, max_tokens=1400)
+        adapted = self._safe_parse_json(adaptation_raw)
         self._current_strategy = adapted.get("strategy", self._current_strategy)
         self.validator.adapt_scoring(self._current_strategy)
 
         self.save_to_memdir("latest_grail", {
             "loop": self.loop_count,
             "feedback": latest_verifier_feedback[:600],
-            "adaptation": adaptation[:1200],
+            "adaptation": str(adaptation_raw)[:1200],
             "timestamp": datetime.now().isoformat()
         })
 
-        logger.info(f"✅ Adaptation Arbos completed loop {self.loop_count} using score+fidelity-weighted intelligence + inter-Sub-Arbos messages")
+        logger.info(f"✅ re_adapt completed loop {self.loop_count}")
 
     def _generate_tool_proposals(self, results: Dict) -> List[str]:
         proposal_prompt = f"Based on these swarm results: {json.dumps(results)[:1500]}\nSuggest 2-3 deterministic or quantum-related tools that would improve verifier score on the NEXT run."
@@ -801,6 +730,47 @@ Output EXACT JSON with:
             return {"decomposition": ["Fallback quantum decomposition"], "swarm_config": {"total_instances": 5}, "tool_map": {}, "validation_criteria": {}, "hypothesis_diversity": ["standard", "quantum_optimized"]}
 
     def run(self, challenge: str, verification_instructions: str = "", enhancement_prompt: str = ""):
+        """Full production run with inner re_adapt loops and outer Grail compounding."""
         self.loop_count = 0
-        plan = self.plan_challenge(challenge=challenge, enhancement_prompt=enhancement_prompt)
-        return self.execute_full_cycle(plan, challenge, verification_instructions)
+        plan = self.plan_challenge(
+            goal_md=self.extra_context,
+            challenge=challenge,
+            enhancement_prompt=enhancement_prompt
+        )
+
+        if "error" in plan:
+            return plan["error"]
+
+        max_loops = self.config.get("max_loops", 5)
+        best_solution = None
+        best_score = 0.0
+
+        for loop in range(max_loops):
+            logger.info(f"Starting outer loop {loop+1}/{max_loops}")
+            result = self.execute_full_cycle(plan, challenge, verification_instructions)
+            
+            score = result.get("validation_score", 0.0) if isinstance(result, dict) else 0.0
+            
+            if isinstance(result, dict) and "final_solution" in result:
+                current_solution = result["final_solution"]
+            else:
+                current_solution = str(result)
+
+            if score > best_score:
+                best_score = score
+                best_solution = current_solution
+
+            if score >= self.early_stop_threshold:
+                logger.info(f"Early stop triggered at score {score:.3f}")
+                break
+
+            if score < self.early_stop_threshold and loop < max_loops - 1:
+                logger.info(f"Low score ({score:.3f}) → triggering re_adapt")
+                self.re_adapt({"solution": current_solution}, f"Validation score: {score:.3f}")
+                plan = self._refine_plan(plan, challenge, enhancement_prompt=enhancement_prompt)
+
+        if self.enable_grail and best_score > 0.92:
+            self._run_grail_post_training({"solution": best_solution})
+
+        self.save_run_to_history(challenge, enhancement_prompt, best_solution or "", best_score, 0.5, best_score)
+        return best_solution or "No valid solution produced"
