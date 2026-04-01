@@ -59,7 +59,7 @@ st.markdown("""
         box-shadow: 0 0 35px #00ff9d;
         transform: scale(1.05);
     }
-    .classified { color: #ff2222; font-size: 0.9rem; letter-spacing: 4px; animation: blink 1.2s infinite; }
+    .classified { color: #ff2222; font-size: 0.95rem; letter-spacing: 4px; animation: blink 1.2s infinite; }
     @keyframes blink { 50% { opacity: 0.4; } }
 </style>
 """, unsafe_allow_html=True)
@@ -114,7 +114,7 @@ manager = st.session_state.arbos_manager
 # ====================== LIVE HEADER ======================
 col1, col2, col3 = st.columns([1, 2, 1])
 with col1:
-    st.markdown("🔄 <span class='rotor'>⚙️⚙️⚙️</span> ENIGMA ROTORS ACTIVE", unsafe_allow_html=True)
+    st.markdown("🔄 <span class='rotor'>⚙️⚙️⚙️</span> ROTORS ACTIVE", unsafe_allow_html=True)
 with col2:
     score = getattr(manager.validator, 'last_score', 0.0)
     st.metric("VALIDATION ORACLE SCORE", f"{score:.3f}")
@@ -162,7 +162,7 @@ edited_goal = st.text_area(
 if st.button("💾 TRANSMIT DIRECTIVES"):
     with open(goal_path, "w", encoding="utf-8") as f:
         f.write(edited_goal)
-    st.success("✅ DIRECTIVES TRANSMITTED TO GRAIL")
+    st.success("✅ DIRECTIVES TRANSMITTED")
     st.rerun()
 
 # ====================== CHALLENGE DEFINITION & VERIFICATION ======================
@@ -170,7 +170,7 @@ st.subheader("🎯 MISSION TARGET")
 col_chal, col_ver = st.columns([1, 1])
 with col_chal:
     challenge = st.text_area(
-        "Challenge Description (Quantum Innovate task)",
+        "SN63 Challenge Description (Quantum Innovate task)",
         height=160,
         placeholder="Describe the full problem in detail...",
         key="challenge_input"
@@ -195,9 +195,9 @@ with col_ver:
     else:
         verification_instructions = str(verification_response) if verification_response else default_verification
 
-# ====================== TOOLHUNTER SWARM (FULLY EXPANDED) ======================
+# ====================== TOOLHUNTER SWARM ======================
 st.subheader("🛰️ RECON SWARM — TOOLHUNTER")
-st.caption("Launch at any time to discover new deterministic tools")
+st.caption("Describe a gap and get immediate tool/library/model recommendations + install commands")
 
 hunter_gap = st.text_area(
     "Current Gap or Subtask",
@@ -206,7 +206,7 @@ hunter_gap = st.text_area(
     key="hunter_gap_input"
 )
 
-col_th1, col_th2 = st.columns([3, 1])
+col_th1, col_th2 = st.columns([2, 1])
 with col_th1:
     if st.button("🚀 LAUNCH RECON SWARM", type="secondary", use_container_width=True):
         st.markdown('<script>playSound("rotor");</script>', unsafe_allow_html=True)
@@ -237,7 +237,7 @@ with col_th1:
                         with open(goal_path, "a", encoding="utf-8") as f:
                             f.write(f"\n\n## TOOLHUNTER_MINER_APPROVED_{timestamp}\n{content}\n")
                         manager.save_to_memdir(f"toolhunter_{timestamp}", {"content": content, "gap": hunter_gap})
-                        st.success("✅ Added to GOAL.md and Grail! Will compound into future runs.")
+                        st.success("✅ Added to GOAL.md and Grail!")
                         st.rerun()
 
 with col_th2:
@@ -271,14 +271,14 @@ with st.sidebar:
 
     st.divider()
     st.caption("Advanced Controls")
-    if st.button("🧹 CLEAR ALL SESSION DATA"):
+    if st.button("🧹 Clear All Session Data"):
         for key in list(st.session_state.keys()):
             if key != "arbos_manager":
                 del st.session_state[key]
         st.rerun()
 
 # ====================== COMPUTE SETUP ======================
-st.subheader("🔌 COMPUTE SETUP")
+st.subheader("🔌 Compute Setup")
 compute_option = st.radio(
     "Choose compute source:",
     options=[
@@ -293,7 +293,7 @@ compute_option = st.radio(
 
 endpoint = st.text_input("Custom Endpoint URL (if needed)", placeholder="https://...", key="endpoint_input")
 
-if st.button("APPLY COMPUTE SOURCE", type="primary"):
+if st.button("Apply Compute Source", type="primary"):
     source_map = {
         "Local GPU (Ollama — recommended, no API keys)": "local_gpu",
         "Chutes (remote H100)": "chutes",
@@ -313,13 +313,13 @@ if st.button("APPLY COMPUTE SOURCE", type="primary"):
 st.info(f"Current Compute: **{st.session_state.compute_source}**")
 
 # ====================== ENHANCEMENT PROMPT ======================
-st.subheader("🚀 ENHANCEMENT DIRECTIVE")
+st.subheader("🚀 Enhancement Prompt (Optional)")
 default_enhancement = ""
 if st.session_state.get("high_level_plan") and isinstance(st.session_state.high_level_plan, dict):
     default_enhancement = st.session_state.high_level_plan.get("generated_post_planning_enhancement", "")
 
 enhancement = st.text_area(
-    "Enhancement Prompt (Post-Planning)",
+    "Enhancement Prompt (Post-Planning — Auto-generated & editable)",
     value=default_enhancement,
     height=150,
     key="enhancement_input"
@@ -327,9 +327,9 @@ enhancement = st.text_area(
 
 col_a, col_b = st.columns([3, 1])
 with col_a:
-    st.caption("Edits are passed to Orchestrator Arbos and can be saved as Grail patterns.")
+    st.caption("Edits here are passed to Orchestrator Arbos and can be saved as Grail patterns.")
 with col_b:
-    if st.button("💾 SAVE AS GRAIL PATTERN", type="secondary"):
+    if st.button("💾 Save Edited Enhancement as Grail Pattern", type="secondary"):
         if enhancement and enhancement.strip():
             timestamp = datetime.now().strftime("%Y%m%d_%H%M")
             grail_section = f"\n\n## GRAIL_ENHANCEMENT_{timestamp} (Miner-Edited)\n{enhancement}\n"
@@ -345,12 +345,12 @@ with col_b:
         else:
             st.warning("Enhancement is empty.")
 
-# ====================== GENERATE HIGH-LEVEL PLAN ======================
-if st.button("🔍 GENERATE HIGH-LEVEL PLAN", type="primary", use_container_width=True):
+# ====================== Generate High-Level Plan ======================
+if st.button("🔍 Generate High-Level Plan", type="primary"):
     if not challenge.strip():
         st.error("Please enter a challenge description.")
     else:
-        with st.spinner("PLANNING ARBOS DECRYPTING TARGET..."):
+        with st.spinner("Planning Arbos running on Local GPU..."):
             plan = manager.plan_challenge(
                 goal_md=edited_goal, 
                 challenge=challenge, 
@@ -367,7 +367,7 @@ if st.button("🔍 GENERATE HIGH-LEVEL PLAN", type="primary", use_container_widt
 
 # ====================== STAGE 1: HIGH-LEVEL PLAN ======================
 if st.session_state.get("stage") == "planning_approval":
-    st.subheader("📋 STAGE 1: HIGH-LEVEL PLAN – STRATEGIC REVIEW")
+    st.subheader("📋 Stage 1: High-Level Plan – Strategic Review")
     if st.session_state.high_level_plan:
         st.json(st.session_state.high_level_plan)
 
@@ -376,10 +376,10 @@ if st.session_state.get("stage") == "planning_approval":
             st.markdown("**Adapted Strategy:**")
             st.json(st.session_state.high_level_plan.get("adapted_strategy", {}))
         with col2:
-            if st.button("✅ APPROVE PLAN & GO TO ORCHESTRATION REVIEW", type="primary"):
+            if st.button("✅ Approve Plan & Go to Orchestration Review", type="primary"):
                 st.session_state.stage = "post_orchestration_review"
                 st.rerun()
-            if st.button("🔄 RE-PLAN"):
+            if st.button("🔄 Re-plan"):
                 st.session_state.stage = None
                 st.rerun()
     else:
@@ -387,7 +387,7 @@ if st.session_state.get("stage") == "planning_approval":
 
 # ====================== STAGE 2: POST-ORCHESTRATION ======================
 if st.session_state.get("stage") == "post_orchestration_review":
-    with st.spinner("ORCHESTRATOR ARBOS REFINING BLUEPRINT..."):
+    with st.spinner("Orchestrator Arbos refining blueprint..."):
         blueprint = manager._refine_plan(
             st.session_state.high_level_plan,
             st.session_state.challenge,
@@ -397,16 +397,16 @@ if st.session_state.get("stage") == "post_orchestration_review":
         st.session_state.blueprint = blueprint
         st.session_state.validation_criteria = blueprint.get("validation_criteria", {})
 
-    st.header("🚀 STAGE 2: POST-ORCHESTRATION REVIEW")
+    st.header("🚀 Post-Orchestration Review Dashboard")
     st.subheader("Blueprint & Swarm Dynamics")
     st.json(blueprint)
 
     pre_launch = blueprint.get("generated_pre_launch_context", "No pre-launch context generated.")
-    st.subheader("📜 AUTO-GENERATED PRE-LAUNCH CONTEXT")
+    st.subheader("📜 Auto-Generated Pre-Launch Context")
     st.info(pre_launch[:1000] + "..." if len(pre_launch) > 1000 else pre_launch)
 
-    if st.button("🚀 LAUNCH SWARM NOW", type="primary", use_container_width=True):
-        with st.spinner("LAUNCHING DYNAMIC SWARM WITH VERIFIER-FIRST EXECUTION..."):
+    if st.button("🚀 Launch Swarm Now", type="primary", use_container_width=True):
+        with st.spinner("Launching dynamic swarm with verifier-first execution..."):
             final_solution = manager.execute_full_cycle(
                 blueprint, 
                 challenge, 
@@ -424,7 +424,7 @@ if st.session_state.get("stage") == "final_review":
     trace = st.session_state.get("trace_log", [])
     validation_criteria = st.session_state.get("validation_criteria", {})
 
-    st.subheader("🔍 FINAL REVIEW & PACKAGING")
+    st.subheader("🔍 Final Review & Packaging")
 
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Solution + Oracle", "ToolHunter Results", "Grail & Messages", "Self-Improvement", "Trace Log", "Validation Criteria"])
 
@@ -475,7 +475,7 @@ if st.session_state.get("stage") == "final_review":
 
     miner_notes = st.text_area("Your Final Notes (optional)")
 
-    if st.button("📦 PACKAGE FOR SN63 SUBMISSION", type="primary"):
+    if st.button("📦 Package for SN63 Submission", type="primary"):
         _package_submission(
             solution, blueprint, trace, miner_notes, 
             challenge, 
@@ -483,7 +483,7 @@ if st.session_state.get("stage") == "final_review":
             st.session_state.get("deterministic_tooling", "")
         )
         st.balloons()
-        st.success("✅ SUBMISSION PACKAGE CREATED!")
+        st.success("✅ Submission package created!")
 
 # ====================== PACKAGING FUNCTION ======================
 def _package_submission(solution: str, blueprint: dict, trace: list, notes: str, challenge: str, verification: str, deterministic_tooling: str):
