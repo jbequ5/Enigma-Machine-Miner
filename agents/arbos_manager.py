@@ -1313,7 +1313,20 @@ Generate a radically different avenue with maximum heterogeneity."""
             return json.dumps(plan, indent=2)
         except:
             return "Failed to generate new avenue plan."
-
+            
+    def load_expert_modules(self) -> list[str]:
+        """Load all expert modules from the experts/ folder. Dead simple for domain experts."""
+        experts = []
+        expert_dir = Path("experts")
+        if expert_dir.exists():
+            for file in expert_dir.glob("*.md"):
+                try:
+                    content = file.read_text(encoding="utf-8").strip()
+                    if content:
+                        experts.append(f"EXPERT MODULE [{file.stem}]: {content}")
+                except Exception as e:
+                    logger.warning(f"Failed to load expert module {file}: {e}")
+        return experts
     def run(self, challenge: str, verification_instructions: str = "", enhancement_prompt: str = ""):
         self.loop_count = 0
         plan = self.plan_challenge(
