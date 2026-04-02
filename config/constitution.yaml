@@ -1,0 +1,4 @@
+mode: "core"
+risk_rules:
+  - block: ["rm -rf", "os.system", "exec", "__import__", "subprocess.call", "open("]
+  - allow_patterns: ["sympy", "numpy", "torch", "quantum", "crypto", "verifier", "grail", "heterogeneity"]
