@@ -198,7 +198,39 @@ with col_ver:
         verification_instructions = verification_response.get("text", default_verification)
     else:
         verification_instructions = str(verification_response) if verification_response else default_verification
+        
+# In streamlit_app.py - new Expert Panel
 
+with st.expander("🧪 Expert Input Mode (for physicists, mathematicians, etc.)", expanded=False):
+    st.caption("Add your domain expertise. The system will turn it into tools, prompts, or invariants.")
+
+    tab1, tab2, tab3 = st.tabs(["📝 Propose New Tool", "📐 Add Symbolic Invariant", "💡 Suggest Strategy Change"])
+
+    with tab1:  # Propose New Tool
+        st.subheader("Propose a New Tool / Function")
+        tool_name = st.text_input("Tool Name (e.g. quantum_circuit_optimizer)")
+        tool_description = st.text_area("What does this tool do? Be specific.", height=120)
+        tool_code = st.text_area("Python code for the tool (optional - system can generate it)", height=300)
+        
+        col_a, col_b = st.columns(2)
+        with col_a:
+            test_input = st.text_input("Test input example (JSON)", value='{"qubits": 8, "gates": ["H", "CNOT"]}')
+        with col_b:
+            expected_impact = st.selectbox("Expected impact on score", ["Small (+0.05)", "Medium (+0.15)", "Large (+0.3+)"])
+
+        if st.button("🚀 Submit Tool Proposal", type="primary"):
+            # System auto-generates / validates / stores proposal
+            proposal = {
+                "name": tool_name,
+                "description": tool_description,
+                "code": tool_code or "AUTO-GENERATE",
+                "expert": "user-provided",
+                "timestamp": datetime.now().isoformat(),
+                "expected_impact": expected_impact
+            }
+            # Save to proposal queue
+            manager.save_to_memdir(f"tool_proposal_{int(time.time())}", proposal)
+            st.success("✅ Tool proposal saved. System will test it in next run.")
 # ====================== TOOLHUNTER SWARM ======================
 st.subheader("🛰️ RECON SWARM — TOOLHUNTER")
 st.caption("Describe a gap and get immediate tool/library/model recommendations + install commands")
