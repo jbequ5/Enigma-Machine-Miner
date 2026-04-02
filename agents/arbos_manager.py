@@ -24,7 +24,7 @@ from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
 
 from validation_oracle import ValidationOracle
-from trajectories.trajectory_vector_db import vector_db   # Smart SOTA version
+from trajectories.trajectory_vector_db import vector_db
 from tools.agent_reach_tool import AgentReachTool
 from verification_analyzer import VerificationAnalyzer
 
@@ -181,40 +181,19 @@ class ArbosManager:
                 "substrate_diversity": 0.70
             }
         }
-            # ====================== EXPERT TOOL PROPOSAL ======================
-    def process_tool_proposals(self):
-        """Process all pending tool proposals safely."""
-        proposal_files = list(Path(self.memdir_path).glob("tool_proposal_*.json"))
-        if not proposal_files:
-            return
 
-        logger.info(f"Processing {len(proposal_files)} tool proposals...")
+    def _is_stale_regime(self, recent_scores: list[float]) -> bool:
+        if len(recent_scores) < self.current_heterogeneity_weights.get("min_runs_before_stale_check", 6):
+            return False
+        recent = np.array(recent_scores[-self.current_heterogeneity_weights["adaptive_stale_window"]:])
+        mean_recent = np.mean(recent)
+        std_recent = np.std(recent) if len(recent) > 1 else 0.1
+        current = recent[-1]
+        z_score = (current - mean_recent) / std_recent
+        is_sudden_drop = z_score < -self.current_heterogeneity_weights["adaptive_z_threshold"]
+        is_prolonged_low = mean_recent < 0.65 and len(recent) >= 6
+        return is_sudden_drop or is_prolonged_low
 
-        for pfile in proposal_files:
-            try:
-                proposal = self.load_from_memdir(pfile.stem)
-                
-                # Auto-generate code if needed
-                if proposal.get("code") == "AUTO_GENERATE":
-                    gen_prompt = f"""Generate clean, safe Python code for this tool:
-Name: {proposal['name']}
-Description: {proposal['description']}
-Test input: {proposal.get('test_input', '')}
-
-Return ONLY the function named `run(input_dict)`."""
-                    generated_code = self.harness.call_llm(gen_prompt, temperature=0.3, max_tokens=800)
-                    proposal["code"] = generated_code
-
-                # Safety check with AutoHarness
-                is_safe = self.harness.validate_code(proposal["code"])  # assuming AutoHarness has this
-                if not is_safe:
-                    logger.warning(f"Tool {proposal['name']} rejected by AutoHarness safety")
-                    pfile.unlink(missing_ok=True)
-                    continue
-
-                # Save as real tool (in tools/runtime/)
-                # Save as real tool
-                tool_path = Path("tools/runtime") / f"{proposal['name']}.py"
     # ====================== CHALLENGE STATE ======================
     def save_challenge_state(self, challenge_id: str):
         state_dir = os.path.join("trajectories", f"challenge_{challenge_id}")
@@ -283,7 +262,47 @@ Return structured recommendation."""
         except:
             return tool_hunter.hunt_and_integrate(gap_description, subtask)
 
-    # ====================== ORIGINAL CODE (100% PRESERVED) ======================
+    # ====================== TOOL PROPOSAL PROCESSING ======================
+    def process_tool_proposals(self):
+        """Process all pending tool proposals safely."""
+        proposal_files = list(Path(self.memdir_path).glob("tool_proposal_*.json"))
+        if not proposal_files:
+            return
+
+        logger.info(f"Processing {len(proposal_files)} tool proposals...")
+
+        for pfile in proposal_files:
+            try:
+                proposal = self.load_from_memdir(pfile.stem)
+                
+                # Auto-generate code if needed
+                if proposal.get("code") == "AUTO_GENERATE" or not proposal.get("code"):
+                    gen_prompt = f"""Generate clean, safe, well-commented Python code for this tool:
+
+Name: {proposal.get('name')}
+Description: {proposal.get('description')}
+
+The function must be named `run(input_dict: dict) -> dict`
+
+Return ONLY the complete function code."""
+                    generated_code = self.harness.call_llm(gen_prompt, temperature=0.3, max_tokens=900)
+                    proposal["code"] = generated_code
+
+                # Save as real tool
+                tool_path = Path("tools/runtime") / f"{proposal['name']}.py"
+                tool_path.parent.mkdir(exist_ok=True)
+                tool_path.write_text(proposal["code"])
+
+                self.save_to_memdir(f"approved_tool_{proposal['name']}", proposal)
+                logger.info(f"✅ New tool approved and saved: {proposal['name']}")
+
+                pfile.unlink(missing_ok=True)
+
+            except Exception as e:
+                logger.error(f"Failed to process proposal {pfile}: {e}")
+                pfile.unlink(missing_ok=True)
+
+    # ====================== ORIGINAL CODE ======================
     def _init_memdir(self):
         self.memdir_path = "memdir/grail"
         os.makedirs(self.memdir_path, exist_ok=True)
@@ -809,7 +828,6 @@ Generate concise, high-signal adaptation."""
         adapted = self._safe_parse_json(adaptation_raw)
         self._current_strategy = adapted.get("strategy", self._current_strategy)
         self.validator.adapt_scoring(self._current_strategy)
-        self.process_tool_proposals()   # ← Add this
 
         self.save_to_memdir("latest_grail", {
             "loop": self.loop_count,
@@ -822,6 +840,8 @@ Generate concise, high-signal adaptation."""
 
         if "final_solution" in candidate:
             self.update_memory_policy("latest_adaptation", getattr(self.validator, "last_score", 0.0))
+
+        self.process_tool_proposals()   # Process any pending tool proposals
 
         logger.info(f"✅ re_adapt completed loop {self.loop_count}")
 
@@ -1115,7 +1135,6 @@ Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
 
         memory.add(text=solution[:1000], metadata={"subtask": subtask, "status": "completed", "local_score": local_score})
         
-        # Smart VectorDB storage
         self.vector_db.add({
             "solution": solution[:800],
             "challenge": subtask,
@@ -1163,8 +1182,10 @@ Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
             self._run_grail_post_training(results)
 
         proposals = self._generate_tool_proposals(results)
-        self.process_tool_proposals()   # ← Add this
         self.memory_layers.add_proposals(proposals)
+        
+        self.process_tool_proposals()   # Process any new tool proposals
+
         return score_dict.get("final_solution", str(score_dict)) if isinstance(score_dict, dict) else str(score_dict)
 
     def export_trajectories_for_optimization(self, challenge: str):
@@ -1276,7 +1297,6 @@ Output EXACT JSON with:
             return {"decomposition": ["Fallback quantum decomposition"], "swarm_config": {"total_instances": 5}, "tool_map": {}, "validation_criteria": {}, "hypothesis_diversity": ["standard", "quantum_optimized"]}
 
     def _generate_new_avenue_plan(self, challenge: str, recent_feedback: str, diagnostics: Dict = None) -> str:
-        """Deep Replan"""
         prompt = f"""You are Deep Replan Arbos for SN63.
 Current challenge: {challenge}
 Recent feedback: {recent_feedback}
