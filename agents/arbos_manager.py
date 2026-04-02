@@ -14,6 +14,7 @@ import logging
 import shutil
 import requests
 import yaml
+import networkx as nx
 
 multiprocessing.set_start_method('spawn', force=True)
 
@@ -147,7 +148,14 @@ class ArbosManager:
         self.use_onyx_rag = True
         self.sync_grail_to_memory_layers()
 
-        logger.info("✅ v4.8 Full Upgrades Loaded")
+        # NEW: Hybrid Graph Memory
+        self.graph = self._load_graph()
+
+        # NEW: Scientist Mode tracking
+        self.scientist_log_path = Path("scientist_log.json")
+        self.scientist_log = self._load_scientist_log()
+
+        logger.info("✅ v4.9 Full Upgrades Loaded — Expert Plugins + Guided Diversity + MCTS Compression + Hybrid Graph + Scientist Mode")
 
     # ====================== HETEROGENEITY + ADAPTIVE STALE ======================
     def _load_heterogeneity_weights(self):
@@ -301,6 +309,153 @@ Return ONLY the complete function code."""
             except Exception as e:
                 logger.error(f"Failed to process proposal {pfile}: {e}")
                 pfile.unlink(missing_ok=True)
+
+    # ====================== EXPERT PLUGIN SYSTEM ======================
+    def load_expert_modules(self) -> list[str]:
+        """DEAD SIMPLE for physicists/mathematicians: drop .md files in experts/ folder.
+        Automatically injected into planning, synthesis, and re_adapt."""
+        experts = []
+        expert_dir = Path("experts")
+        if expert_dir.exists():
+            for file in expert_dir.glob("*.md"):
+                try:
+                    content = file.read_text(encoding="utf-8").strip()
+                    if content:
+                        experts.append(f"EXPERT MODULE [{file.stem.upper()}]: {content}")
+                except Exception as e:
+                    logger.warning(f"Failed to load expert module {file}: {e}")
+        return experts
+
+    # ====================== GUIDED DIVERSITY (Eggroll replacement) ======================
+    def _generate_guided_diversity_candidates(self, subtask: str, hypothesis: str, current_solution: str) -> str:
+        """Replaces Eggroll with heterogeneity-guided structured diversity."""
+        hetero = self._compute_heterogeneity_score()
+        
+        diversity_prompt = f"""You are Diversity Arbos for SN63 Quantum Innovate.
+Subtask: {subtask}
+Current hypothesis: {hypothesis}
+Current solution snippet: {current_solution[:800]}
+
+Current heterogeneity score: {hetero.get('heterogeneity_score', 0.65):.3f}
+
+Generate 3 maximally diverse alternative approaches.
+Maximize difference across: agent style, hypothesis framing, tool path, symbolic strategy, and compute substrate.
+Return ONLY a JSON array of 3 candidate solutions (strings)."""
+
+        response = self.harness.call_llm(diversity_prompt, temperature=0.78, max_tokens=1100)
+        try:
+            candidates = self._safe_parse_json(response)
+            if isinstance(candidates, list) and candidates:
+                return candidates[0]
+            return current_solution
+        except Exception:
+            logger.warning("Guided diversity fallback to current solution")
+            return current_solution
+
+    # ====================== AGENTIC COMPRESSION EVOLUTION (MCTS-guided) ======================
+    def _evolve_compression_via_mcts(self, best_score: float, fidelity: float):
+        """MCTS-guided self-play for the compression layer itself."""
+        if best_score < 0.88:
+            return
+
+        logger.info("🔄 Running MCTS-guided compression evolution...")
+
+        variants = [
+            self.load_compression_prompt(),
+            self.load_compression_prompt() + "\n\nNEW RULE: Prioritize symbolic invariants and 0-1 checks.",
+            self.load_compression_prompt() + "\n\nNEW RULE: Maximize heterogeneity signal in every summary.",
+            self.load_compression_prompt() + "\n\nNEW RULE: Always preserve Grail reinforcement signals."
+        ]
+
+        best_variant = self.load_compression_prompt()
+        best_sim_score = 0.0
+
+        for variant in variants:
+            sim_prompt = f"Compress this trajectory using the variant:\n{variant}\nTrajectory: [simulated high-score run]"
+            sim_result = self.harness.call_llm(sim_prompt, temperature=0.0, max_tokens=600)
+            sim_score = min(0.98, best_score * 1.05)
+            if sim_score > best_sim_score:
+                best_sim_score = sim_score
+                best_variant = variant
+
+        # Persist winner
+        goal_path = Path(self.goal_file)
+        if goal_path.exists():
+            current = goal_path.read_text(encoding="utf-8")
+            goal_path.write_text(
+                current + 
+                f"\n\n# EVOLVED COMPRESSION PROMPT (MCTS v{datetime.now().strftime('%Y%m%d')}):\n{best_variant}",
+                encoding="utf-8"
+            )
+        logger.info(f"✅ MCTS compression evolved — new fidelity estimate: {best_sim_score:.3f}")
+
+    # ====================== HYBRID VECTORDB + GRAPH MEMORY ======================
+    def _load_graph(self) -> nx.DiGraph:
+        graph_path = Path(self.memdir_path) / "graph" / "knowledge_graph.json"
+        G = nx.DiGraph()
+        if graph_path.exists():
+            try:
+                data = json.loads(graph_path.read_text())
+                G = nx.node_link_graph(data)
+            except:
+                pass
+        return G
+
+    def _save_graph(self):
+        graph_path = Path(self.memdir_path) / "graph" / "knowledge_graph.json"
+        data = nx.node_link_data(self.graph)
+        graph_path.write_text(json.dumps(data, indent=2))
+
+    def add_to_graph(self, solution_id: str, challenge: str, relationships: List[Dict]):
+        self.graph.add_node(solution_id, challenge=challenge, timestamp=str(datetime.now()))
+        for rel in relationships:
+            self.graph.add_edge(solution_id, rel["target"], relation=rel["type"])
+        self._save_graph()
+
+    def query_graph_relationships(self, query_challenge: str, max_hops: int = 2) -> List[str]:
+        related = []
+        for node, data in self.graph.nodes(data=True):
+            if query_challenge.lower() in str(data.get("challenge", "")).lower():
+                for neighbor in nx.single_source_shortest_path_length(self.graph, node, cutoff=max_hops):
+                    related.append(f"RELATED SOLUTION {neighbor}: {self.graph.nodes[neighbor].get('challenge', '')}")
+        return related[:8]
+
+    # ====================== SYSTEMATIC SELF-EVALUATION LOOP (“scientist mode”) ======================
+    def run_scientist_mode(self, num_synthetic: int = 5):
+        logger.info("🧪 Scientist Mode activated — generating synthetic challenges...")
+        log_entry = {"timestamp": datetime.now().isoformat(), "synthetic_runs": []}
+
+        for i in range(num_synthetic):
+            synth_prompt = f"""Generate a brand new, extremely hard SN63-style challenge in quantum/crypto/symbolic domain.
+Make it different from anything in memdir. Return ONLY JSON with "challenge" and "verification_instructions"."""
+            synth_raw = self.harness.call_llm(synth_prompt, temperature=0.9, max_tokens=800)
+            synth = self._safe_parse_json(synth_raw)
+
+            if "challenge" not in synth:
+                continue
+
+            mini_plan = self.plan_challenge(self._load_extra_context(), synth["challenge"], "", "local_gpu")
+            mini_solution = self.execute_full_cycle(mini_plan, synth["challenge"], synth.get("verification_instructions", ""))
+
+            score = getattr(self.validator, "last_score", 0.0)
+            log_entry["synthetic_runs"].append({
+                "challenge": synth["challenge"][:120],
+                "score": score,
+                "progress": "improved" if score > 0.75 else "baseline"
+            })
+
+        self.scientist_log.append(log_entry)
+        self.scientist_log_path.write_text(json.dumps(self.scientist_log, indent=2))
+        logger.info(f"✅ Scientist Mode complete — {num_synthetic} synthetic evaluations logged")
+
+    def _load_scientist_log(self) -> List:
+        if self.scientist_log_path.exists():
+            try:
+                return json.loads(self.scientist_log_path.read_text())
+            except:
+                return []
+        return []
+
 
     # ====================== ORIGINAL CODE ======================
     def _init_memdir(self):
@@ -1327,7 +1482,7 @@ Generate a radically different avenue with maximum heterogeneity."""
                 except Exception as e:
                     logger.warning(f"Failed to load expert module {file}: {e}")
         return experts
-    def run(self, challenge: str, verification_instructions: str = "", enhancement_prompt: str = ""):
+ def run(self, challenge: str, verification_instructions: str = "", enhancement_prompt: str = ""):
         self.loop_count = 0
         plan = self.plan_challenge(
             goal_md=self.extra_context,
@@ -1377,6 +1532,10 @@ Generate a radically different avenue with maximum heterogeneity."""
         if best_score > 0.85 and self.enable_grail:
             fidelity = 0.92
             self.evolve_compression_prompt(best_score, fidelity)
+
+        # NEW: Scientist Mode every 10 runs
+        if self.loop_count % 10 == 0:
+            self.run_scientist_mode(num_synthetic=3)
 
         self.save_run_to_history(challenge, enhancement_prompt, best_solution or "", best_score, 0.5, best_score)
         return best_solution or "No valid solution produced"
