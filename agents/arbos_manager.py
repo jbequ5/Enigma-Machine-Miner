@@ -259,9 +259,14 @@ Return structured recommendation."""
 
     # ====================== ORIGINAL CODE (100% PRESERVED + FIXED) ======================
     def _init_memdir(self):
+        """Robust Grail + compression persistence"""
         self.memdir_path = "memdir/grail"
         os.makedirs(self.memdir_path, exist_ok=True)
-
+        
+        os.makedirs(os.path.join(self.memdir_path, "snapshots"), exist_ok=True)
+        os.makedirs(os.path.join(self.memdir_path, "compression"), exist_ok=True)
+        
+        logger.info(f"✅ Memdir/Grail initialized at {self.memdir_path}")
     def save_to_memdir(self, key: str, data: dict):
         path = f"{self.memdir_path}/{key}.json"
         with open(path, "w") as f:
