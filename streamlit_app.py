@@ -257,49 +257,78 @@ with st.sidebar:
         st.json(stats)
 
     st.markdown("---")
+ # ====================== SCIENTIST MODE ======================
+    st.markdown("### 🧪 SCIENTIST MODE")
+    st.caption("Generate synthetic hard challenges and measure system progress")
+    
+    if st.button("🚀 Run Scientist Mode Now", type="primary"):
+        with st.spinner("Running Scientist Mode (5 synthetic challenges)..."):
+            manager.run_scientist_mode(num_synthetic=5)
+        st.success("✅ Scientist Mode completed! Check logs below.")
+    
+    # Show last scientist run
+    if Path("scientist_log.json").exists():
+        try:
+            log = json.loads(Path("scientist_log.json").read_text())
+            if log:
+                last = log[-1]
+                st.info(f"**Last Scientist Run**: {last['timestamp'][:16]}\n"
+                        f"{len(last['synthetic_runs'])} challenges • Avg Score: "
+                        f"{sum(r['score'] for r in last['synthetic_runs'])/len(last['synthetic_runs']):.3f}")
+        except:
+            pass
 
+    st.divider()
     # ====================== EXPERT INPUT MODE ======================
-    with st.expander("🧪 EXPERT INPUT MODE", expanded=False):
-        st.caption("For physicists, mathematicians, and domain experts")
-        
-        tab_tool, tab_invariant, tab_strategy = st.tabs(["New Tool", "Symbolic Invariant", "Strategy Change"])
+    st.markdown("### 🧪 EXPERT INPUT MODE")
+    st.caption("For physicists, mathematicians, and domain experts")
 
-        with tab_tool:
-            tool_name = st.text_input("Tool Name", placeholder="quantum_phase_estimator", key="expert_tool_name")
-            tool_desc = st.text_area("Description & Expected Impact", height=80, key="expert_tool_desc")
-            if st.button("Submit Tool Proposal", key="submit_tool"):
+    with st.expander("📋 When to use which option", expanded=False):
+        st.markdown("""
+        **Expert Plugin System** (.md files in `experts/` folder)  
+        → Best for **permanent knowledge injection** (e.g. quantum rules, crypto invariants).  
+        Auto-injected into every prompt.
+
+        **Streamlit Expert Input** (below)  
+        → Best for **creating new tools / invariants / strategy changes**.  
+        Gets turned into real runnable code after safety review.
+        """)
+
+    tab_tool, tab_invariant, tab_strategy = st.tabs(["New Tool", "Symbolic Invariant", "Strategy Change"])
+
+    with tab_tool:
+        tool_name = st.text_input("Tool Name")
+        tool_desc = st.text_area("Description / What it should do", height=100)
+        if st.button("Submit New Tool Proposal"):
+            if tool_name and tool_desc:
                 proposal = {
-                    "type": "tool",
                     "name": tool_name,
                     "description": tool_desc,
-                    "timestamp": datetime.now().isoformat(),
-                    "expert": "user"
+                    "code": "AUTO_GENERATE",
+                    "type": "tool"
                 }
                 manager.save_to_memdir(f"tool_proposal_{int(time.time())}", proposal)
-                st.success("Tool proposal saved — will be processed automatically")
+                st.success(f"✅ Tool proposal '{tool_name}' saved. Will be processed after next run.")
+            else:
+                st.error("Name and description required")
 
-        with tab_invariant:
-            invariant = st.text_area("SymPy / Verifier Invariant", height=120, 
-                                   placeholder="assert all(is_prime(p) for p in factorize(solution))", key="expert_invariant")
-            if st.button("Submit Invariant", key="submit_invariant"):
-                manager.save_to_memdir(f"invariant_{int(time.time())}", {
-                    "type": "invariant",
-                    "rule": invariant,
-                    "timestamp": datetime.now().isoformat()
-                })
-                st.success("Invariant saved")
+    with tab_invariant:
+        inv_name = st.text_input("Invariant Name")
+        inv_code = st.text_area("SymPy / Deterministic Code", height=150)
+        if st.button("Submit Symbolic Invariant"):
+            if inv_name and inv_code:
+                proposal = {"name": inv_name, "code": inv_code, "type": "invariant"}
+                manager.save_to_memdir(f"invariant_{int(time.time())}", proposal)
+                st.success("✅ Symbolic invariant submitted")
+    
+    with tab_strategy:
+        strat_desc = st.text_area("Strategy / Approach Suggestion", height=120)
+        if st.button("Submit Strategy Change"):
+            if strat_desc:
+                manager.save_to_memdir(f"strategy_{int(time.time())}", {"description": strat_desc})
+                st.success("✅ Strategy suggestion saved")
 
-        with tab_strategy:
-            strategy = st.text_area("Strategy / Prompt Suggestion", height=120, key="expert_strategy")
-            if st.button("Submit Strategy Change", key="submit_strategy"):
-                manager.save_to_memdir(f"strategy_{int(time.time())}", {
-                    "type": "strategy",
-                    "content": strategy,
-                    "timestamp": datetime.now().isoformat()
-                })
-                st.success("Strategy suggestion saved")
-
-    st.markdown("---")
+    st.divider()
     st.caption("© 1944–2026 ALLIED ENIGMA MINER")
 
 # ====================== TOOLHUNTER SWARM ======================
