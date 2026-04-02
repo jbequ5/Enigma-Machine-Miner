@@ -103,7 +103,6 @@ class ArbosManager:
 
         self.message_bus = []
         self.memory_layers = memory_layers
-
         self._init_memdir()
 
         logger.info("✅ ArbosManager v4.5 — Mature Message Bus + Score+Fidelity Weighted Verifiable Evolution")
@@ -141,6 +140,7 @@ class ArbosManager:
         # Onyx Hybrid
         self.onyx_url = os.getenv("ONYX_URL", "http://localhost:8000")
         self.use_onyx_rag = True
+        self.sync_grail_to_memory_layers()
 
         logger.info("✅ v4.8 Full Upgrades Loaded")
 
@@ -623,10 +623,29 @@ Return ONLY valid JSON with:
         self.grail_reinforcement[pattern_key] = reinforcement
 
         self.save_to_memdir(pattern_key, pattern)
+        self.sync_grail_to_memory_layers()
         self.post_message("grail_extraction", f"Extracted & reinforced pattern {pattern_key} (signal: {reinforcement:.3f})", validation_score, fidelity)
         logger.info(f"✅ Grail reinforced — pattern {pattern_key} | signal {reinforcement:.3f}")
         return pattern_key
-
+        
+    def sync_grail_to_memory_layers(self):
+        """Push important Grail items into MemoryLayers for vector search."""
+        try:
+            for f in Path(self.memdir_path).glob("grail_pattern_*.json"):
+                data = self.load_from_memdir(f.stem)
+                if data:
+                    memory_layers.add(
+                        text=data.get("solution_snippet", ""),
+                        metadata={
+                            "type": "grail",
+                            "score": data.get("validation_score"),
+                            "fidelity": data.get("fidelity"),
+                            "heterogeneity": data.get("heterogeneity_score")
+                        }
+                    )
+        except Exception as e:
+            logger.debug(f"Grail sync skipped: {e}")
+            
     def consolidate_grail(self, best_solution: str, best_score: float, diagnostics: Dict = None):
         if best_score > 0.92 and self.enable_grail:
             key = self.grail_extract_and_score(best_solution, best_score, 0.95, diagnostics)
