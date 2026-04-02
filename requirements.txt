@@ -1,4 +1,4 @@
-# ====================== Core UI & Data ======================
+# ====================== CORE DEPENDENCIES ======================
 streamlit>=1.40.0
 pandas>=2.2.0
 numpy==1.26.4
@@ -7,32 +7,35 @@ PyYAML==6.0.1
 requests==2.32.0
 python-dotenv==1.0.1
 
-# ====================== Memory & Vector Stores ======================
+# Memory & Embeddings
 chromadb==0.5.0
 sentence-transformers==3.0.0
 faiss-cpu==1.10.0
 
-# ====================== Core Intelligence (NEW / Critical) ======================
-sympy==1.13.1
-autoharness>=0.1.0   # ← Added: Required for v4.8 (AutoHarness always-on)
-
-# ====================== Torch CPU-only ======================
-torch==2.4.1+cpu
-torchvision==0.19.1+cpu
-torchaudio==2.4.1+cpu
+# Torch (CPU version)
+torch==2.3.1+cpu
+torchvision==0.18.1+cpu
+torchaudio==2.3.1+cpu
 --index-url https://download.pytorch.org/whl/cpu
 
-# ====================== Text Processing & Tooling ======================
+# Text & Web Tools
 beautifulsoup4==4.12.3
 huggingface-hub==0.23.4
 transformers==4.41.2
 tqdm==4.66.4
 
-# ====================== Optional LLM Providers ======================
-openai>=1.40.0
-anthropic>=0.34.0
-google-generativeai>=0.8.0
+# Graph Memory
+networkx>=3.3
 
-# ====================== Formatting (dev) ======================
-black==24.4.2
-isort==5.13.2
+# Symbolic Math
+sympy==1.13.1
+
+# ====================== SPECIAL / MANUAL INSTALLS ======================
+# AutoHarness (not on PyPI)
+# git clone https://github.com/aiming-lab/AutoHarness.git
+# cd AutoHarness
+# pip install -e .
+
+# Onyx RAG (optional remote service)
+# Run separately (usually via Docker). No Python package needed.
+# Default URL: http://localhost:8000
