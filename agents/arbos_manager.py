@@ -727,7 +727,16 @@ Return clean JSON with key "improvements" (list of dicts with "type", "descripti
         if self._is_stale_regime(self.recent_scores):
             logger.warning("🔴 Stale regime detected — flagging deep replan")
             self._flag_for_new_avenue_plan = True
-
+            
+        if self._flag_for_new_avenue_plan:
+            new_plan = self._generate_new_avenue_plan(
+                challenge=candidate.get("challenge", "unknown"),
+                recent_feedback=latest_verifier_feedback,
+                diagnostics=self.run_diagnostics(candidate.get("solution", ""), 
+                                               candidate.get("challenge", "unknown"), 
+                                               latest_verifier_feedback)
+            )
+            self._flag_for_new_avenue_plan = False
         grail_context = self.load_from_memdir("latest_grail")
         recent_trajectories = vector_db.search(getattr(self, '_current_strategy', {}).get("challenge", ""), k=20)
 
@@ -1219,7 +1228,59 @@ Output EXACT JSON with:
             return json.loads(raw[start:end])
         except:
             return {"decomposition": ["Fallback quantum decomposition"], "swarm_config": {"total_instances": 5}, "tool_map": {}, "validation_criteria": {}, "hypothesis_diversity": ["standard", "quantum_optimized"]}
+    # ====================== NEW v4.8 METHODS (Small Patches) ======================
 
+    def _generate_new_avenue_plan(self, challenge: str, recent_feedback: str, diagnostics: Dict = None) -> str:
+        """Deep Replan - generates a completely new approach when stuck."""
+        prompt = f"""You are Deep Replan Arbos for SN63.
+Current challenge: {challenge}
+Recent feedback: {recent_feedback}
+Diagnostics: {json.dumps(diagnostics or {}, indent=2)[:800]}
+
+We are in a stale/low-progress regime. Generate a radically different avenue.
+Focus on maximum heterogeneity and symbolic-first breakthroughs.
+
+Return ONLY JSON:
+{{
+  "new_avenue_name": "short descriptive name",
+  "core_hypothesis": "...",
+  "key_changes": ["list of 3-5 major shifts from previous approach"],
+  "new_decomposition": ["subtask 1", "subtask 2", ...],
+  "recommended_tools": ["tool1", "tool2"],
+  "symbolic_invariants_to_enforce": ["invariant 1", ...],
+  "expected_impact": "why this should break the plateau"
+}}"""
+
+        response = self.harness.call_llm(prompt, temperature=0.7, max_tokens=1200)
+        try:
+            plan = self._safe_parse_json(response)
+            self._pending_new_avenue_plan = json.dumps(plan, indent=2)
+            self.save_to_memdir(f"new_avenue_{int(time.time())}", plan)
+            logger.info(f"✅ New Avenue Plan generated: {plan.get('new_avenue_name', 'Unnamed')}")
+            return json.dumps(plan, indent=2)
+        except:
+            return "Failed to generate new avenue plan."
+
+    def sync_grail_to_memory_layers(self):
+        """Push important Grail items into MemoryLayers for vector search."""
+        try:
+            for f in Path(self.memdir_path).glob("*.json"):
+                if "grail_pattern" in f.name or "compression" in f.name:
+                    data = self.load_from_memdir(f.stem)
+                    if data:
+                        text = data.get("solution_snippet", "") or json.dumps(data)
+                        memory_layers.add(
+                            text=text[:1500],
+                            metadata={
+                                "type": "grail",
+                                "score": data.get("validation_score", 0.0),
+                                "fidelity": data.get("fidelity", 0.0),
+                                "heterogeneity": data.get("heterogeneity_score", 0.0),
+                                "source": "grail_file"
+                            }
+                        )
+        except Exception as e:
+            logger.debug(f"Grail sync skipped: {e}")
     def run(self, challenge: str, verification_instructions: str = "", enhancement_prompt: str = ""):
         self.loop_count = 0
         plan = self.plan_challenge(
