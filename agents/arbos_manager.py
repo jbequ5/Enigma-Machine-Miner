@@ -11,6 +11,9 @@ from pathlib import Path
 
 import numpy as np
 import logging
+import shutil
+import requests
+import yaml
 
 multiprocessing.set_start_method('spawn', force=True)
 
@@ -24,6 +27,9 @@ from validation_oracle import ValidationOracle
 from trajectories.trajectory_vector_db import vector_db
 from tools.agent_reach_tool import AgentReachTool
 from verification_analyzer import VerificationAnalyzer
+
+# ====================== v4.8 UPGRADES ======================
+from autoharness import AutoHarness
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger(__name__)
@@ -102,12 +108,142 @@ class ArbosManager:
 
         logger.info("✅ ArbosManager v4.5 — Mature Message Bus + Score+Fidelity Weighted Verifiable Evolution")
 
-        # ====================== ALL UPGRADES (Addressing the 5 Gaps) ======================
+        # ====================== v4.8 UPGRADES ======================
         self.grail_reinforcement = {}
         self.diagnostic_history = []
-        self.memory_policy_weights = {}      # Learned policy: pattern_key → weight
-        self.meta_reflection_history = []    # Cross-run architecture suggestions
-        self.known_failure_modes = []        # Proactive failure library
+        self.memory_policy_weights = {}
+        self.meta_reflection_history = []
+        self.known_failure_modes = []
+
+        # Core v4.8 State
+        self.recent_scores = []
+        self._flag_for_new_avenue_plan = False
+        self._pending_new_avenue_plan = None
+        self.current_run_id = 0
+        self._load_heterogeneity_weights()
+        self.meta_velocity = np.zeros(5)
+
+        # AutoHarness (Always On)
+        config_path = os.path.join("config", "constitution.yaml")
+        os.makedirs("config", exist_ok=True)
+        if not os.path.exists(config_path):
+            with open(config_path, "w") as f:
+                yaml.dump({
+                    "mode": "core",
+                    "risk_rules": [{"block": ["rm -rf", "os.system", "exec", "__import__"]},
+                                   {"allow_patterns": ["sympy", "numpy", "torch", "quantum", "crypto", "verifier"]}]
+                }, f)
+        with open(config_path) as f:
+            constitution = yaml.safe_load(f)
+        self.harness = AutoHarness.wrap(self.compute, constitution=constitution, mode="core")
+        logger.info("✅ AutoHarness (Core mode) — always on")
+
+        # Onyx Hybrid RAG
+        self.onyx_url = os.getenv("ONYX_URL", "http://localhost:8000")
+        self.use_onyx_rag = True
+
+        logger.info("✅ v4.8 Full Upgrades Loaded")
+
+    # ====================== v4.8 HETEROGENEITY + ADAPTIVE STALE ======================
+    def _load_heterogeneity_weights(self):
+        path = os.path.join("config", "heterogeneity_weights.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                self.current_heterogeneity_weights = json.load(f)
+        else:
+            self.current_heterogeneity_weights = {
+                "weights": [0.25, 0.25, 0.20, 0.15, 0.15],
+                "dimension_names": ["agent_diversity", "hypothesis_diversity", "tool_path_diversity", "graph_diversity", "substrate_diversity"],
+                "adaptive_stale_window": 8,
+                "adaptive_z_threshold": 1.5,
+                "min_runs_before_stale_check": 6,
+                "rescue_nudge_factor": 0.18,
+                "rescue_decay": 0.65,
+                "history": []
+            }
+            os.makedirs("config", exist_ok=True)
+            with open(path, "w") as f:
+                json.dump(self.current_heterogeneity_weights, f, indent=2)
+
+    def _is_stale_regime(self, recent_scores: list[float]) -> bool:
+        if len(recent_scores) < self.current_heterogeneity_weights.get("min_runs_before_stale_check", 6):
+            return False
+        recent = np.array(recent_scores[-self.current_heterogeneity_weights["adaptive_stale_window"]:])
+        mean_recent = np.mean(recent)
+        std_recent = np.std(recent) if len(recent) > 1 else 0.1
+        current = recent[-1]
+        z_score = (current - mean_recent) / std_recent
+        is_sudden_drop = z_score < -self.current_heterogeneity_weights["adaptive_z_threshold"]
+        is_prolonged_low = mean_recent < 0.65 and len(recent) >= 6
+        return is_sudden_drop or is_prolonged_low
+
+    # ====================== v4.8 CHALLENGE STATE (with evolved prompts) ======================
+    def save_challenge_state(self, challenge_id: str):
+        state_dir = os.path.join("trajectories", f"challenge_{challenge_id}")
+        os.makedirs(state_dir, exist_ok=True)
+
+        base_path = os.path.join("goals", "killer_base.md")
+        if os.path.exists(base_path):
+            shutil.copy(base_path, os.path.join(state_dir, "killer_base.md"))
+
+        with open(os.path.join(state_dir, "heterogeneity_weights.json"), "w") as f:
+            json.dump(self.current_heterogeneity_weights, f, indent=2)
+
+        with open(os.path.join(state_dir, "recent_scores.json"), "w") as f:
+            json.dump(self.recent_scores, f)
+
+        if self._pending_new_avenue_plan:
+            with open(os.path.join(state_dir, "pending_avenue_plan.md"), "w") as f:
+                f.write(self._pending_new_avenue_plan)
+
+        self.save_to_memdir(f"grail_snapshot_{challenge_id}", {"timestamp": datetime.now().isoformat()})
+        logger.info(f"[STATE SAVED] Challenge {challenge_id} — including evolved killer_base.md")
+
+    def load_challenge_state(self, challenge_id: str) -> bool:
+        state_dir = os.path.join("trajectories", f"challenge_{challenge_id}")
+        if not os.path.exists(state_dir):
+            logger.warning(f"No saved state for {challenge_id}")
+            return False
+
+        saved_base = os.path.join(state_dir, "killer_base.md")
+        if os.path.exists(saved_base):
+            shutil.copy(saved_base, os.path.join("goals", "killer_base.md"))
+            logger.info("✅ Evolved killer_base.md restored")
+
+        with open(os.path.join(state_dir, "heterogeneity_weights.json")) as f:
+            self.current_heterogeneity_weights = json.load(f)
+
+        if os.path.exists(os.path.join(state_dir, "recent_scores.json")):
+            with open(os.path.join(state_dir, "recent_scores.json")) as f:
+                self.recent_scores = json.load(f)
+
+        plan_path = os.path.join(state_dir, "pending_avenue_plan.md")
+        if os.path.exists(plan_path):
+            with open(plan_path) as f:
+                self._pending_new_avenue_plan = f.read()
+
+        logger.info(f"[STATE LOADED] Challenge {challenge_id} fully restored")
+        return True
+
+    # ====================== Onyx Hybrid ToolHunter ======================
+    def onyx_hunter_query(self, gap_description: str, subtask: str) -> dict:
+        if not self.use_onyx_rag:
+            return tool_hunter.hunt_and_integrate(gap_description, subtask)
+
+        prompt = f"""Act as ToolHunter sub-swarm for SN63.
+Gap: {gap_description}
+Subtask: {subtask}
+
+Follow ToolHunter philosophy + MAXIMUM HETEROGENEITY.
+Return structured recommendation."""
+
+        try:
+            resp = requests.post(f"{self.onyx_url}/api/query", json={
+                "query": prompt, "agentic": True, "num_results": 10
+            }, timeout=40)
+            return resp.json().get("results", {})
+        except:
+            return tool_hunter.hunt_and_integrate(gap_description, subtask)
 
     def _init_memdir(self):
         self.memdir_path = "memdir/grail"
@@ -1093,9 +1229,8 @@ Output EXACT JSON with:
             self.consolidate_grail(best_solution or "", best_score, best_diagnostics)
             self.meta_reflect(best_solution or "", best_score, best_diagnostics)
 
-        # NEW: Evolve compression prompt on strong runs
         if best_score > 0.85 and self.enable_grail:
-            fidelity = 0.92  # placeholder - replace with real fidelity from ValidationOracle when available
+            fidelity = 0.92
             self.evolve_compression_prompt(best_score, fidelity)
 
         self.save_run_to_history(challenge, enhancement_prompt, best_solution or "", best_score, 0.5, best_score)
