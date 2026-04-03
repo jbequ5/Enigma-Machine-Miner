@@ -1,19 +1,29 @@
 # Enigma Machine Miner - Killer Base Strategy & Toggles
 # Bittensor SN63 - Arbos-centric Solver (Challenge-Agnostic Base Prompts v4.9 - Fully Evolved)
 
+# Enigma-Machine-Miner — Canonical Entry Point (Thin Shim v5.0)
+
+**Importance**: Single loader for ALL intelligence layers. Edit via Streamlit Brain Dashboard only.
+
+[[brain/index.md|Full Brain Suite]]
+
+## Core References (auto-loaded)
+- Shared Principles: [[brain/principles/shared_core.md]]
+- Compression: [[brain/principles/compression.md]]
+- Wiki Strategy: [[brain/principles/wiki_strategy.md]]
+- Bio Strategy: [[brain/principles/bio_strategy.md]]
+- English Evolution: [[brain/principles/english_evolution.md]]
+
+## Active Toggles
+(See [[brain/toggles.md]] — brain_depth: "lean" default)
+
+## Metrics Snapshot
+(See [[brain/metrics.md]])
+
+# Legacy strategy/toggles/Grail appends (auto-concatenated on load for backward compatibility)
+[Original GOAL + Core Strategy + Toggles + COMPRESSION_PROMPT + English modules from v4.9 are now pulled from brain/ on startup]
 ## GOAL
 Solve ANY sponsor challenge with maximum ValidationOracle score + novelty + symbolic fidelity while staying strictly under compute limits, maximizing reproducible IP, and forcing verifier-code-first determinism at every step.
-
-## Core Strategy (Challenge-Agnostic Base Prompt)
-- Treat every problem as pure symbolic/text — no premature domain assumptions.
-- Verifier-code-first + symbolic invariants on **every** subtask **before** any LLM generation.
-- ToolHunter sub-swarm (ModelHunter / ToolHunter / PaperHunter / ReadyAI-DataHunter) must run in parallel where possible; serial handoffs **must** route through ValidationOracle.
-- Reward **only** trajectories that measurably improve ValidationOracle score via exact 0-1 deterministic checks.
-- Every Adaptation Arbos step must first search trajectory_vector_db + memdir/grail for proven high-score symbolic patterns.
-- Maximize symbolic coverage per compute unit while preserving reproducibility.
-- On low-score or stale runs, explicitly trigger re_adapt with compressed deltas and consider deep replan via new avenue plan.
-- Run reflection on every prompt evolution step. Ensure evolution stays strictly on task
-
 
 
 ### MARL-style Credit Rules
