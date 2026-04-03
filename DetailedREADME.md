@@ -1,6 +1,6 @@
-# THE ENIGMA MACHINE – Arbos-Led Intelligent Solver (v5)
+# THE ENIGMA MACHINE – Arbos-Led Intelligent Solver
 
-**English-first • Verifier-first • Self-evolving • Maximum Heterogeneity**
+**English-first • Verifier-first • Biologically-evolving • Maximum Heterogeneity**
 
 The Enigma Machine is a closed-loop, biologically-inspired agentic system designed to solve extremely hard, well-defined sponsor challenges — quantum, cryptographic, mathematical, symbolic, or otherwise — while permanently upgrading its own intelligence.
 
@@ -33,7 +33,7 @@ The stable axioms that govern all reasoning live in `goals/brain/principles/` an
 - **`shared_core.md`** establishes verifier-first discipline and MARL credit rules. It ensures symbolic invariants and determinism thresholds (≥0.85) are enforced on every subtask, preventing drift and rewarding only reproducible, high-fidelity paths.
 - **`heterogeneity.md`** is the decisive scaling principle. It forces systematic diversity across five axes (agent styles, hypotheses, tool paths, interaction graphs, compute substrates) at every decision point, preventing mode-collapse on novel problems.
 - **`wiki_strategy.md`** defines hierarchical knowledge management. Raw material is ingested into `knowledge/raw/`, then distilled, pruned, and promoted into `wiki/concepts/`, `wiki/invariants/`, and `wiki/subtasks/`. It outputs structured JSON deltas for dynamic folder creation and upward promotion.
-- **`bio_strategy.md`** brings mycelial heuristics to life: Sub-Arbos workers act as hyphal tips that perform local sensing, stigmergy (direct `.md` writes), redundancy/loops, symbiosis detection across subtasks, and aggressive pruning of low-signal paths. Optional quantum-bio coherence is toggleable in guided diversity phases.
+- **`bio_strategy.md`** brings mycelial heuristics to life and introduces **Symbiosis Arbos**. Sub-Arbos workers act as hyphal tips that perform local sensing, stigmergy (direct `.md` writes), redundancy/loops, and aggressive pruning of low-signal paths. **Symbiosis Arbos** specifically scans for and synthesizes cross-subtask symbiotic opportunities, writing them as BIO_MYCELIAL_DELTA sections in the wiki so later phases can exploit emergent synergies. Optional quantum-bio coherence (tunneling/entanglement heuristics) is toggleable in guided diversity phases.
 - **`english_evolution.md`** supplies challenge-specialized modules that auto-specialize per run to maximize the effectiveness of the tools they're feeding in a challenge specific way.
 
 These principles are not passive documentation — they are actively loaded with `lean`/`rich` depth toggling and aggressive pruning. Once introduced, they are integrated throughout the system: every Planning, Orchestration, Sub-Arbos, and Adaption step explicitly references the relevant principle files, ensuring the entire swarm operates under the same high-signal axioms.
@@ -42,9 +42,9 @@ These principles are not passive documentation — they are actively loaded with
 
 The system does not just use prompts — it evolves them in a closed outer loop.
 
-The base strategy prompt (`killer_base.md`) evolves with every inner-loop run. High-signal Grail patterns and aha insights are automatically promoted back into it, making the canonical entry point smarter and more battle-tested over time.
+The core strategy prompt begins challenge agnostic and evolves with every inner-loop run. High-signal patterns and mid swarm "aha" insights are automatically promoted back into it, making the canonical entry point smarter and more battle-tested over time.
 
-The principled prompts (`brain/principles/*.md`) evolve from high-signal system input. On strong runs or aha moments, `evolve_principles_post_run` generates targeted, concise deltas that are appended directly to the principle files. The Compression Arbos (`brain/principles/compression.md` v1.3) distills raw trajectories using the reinforcement formula `reinforcement_score = validation_score × fidelity^1.5 × symbolic_coverage × heterogeneity_bonus`, ensuring only the most impactful patterns survive and compound.
+The principled prompts (`brain/principles/*.md`) evolve from high-signal system input. On strong runs or aha moments, `evolve_principles_post_run` generates targeted, concise deltas that are appended directly to the principle files **(including Symbiosis Arbos patterns)**. The Compression Arbos distills raw trajectories using the reinforcement formula `reinforcement_score = validation_score × fidelity^1.5 × symbolic_coverage × heterogeneity_bonus`, ensuring only the most impactful patterns survive and compound.
 
 This dual evolution — base prompt growing through inner-loop success, principled prompts refining through high-signal feedback — turns the entire prompt ecosystem into a self-improving substrate.
 
@@ -53,12 +53,11 @@ This dual evolution — base prompt growing through inner-loop success, principl
 **Inner Loop** (per-challenge execution):  
 Planning Arbos → Orchestrator Arbos → Dynamic Swarm (Sub-Arbos workers + parallel ToolHunter sub-swarms) → Synthesis Arbos → ValidationOracle → Adaptation Arbos (`re_adapt`) if score is low.
 
-Sub-Arbos workers act as hyphal tips: they run verifier-first symbolic checks, guided diversity, tool calls, and local reflection loops. High-signal findings trigger immediate stigmergy writes to the wiki hierarchy.
+Sub-Arbos workers act as hyphal tips: they run verifier-first symbolic checks, guided diversity, tool calls, and local reflection loops. Aha moments (local score jumps or heterogeneity spikes) are detected at the Sub-Arbos level and gated by toggles.High-signal findings trigger immediate stigmergy writes to the wiki hierarchy.
 
-**Outer Loop** (cross-run brain evolution):  
-- Aha moments (local score jumps or heterogeneity spikes) are detected at the Sub-Arbos level and gated by toggles.  
+**Outer Loop** (cross-run brain evolution):    
 - ValidationOracle + WikiHealthOracle boost scores from high-signal wiki contributions.  
-- **Grail RL** reinforces high-value trajectories via `memory_reinforcement_signal` (using the same reinforcement formula) and stores them in the persistent memdir-backed Grail for future recall.  
+- **Grail RL** reinforces high-value trajectories via `memory_reinforcement_signal` (using the same reinforcement formula) and stores them in the persistent memdir-backed Grail DB for future recall.  
 - **Deep Replan** triggers automatically on stale-regime detection (z-score drop or prolonged low scores), generating an entirely new strategic avenue while preserving all prior Grail patterns and forcing a fresh Planning Arbos run.
 
 The result is a true self-compounding system: intelligence is accumulated and refined across runs.
@@ -91,7 +90,7 @@ All other intelligence emerges from the Arbos loops and the evolving brain.
 4. Orchestrator Arbos → blueprint with task-specific validation criteria.  
 5. Launch Dynamic Swarm + parallel ToolHunter sub-swarms (Amdahl-aware).  
 6. Sub-Arbos workers execute with continuous self-checks and stigmergy wiki writes.  
-7. Synthesis → ValidationOracle.  
+7. Synthesis → Sybiosis (Check for simbiotic patterns) → ValidationOracle
 8. Low score → re_adapt (using compressed deltas + bio heuristics).  
 9. High score → Grail RL reinforcement + outer-loop brain evolution (including Deep Replan if stale).
 
@@ -110,8 +109,3 @@ Create the `experts/` folder for domain knowledge. Use the Brain Dashboard to in
 Questions or sponsor challenges? Ping @dTAO_Dad on X.
 
 Built with first-principles agentic design for Bittensor Subnet 63, Enigma.
-```
-
-This version now follows your vision exactly — broad and philosophical in Section 1, progressively more detailed and technical as we descend the layers, with every element you flagged explicitly addressed.
-
-Would you like a Mermaid diagram for the top-down layers, any further expansion in a specific section, or is this ready to ship?
