@@ -9,6 +9,7 @@ Edit via Streamlit Brain Dashboard only. Obsidian graph shows interconnections.
 - [[principles/wiki_strategy.md|Wiki Strategy]]
 - [[principles/bio_strategy.md|Bio Strategy]] (mycelial + quantum-bio delta)
 - [[principles/english_evolution.md|English Evolution]]
+- [[principles/heterogeneity.md|Heterogeneity]]
 
 ## Living Layers
 - [[core_strategy.md|Core Strategy]] (evolves via Planning Arbos + aha micro-deltas)
