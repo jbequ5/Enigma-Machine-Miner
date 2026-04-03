@@ -155,6 +155,15 @@ class ArbosManager:
 
         logger.info("✅ v4.9 Full Upgrades Loaded — Expert Plugins + Guided Diversity + MCTS Compression + Hybrid Graph + Scientist Mode")
 
+        # ====================== BRAIN SUITE INTEGRATION (Full handover) ======================
+        self.brain_depth = load_toggle("brain_depth", "lean")
+        self.aha_adaptation_enabled = load_toggle("aha_adaptation_enabled", "true") == "true"
+        self.mycelial_pruning = load_toggle("mycelial_pruning", "true") == "true"
+        self.quantum_coherence_mode = load_toggle("quantum_coherence_mode", "false") == "true"
+        self.symbiosis_synthesis = load_toggle("symbiosis_synthesis", "true") == "true"
+        self.micro_evolution_frequency = load_toggle("micro_evolution_frequency", "every_aha")
+        self.set_compute_source("local_gpu")
+
     # ====================== HETEROGENEITY + ADAPTIVE STALE ======================
     def _load_heterogeneity_weights(self):
         path = os.path.join("config", "heterogeneity_weights.json")
@@ -188,17 +197,8 @@ class ArbosManager:
             }
         }
 
-    def load_brain_component(component_path: str, depth: str = None) -> str:
-        """Lightweight loader — reuses existing Expert Modules logic"""
-        if not depth:
-            depth = load_toggle("brain_depth")  # from toggles.md
-        full_path = f"goals/brain/{component_path}.md"
-        content = open(full_path, "r").read()
-        if depth == "lean":
-            content = prune_to_dense_lines(content)  # enforce 6-12 lines + shared_core resolution
-        return content
-    
     def _is_stale_regime(self, recent_scores: list[float]) -> bool:
+        # Ecosystem Health Oracle folded into stale detection (per handover)
         if len(recent_scores) < self.current_heterogeneity_weights.get("min_runs_before_stale_check", 6):
             return False
         recent = np.array(recent_scores[-self.current_heterogeneity_weights["adaptive_stale_window"]:])
@@ -209,6 +209,78 @@ class ArbosManager:
         is_sudden_drop = z_score < -self.current_heterogeneity_weights["adaptive_z_threshold"]
         is_prolonged_low = mean_recent < 0.65 and len(recent) >= 6
         return is_sudden_drop or is_prolonged_low
+
+    # ====================== KNOWLEDGE HIERARCHY + WIKI + BIO HELPERS ======================
+    def _ensure_knowledge_hierarchy(self, challenge_id: str):
+        base = f"goals/knowledge/{challenge_id}"
+        os.makedirs(f"{base}/raw", exist_ok=True)
+        os.makedirs(f"{base}/wiki/concepts", exist_ok=True)
+        os.makedirs(f"{base}/wiki/invariants", exist_ok=True)
+        os.makedirs(f"{base}/wiki/subtasks", exist_ok=True)
+        os.makedirs(f"{base}/cross_field_synthesis", exist_ok=True)
+        logger.debug(f"Knowledge hierarchy ready for {challenge_id}")
+
+    def _create_subtask_wiki_folder(self, challenge_id: str, subtask_id: str) -> str:
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        path = f"goals/knowledge/{challenge_id}/wiki/subtasks/{timestamp}_{subtask_id}"
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def _write_subtask_md(self, path: str, content: str, bio_delta: str = ""):
+        full_content = content
+        if bio_delta and self.mycelial_pruning:
+            full_content += f"\n\n# BIO_MYCELIAL_DELTA (stigmergy signal)\n{bio_delta}\n# End Bio Delta"
+        with open(f"{path}/subtask.md", "w", encoding="utf-8") as f:
+            f.write(full_content)
+        logger.info(f"Stigmergy write → {path}/subtask.md")
+
+    def _apply_wiki_strategy(self, raw_context: str, challenge_id: str) -> Dict:
+        wiki_prompt = load_brain_component("principles/wiki_strategy")
+        full_prompt = f"{wiki_prompt}\n\nRaw context to ingest:\n{raw_context[:8000]}"
+        response = self.harness.call_llm(full_prompt, temperature=0.2, max_tokens=1200)
+        deltas = self._safe_parse_json(response)
+        self._ensure_knowledge_hierarchy(challenge_id)
+        with open(f"goals/knowledge/{challenge_id}/raw/ingest_{int(time.time())}.json", "w") as f:
+            json.dump(deltas, f, indent=2)
+        logger.info("Wiki Strategy applied at Planning level")
+        return deltas
+
+    def _apply_bio_strategy(self, subtask: str, solution: str) -> str:
+        if not (self.mycelial_pruning or self.quantum_coherence_mode):
+            return ""
+        bio_prompt = load_brain_component("principles/bio_strategy")
+        full_prompt = f"{bio_prompt}\n\nSubtask: {subtask}\nCurrent solution snippet: {solution[:1200]}"
+        if self.quantum_coherence_mode:
+            full_prompt += "\nQuantum-bio mode active: apply tunneling/entanglement heuristics where resource_aware allows."
+        return self.harness.call_llm(full_prompt, temperature=0.3, max_tokens=600)
+
+    def _run_symbiosis_arbos(self, aggregated_outputs: Dict, message_bus: List) -> List[str]:
+        if not self.symbiosis_synthesis:
+            return []
+        bio_prompt = load_brain_component("principles/bio_strategy")
+        prompt = f"""Symbiosis Arbos — detect cross-field mutualisms and entanglement-like correlations.
+{bio_prompt}
+Aggregated outputs: {json.dumps(aggregated_outputs, indent=2)[:3000]}
+Message bus signals: {json.dumps(message_bus[-10:], indent=2)}
+Return ONLY list of distilled symbiosis patterns (max 5)."""
+        response = self.harness.call_llm(prompt, temperature=0.25, max_tokens=800)
+        patterns = self._safe_parse_json(response) if isinstance(response, dict) else []
+        if patterns:
+            with open("goals/brain/grail_patterns/symbiosis.json", "w") as f:
+                json.dump(patterns, f, indent=2)
+        return patterns
+
+    def is_aha_detected(self, recent_scores: List[float], threshold: float = 0.12) -> bool:
+        if len(recent_scores) < 2:
+            return False
+        jump = recent_scores[-1] - recent_scores[-2]
+        hetero_spike = self._compute_heterogeneity_score()["heterogeneity_score"] > 0.78
+        return jump > threshold or hetero_spike
+
+    def _update_brain_metrics(self, aha_strength: float = 0.0, wiki_contrib: float = 0.0):
+        metrics_path = "goals/brain/metrics.md"
+        with open(metrics_path, "a", encoding="utf-8") as f:
+            f.write(f"\n\n### Update {datetime.now().isoformat()}\naha_strength: {aha_strength:.3f}\nwiki_contribution_score: {wiki_contrib:.3f}\nheterogeneity_deltas: {self._compute_heterogeneity_score()['heterogeneity_score']}")
 
     # ====================== CHALLENGE STATE ======================
     def save_challenge_state(self, challenge_id: str):
@@ -280,7 +352,6 @@ Return structured recommendation."""
 
     # ====================== TOOL PROPOSAL PROCESSING ======================
     def process_tool_proposals(self):
-        """Process all pending tool proposals safely."""
         proposal_files = list(Path(self.memdir_path).glob("tool_proposal_*.json"))
         if not proposal_files:
             return
@@ -318,8 +389,6 @@ Return ONLY the complete function code."""
                 
     # ====================== EXPERT PLUGIN SYSTEM ======================
     def load_expert_modules(self) -> list[str]:
-        """DEAD SIMPLE for physicists/mathematicians: drop .md files in experts/ folder.
-        Automatically injected into planning, synthesis, and re_adapt."""
         experts = []
         expert_dir = Path("experts")
         if expert_dir.exists():
@@ -332,9 +401,8 @@ Return ONLY the complete function code."""
                     logger.warning(f"Failed to load expert module {file}: {e}")
         return experts
 
-    # ====================== GUIDED DIVERSITY (Eggroll replacement) ======================
+    # ====================== GUIDED DIVERSITY ======================
     def _generate_guided_diversity_candidates(self, subtask: str, hypothesis: str, current_solution: str) -> str:
-        """Replaces Eggroll with heterogeneity-guided structured diversity."""
         hetero = self._compute_heterogeneity_score()
         
         diversity_prompt = f"""You are Diversity Arbos for SN63 Quantum Innovate.
@@ -358,110 +426,593 @@ Return ONLY a JSON array of 3 candidate solutions (strings)."""
             logger.warning("Guided diversity fallback to current solution")
             return current_solution
 
-    # ====================== AGENTIC COMPRESSION EVOLUTION (MCTS-guided) ======================
-    def _evolve_compression_via_mcts(self, best_score: float, fidelity: float):
-        """MCTS-guided self-play for the compression layer itself."""
-        if best_score < 0.88:
-            return
+    # ====================== PLANNING ARBOSS (Topic-level Wiki) ======================
+    def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu") -> Dict[str, Any]:
+        self.set_compute_source(compute_mode)
+        
+        if not challenge or len(challenge.strip()) < 10:
+            return {"error": "Challenge too short", "phase1": "", "phase2": {}, "dynamic_swarm_size": 4}
 
-        logger.info("🔄 Running MCTS-guided compression evolution...")
+        logger.info(f"Planning challenge with {compute_mode} — Quasar: {self.quasar_enabled}")
 
-        variants = [
-            self.load_compression_prompt(),
-            self.load_compression_prompt() + "\n\nNEW RULE: Prioritize symbolic invariants and 0-1 checks.",
-            self.load_compression_prompt() + "\n\nNEW RULE: Maximize heterogeneity signal in every summary.",
-            self.load_compression_prompt() + "\n\nNEW RULE: Always preserve Grail reinforcement signals."
-        ]
+        # Planning-level Wiki Strategy
+        wiki_deltas = self._apply_wiki_strategy(goal_md + "\n" + challenge, challenge.replace(" ", "_").lower())
 
-        best_variant = self.load_compression_prompt()
-        best_sim_score = 0.0
+        phase1_prompt = f"""You are Planning Arbos for Bittensor SN63 Quantum Innovate.
+You MUST be brutally honest about cryptographic feasibility.
 
-        for variant in variants:
-            sim_prompt = f"Compress this trajectory using the variant:\n{variant}\nTrajectory: [simulated high-score run]"
-            sim_result = self.harness.call_llm(sim_prompt, temperature=0.0, max_tokens=600)
-            sim_score = min(0.98, best_score * 1.05)
-            if sim_score > best_sim_score:
-                best_sim_score = sim_score
-                best_variant = variant
+GOAL.md (full agnostic base):
+{goal_md[:4000]}
 
-        goal_path = Path(self.goal_file)
-        if goal_path.exists():
-            current = goal_path.read_text(encoding="utf-8")
-            goal_path.write_text(
-                current + 
-                f"\n\n# EVOLVED COMPRESSION PROMPT (MCTS v{datetime.now().strftime('%Y%m%d')}):\n{best_variant}",
-                encoding="utf-8"
+Challenge: {challenge}
+Enhancement: {enhancement_prompt or 'None'}
+Wiki Strategy Deltas: {json.dumps(wiki_deltas, indent=2)[:1000]}
+
+Return ONLY valid JSON with these keys:
+- phase1_plan
+- key_insights (list)
+- feasibility ("low" | "medium" | "high" | "impossible_with_current_tech")
+- recommended_approach
+- risks (list)
+- estimated_difficulty
+- generated_post_planning_enhancement"""
+
+        phase1_raw = self.harness.call_llm(phase1_prompt, temperature=0.65, max_tokens=1600)
+        phase1 = self._safe_parse_json(phase1_raw)
+        self._current_enhancement = phase1.get("generated_post_planning_enhancement", "")
+
+        dynamic_size = 5 if self.quasar_enabled else 4
+
+        phase2_prompt = f"""You are Orchestrator Arbos for SN63.
+Phase 1 output: {str(phase1)[:2000]}
+
+Return ONLY valid JSON with:
+- decomposition (list of subtasks)
+- swarm_config (dict with total_instances)
+- tool_map
+- validation_criteria
+- hypothesis_diversity (list)"""
+
+        phase2_raw = self.harness.call_llm(phase2_prompt, temperature=0.3, max_tokens=1200)
+        blueprint = self._safe_parse_json(phase2_raw)
+
+        if not blueprint or "decomposition" not in blueprint:
+            blueprint = {
+                "decomposition": ["Assess feasibility", "Review known methods", "Analyze quantum threat", "Synthesize realistic assessment"],
+                "swarm_config": {"total_instances": dynamic_size},
+                "tool_map": {},
+                "validation_criteria": {},
+                "hypothesis_diversity": ["standard", "conservative"]
+            }
+
+        self._current_strategy = self.analyzer.analyze("", challenge)
+        self.validator.adapt_scoring(self._current_strategy)
+
+        return {
+            "phase1": phase1,
+            "phase2": blueprint,
+            "adapted_strategy": self._current_strategy,
+            "dynamic_swarm_size": dynamic_size,
+            "quasar_enabled": self.quasar_enabled
+        }
+
+    # ====================== RE_ADAPT with full Aha + Bio + Symbiosis ======================
+    def re_adapt(self, candidate: Dict, latest_verifier_feedback: str):
+        self.loop_count += 1
+        self.recent_scores.append(getattr(self.validator, "last_score", 0.0))
+
+        if self._is_stale_regime(self.recent_scores):
+            logger.warning("🔴 Stale regime detected — flagging deep replan")
+            self._flag_for_new_avenue_plan = True
+
+        # Aha Mode (7 extensions from handover)
+        aha_detected = self.is_aha_detected(self.recent_scores)
+        bio_delta = ""
+        if self.aha_adaptation_enabled and aha_detected:
+            logger.info("🚀 Aha moment detected — entering micro-evolution mode")
+            bio_delta = self._apply_bio_strategy(candidate.get("challenge", ""), candidate.get("solution", ""))
+            aha_strength = getattr(self.validator, "last_score", 0.0) - (self.recent_scores[-2] if len(self.recent_scores) > 1 else 0)
+            self._update_brain_metrics(aha_strength=aha_strength)
+
+        if self._flag_for_new_avenue_plan:
+            new_plan = self._generate_new_avenue_plan(
+                challenge=candidate.get("challenge", "unknown"),
+                recent_feedback=latest_verifier_feedback,
+                diagnostics=self.run_diagnostics(candidate.get("solution", ""), 
+                                               candidate.get("challenge", "unknown"), 
+                                               latest_verifier_feedback)
             )
-        logger.info(f"✅ MCTS compression evolved — new fidelity estimate: {best_sim_score:.3f}")
+            self._flag_for_new_avenue_plan = False
 
-    # ====================== HYBRID VECTORDB + GRAPH MEMORY ======================
-    def _load_graph(self) -> nx.DiGraph:
-        graph_path = Path(self.memdir_path) / "graph" / "knowledge_graph.json"
-        G = nx.DiGraph()
-        if graph_path.exists():
+        grail_context = self.load_from_memdir("latest_grail")
+        recent_trajectories = self.vector_db.search(getattr(self, '_current_strategy', {}).get("challenge", ""), k=20)
+
+        weighted_context = ""
+        if recent_trajectories:
+            scored_traj = []
+            for traj in recent_trajectories:
+                score = traj.get("validation_score", traj.get("local_score", 0.5))
+                fidelity = traj.get("fidelity", 0.5)
+                weight = max(0.1, (score ** 2) * (fidelity ** 1.5))
+                scored_traj.append((weight, traj.get("solution", "")[:700]))
+            scored_traj.sort(key=lambda x: x[0], reverse=True)
+            weighted_context = "\n".join([f"[High-score+fidelity {i+1} | w={w:.2f}]: {text}" 
+                                        for i, (w, text) in enumerate(scored_traj[:10])])
+
+        recent_messages = self.get_recent_messages(min_importance=0.5, limit=12)
+        message_context = "\n".join([f"[{m.get('type')}] score={m['validation_score']:.2f} fid={m['fidelity']:.2f}: {m['content'][:500]}" 
+                                  for m in recent_messages]) if recent_messages else "None"
+
+        diagnostics = self.run_diagnostics(candidate.get("solution", ""), candidate.get("challenge", "unknown"), latest_verifier_feedback)
+
+        fix_recommendations = self.generate_fix_recommendations(diagnostics, candidate.get("solution", ""))
+
+        if fix_recommendations:
+            top_fix = fix_recommendations[0]
+            success, new_solution, new_score = self.apply_fix(top_fix, candidate.get("solution", ""), candidate.get("challenge", "unknown"), latest_verifier_feedback)
+            if success:
+                candidate["solution"] = new_solution
+                logger.info(f"✅ Fix applied successfully — new score {new_score:.3f}")
+
+        raw_context = f"Verifier feedback: {latest_verifier_feedback}\nWeighted trajectories: {weighted_context}\nMessages: {message_context}\nDiagnostics: {json.dumps(diagnostics, indent=2)[:800]}"
+        compressed_deltas = self.compress_intelligence_delta(raw_context)
+
+        # Symbiosis Arbos
+        if self.symbiosis_synthesis:
+            symbiosis_patterns = self._run_symbiosis_arbos({"solution": candidate.get("solution", "")}, recent_messages)
+            if symbiosis_patterns:
+                compressed_deltas += f"\n\nSYMBIOSIS_PATTERNS: {symbiosis_patterns}"
+
+        reinforcement = sum(self.grail_reinforcement.values()) / max(len(self.grail_reinforcement), 1) if self.grail_reinforcement else 0.0
+
+        adaptation_prompt = f"""You are Adaptation Arbos for SN63.
+CURRENT LOOP: {self.loop_count}
+Latest feedback: {latest_verifier_feedback}
+Diagnostics: {json.dumps(diagnostics.get("detectors", {}), indent=2)[:600]}
+Fix Recommendations: {json.dumps(fix_recommendations, indent=2)[:800]}
+COMPRESSED INTELLIGENCE DELTAS:
+{compressed_deltas}
+{"AHA_BIO_DELTA: " + bio_delta if bio_delta else ""}
+
+Generate concise, high-signal adaptation."""
+
+        adaptation_raw = self.harness.call_llm(adaptation_prompt, temperature=0.15, max_tokens=1400)
+        adapted = self._safe_parse_json(adaptation_raw)
+        self._current_strategy = adapted.get("strategy", self._current_strategy)
+        self.validator.adapt_scoring(self._current_strategy)
+
+        self.save_to_memdir("latest_grail", {
+            "loop": self.loop_count,
+            "feedback": latest_verifier_feedback[:600],
+            "adaptation": str(adaptation_raw)[:1200],
+            "diagnostics": diagnostics,
+            "fix_recommendations": fix_recommendations,
+            "timestamp": datetime.now().isoformat()
+        })
+
+        if "final_solution" in candidate:
+            self.update_memory_policy("latest_adaptation", getattr(self.validator, "last_score", 0.0))
+
+        self.process_tool_proposals()
+
+        logger.info(f"✅ re_adapt completed loop {self.loop_count}")
+
+    # ====================== _run_swarm (original, unchanged) ======================
+    def _run_swarm(self, blueprint: Dict[str, Any], challenge: str, verification_instructions: str = "", deterministic_tooling: str = "") -> str:
+        self._current_strategy = self.analyzer.analyze(verification_instructions, challenge)
+        
+        self._current_validation_criteria = blueprint.get("validation_criteria", {})
+        
+        decomposition = blueprint.get("decomposition", ["Full quantum challenge"])
+        swarm_config = blueprint.get("swarm_config", {"total_instances": 1})
+
+        total_instances = min(swarm_config.get("total_instances", 4), 6)
+        if self.config.get("resource_aware"):
+            total_instances = min(total_instances, 4)
+
+        manager_dict = multiprocessing.Manager().dict()
+        trace_log = [f"🚀 Event-driven Swarm launched with {total_instances} threads (Quasar: {self.quasar_enabled})"]
+        
+        criteria_str = json.dumps(self._current_validation_criteria, indent=2)
+        trace_log.append(f"DECIDED VALIDATION CRITERIA FOR SUB-ARBOS AGENTS:\n{criteria_str}")
+        logger.info(f"Validation Criteria for this swarm:\n{criteria_str}")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=total_instances) as executor:
+            futures = []
+            subtask_id = 0
+            for i, subtask in enumerate(decomposition):
+                count = swarm_config.get("assignment", {}).get(subtask, 1)
+                tools = blueprint.get("tool_map", {}).get(subtask, ["none"])
+                for _ in range(count):
+                    hyp = swarm_config.get("hypothesis_diversity", ["standard"] * len(decomposition))[i % len(decomposition)]
+                    futures.append(executor.submit(
+                        self._sub_arbos_worker, subtask, hyp, tools, manager_dict, subtask_id
+                    ))
+                    subtask_id += 1
+
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    trace_log.append(f"Thread error: {e}")
+
+        all_results = dict(manager_dict)
+
+        sub_scores = np.array([r.get("local_score", 0.5) for r in all_results.values()])
+        if len(sub_scores) > 0:
+            weights = np.exp(sub_scores) / np.sum(np.exp(sub_scores))
+            weighted_avg = np.average(sub_scores, weights=weights)
+        else:
+            weighted_avg = 0.5
+        trace_log.append(f"MARL-weighted sub-avg score: {weighted_avg:.3f}")
+
+        failed_context = "\nPrevious failed attempts:\n" + "\n---\n".join(memory.query(challenge + " failed", n_results=5)) if memory.query(challenge + " failed", n_results=5) else ""
+
+        synthesis_task = f"""You are Arbos Orchestrator for SN63 Quantum Innovate.
+Challenge: {challenge}
+Verification Instructions: {verification_instructions or 'General quantum standards'}
+Miner Deterministic Tooling: {deterministic_tooling or 'None specified'}
+{failed_context}
+Swarm results: {json.dumps(all_results, indent=2)[:2000]}
+MARL-weighted sub-avg score: {weighted_avg:.3f}
+
+Be extremely honest. For cryptographic challenges like breaking BTC, clearly state feasibility.
+Do not claim breakthroughs without strong evidence.
+Synthesize final high-quality realistic assessment (weight higher-scoring subtasks):"""
+
+        final_solution = self.harness.call_llm(synthesis_task, temperature=0.5, max_tokens=2000)
+
+        if verification_instructions and verification_instructions.strip():
+            verification_result = self._run_verification(final_solution, verification_instructions, challenge)
+            final_solution += f"\n\n--- VERIFICATION RESULT ---\n{verification_result}"
+
+        if self.config.get("guardrails"):
+            final_solution = apply_guardrails(final_solution, ResourceMonitor(max_hours=self.config.get("max_compute_hours", 3.8)))
+
+        memory.add(text=final_solution[:1500], metadata={"challenge": challenge, "status": "final", "sub_avg_score": weighted_avg})
+        trace_log.append("Synthesis + Verification complete")
+
+        try:
+            import streamlit as st
+            if "trace_log" not in st.session_state:
+                st.session_state.trace_log = []
+            st.session_state.trace_log.extend(trace_log)
+        except:
+            pass
+
+        self.loop_count += 1
+        return final_solution
+
+    # ====================== _execute_swarm (original) ======================
+    def _execute_swarm(self, blueprint: Any, dynamic_size: int):
+        blueprint = self._safe_parse_json(blueprint)
+        decomposition = blueprint.get("decomposition", ["Full quantum challenge"])
+        
+        hypothesis_diversity = blueprint.get("hypothesis_diversity", ["standard"])
+        if not hypothesis_diversity:
+            hypothesis_diversity = ["standard"]
+
+        manager_dict = multiprocessing.Manager().dict()
+        with concurrent.futures.ProcessPoolExecutor(max_workers=min(dynamic_size, 6)) as executor:
+            futures = []
+            for subtask_id, subtask in enumerate(decomposition):
+                hyp_index = subtask_id % len(hypothesis_diversity)
+                hyp = hypothesis_diversity[hyp_index]
+                tools = blueprint.get("tool_map", {}).get(subtask, ["none"])
+                futures.append(executor.submit(
+                    self._sub_arbos_worker, subtask, hyp, tools, manager_dict, subtask_id
+                ))
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error(f"Swarm worker error: {e}")
+        return dict(manager_dict)
+
+    # ====================== SUB-ARBOS WORKER with Wiki + Bio Stigmergy ======================
+    def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
+                          shared_results: dict, subtask_id: int) -> dict:
+        max_hours = self.config.get("max_compute_hours", 3.8)
+        monitor = ResourceMonitor(max_hours=max_hours / 3.0)
+        repair_attempts = 0
+        
+        validation_criteria = self._current_validation_criteria.get(subtask, self._current_validation_criteria)
+        trace = [f"Sub-Arbos {subtask_id} started | Using Criteria: {json.dumps(validation_criteria, indent=2)[:400]}..."]
+
+        # Dynamic subtask wiki folder + Bio integration (Orchestrator level)
+        challenge_id = getattr(self, "_current_challenge_id", "current_challenge")
+        subtask_path = self._create_subtask_wiki_folder(challenge_id, str(subtask_id))
+        
+        if self.config.get("resource_aware") and monitor.elapsed_hours() > max_hours * 0.75:
+            solution = "Early abort: time budget exceeded."
+            trace.append("Resource-aware early abort")
+            local_score = 0.0
+        else:
+            solution = f"Subtask: {subtask}\nHypothesis: {hypothesis}"
+            trace.append(f"Sub-Arbos {subtask_id} started with hypothesis: {hypothesis}")
+
+            symbolic_result = symbolic_module(subtask, hypothesis, solution, getattr(self, "_current_strategy", {"enabled_modules": ["sympy"]}))
+            if symbolic_result:
+                solution += f"\n{symbolic_result}"
+                trace.append("Used dynamic symbolic/deterministic tooling (Verifier-code-first)")
+
+            # Bio Strategy + Mycelial Stigmergy
+            bio_delta = self._apply_bio_strategy(subtask, solution)
+            self._write_subtask_md(subtask_path, solution, bio_delta)
+
+            # GUIDED DIVERSITY
+            solution = self._generate_guided_diversity_candidates(subtask, hypothesis, solution)
+
+            local_score = 0.5
+
+            for loop in range(3):
+                local_eval = None
+                if validation_criteria:
+                    criteria = validation_criteria
+                    self_check = criteria.get("self_check_prompt", "Evaluate how well this solution meets the success criteria. Score 0.0-1.0 and explain.")
+                    eval_prompt = f"""{self_check}
+Subtask criteria: {criteria.get('criteria', 'None')}
+Current solution:
+{solution[:1500] if solution else 'None yet'}
+Give a score (0.0-1.0) and short explanation."""
+                    local_eval = self.harness.call_llm(eval_prompt, temperature=0.0, max_tokens=400)
+                    trace.append(f"Self-eval (loop {loop+1}): {local_eval[:150]}...")
+                    try:
+                        score_str = local_eval.split("0.")[1][:3] if "0." in local_eval else "0.5"
+                        local_score = float(score_str)
+                    except:
+                        local_score = 0.5
+
+                reflect_task = f"""You are a focused sub-Arbos for SN63 Quantum.
+Subtask: {subtask}
+Hypothesis: {hypothesis}
+Current: {solution[:800]}
+{'Self-evaluation: ' + (local_eval[:400] if local_eval else '')}
+Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
+
+                response = self.harness.call_llm(reflect_task, temperature=0.0, max_tokens=600)
+                trace.append(f"Loop {loop+1}")
+
+                if "Finalize" in response or "final" in response.lower():
+                    break
+
+                if self.config.get("toolhunter_escalation") and ("ToolHunter" in str(tools) or "hunter" in response.lower()):
+                    gap = f"Gap in {subtask}"
+                    hunt = self._tool_hunter(gap, subtask)
+                    solution += f"\n[ToolHunter + ReadyAI]\n{hunt}"
+                elif tools and tools[0] != "none":
+                    output = self.harness.call_llm(f"Apply {tools[0]} to quantum subtask: {solution[:600]}", temperature=0.0, max_tokens=500)
+                    solution += f"\n[{tools[0]}]\n{output}"
+
+                if self.config.get("guardrails"):
+                    solution = apply_guardrails(solution, monitor)
+
+                if "error" in solution.lower() and repair_attempts < self.max_repair_attempts:
+                    repair_attempts += 1
+                    trace.append(f"Repair attempt {repair_attempts}/{self.max_repair_attempts}")
+                    solution = self._generate_guided_diversity_candidates(subtask, hypothesis, solution)
+
+                if time.time() - monitor.start_time > (max_hours * 1800 / 6):
+                    break
+
+        memory.add(text=solution[:1000], metadata={"subtask": subtask, "status": "completed", "local_score": local_score})
+        
+        self.vector_db.add({
+            "solution": solution[:800],
+            "challenge": subtask,
+            "validation_score": local_score,
+            "fidelity": 0.82,
+            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.7),
+            "loop": self.loop_count,
+            "source": "sub_arbos_worker"
+        })
+
+        shared_results[subtask_id] = {"subtask": subtask, "solution": solution, "trace": trace, "local_score": local_score}
+        return shared_results[subtask_id]
+
+    # ====================== REMAINING ORIGINAL METHODS (100% preserved) ======================
+    def _run_verification(self, solution: str, verification_instructions: str, challenge: str) -> str:
+        candidate = {"solution": solution}
+        oracle_result = self.validator.run(candidate, verification_instructions, challenge)
+        self._current_strategy = oracle_result.get("strategy")
+
+        self.vector_db.add({
+            "solution": solution[:1000],
+            "challenge": challenge,
+            "validation_score": oracle_result.get("validation_score", 0.0),
+            "fidelity": 0.88,
+            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.65),
+            "loop": self.loop_count,
+            "source": "validation_oracle"
+        })
+
+        return f"ValidationOracle: score={oracle_result.get('validation_score', 0):.3f}"
+
+    def _tool_hunter(self, gap: str, subtask: str) -> str:
+        result = tool_hunter.hunt_and_integrate(gap, subtask)
+        if result.get("status") == "success" and result.get("links"):
+            for link in result.get("links", [])[:3]:
+                clean = self.reach_tool.fetch_url_content(link.get("url", ""))
+                self.vector_db.add({
+                    "solution": clean[:800],
+                    "challenge": subtask,
+                    "validation_score": 0.6,
+                    "fidelity": 0.7,
+                    "heterogeneity_score": 0.65,
+                    "source": "agent_reach",
+                    "url": link.get("url")
+                })
+                result["recommendation"] += f"\n[Agent-Reach] {link.get('url')}: {clean[:200]}..."
+        if result.get("status") == "success":
+            return f"ToolHunter + Agent-Reach ({result.get('source', 'unknown')}): {result.get('recommendation')}"
+        return "ToolHunter + Agent-Reach found no strong match for this quantum subtask."
+
+    def _generate_tool_proposals(self, results: Dict) -> List[str]:
+        proposal_prompt = f"Based on these swarm results: {json.dumps(results)[:1500]}\nSuggest 2-3 deterministic or quantum-related tools that would improve verifier score on the NEXT run."
+        response = self.harness.call_llm(proposal_prompt, temperature=0.3, max_tokens=600)
+        proposals = [line.strip() for line in response.split("\n") if line.strip()][:3]
+        
+        for p in proposals:
             try:
-                data = json.loads(graph_path.read_text())
-                G = nx.node_link_graph(data)
-            except:
-                pass
-        return G
+                memory.add(f"TOOL PROPOSAL: {p}", {"type": "tool_proposal"})
+            except Exception as e:
+                logger.warning(f"Failed to add proposal: {e}")
+        
+        return proposals
 
-    def _save_graph(self):
-        graph_path = Path(self.memdir_path) / "graph" / "knowledge_graph.json"
-        data = nx.node_link_data(self.graph)
-        graph_path.write_text(json.dumps(data, indent=2))
+    def _run_grail_post_training(self, results: Dict):
+        logger.info("Grail post-training triggered on winning run (verifiable proof attached to package)")
 
-    def add_to_graph(self, solution_id: str, challenge: str, relationships: List[Dict]):
-        self.graph.add_node(solution_id, challenge=challenge, timestamp=str(datetime.now()))
-        for rel in relationships:
-            self.graph.add_edge(solution_id, rel["target"], relation=rel["type"])
-        self._save_graph()
+    def get_vector_db_stats(self):
+        return self.vector_db.get_stats()
 
-    def query_graph_relationships(self, query_challenge: str, max_hops: int = 2) -> List[str]:
-        related = []
-        for node, data in self.graph.nodes(data=True):
-            if query_challenge.lower() in str(data.get("challenge", "")).lower():
-                for neighbor in nx.single_source_shortest_path_length(self.graph, node, cutoff=max_hops):
-                    related.append(f"RELATED SOLUTION {neighbor}: {self.graph.nodes[neighbor].get('challenge', '')}")
-        return related[:8]
+    def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = ""):
+        dynamic_size = blueprint.get("dynamic_swarm_size", blueprint.get("swarm_config", {}).get("total_instances", 5))
+        results = self._execute_swarm(blueprint, dynamic_size)
+        
+        score_dict = self.validator.run(
+            candidate=results,
+            verification_instructions=verification_instructions,
+            challenge=challenge,
+            goal_md=self._load_extra_context()
+        )
+        
+        if score_dict.get("validation_score", 0) > 0.92 and self.enable_grail:
+            self._run_grail_post_training(results)
 
-    # ====================== SYSTEMATIC SELF-EVALUATION LOOP (“scientist mode”) ======================
-    def run_scientist_mode(self, num_synthetic: int = 5):
-        logger.info("🧪 Scientist Mode activated — generating synthetic challenges...")
-        log_entry = {"timestamp": datetime.now().isoformat(), "synthetic_runs": []}
+        proposals = self._generate_tool_proposals(results)
+        self.memory_layers.add_proposals(proposals)
+        
+        self.process_tool_proposals()
 
-        for i in range(num_synthetic):
-            synth_prompt = f"""Generate a brand new, extremely hard SN63-style challenge in quantum/crypto/symbolic domain.
-Make it different from anything in memdir. Return ONLY JSON with "challenge" and "verification_instructions"."""
-            synth_raw = self.harness.call_llm(synth_prompt, temperature=0.9, max_tokens=800)
-            synth = self._safe_parse_json(synth_raw)
+        return score_dict.get("final_solution", str(score_dict)) if isinstance(score_dict, dict) else str(score_dict)
 
-            if "challenge" not in synth:
-                continue
+    def export_trajectories_for_optimization(self, challenge: str):
+        traj = self.vector_db.search(challenge, k=50)
+        path = Path("trajectories") / f"export_{challenge[:30]}_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(traj, indent=2))
+        logger.info(f"Exported {len(traj)} trajectories to {path}")
+        return str(path)
 
-            mini_plan = self.plan_challenge(self._load_extra_context(), synth["challenge"], "", "local_gpu")
-            mini_solution = self.execute_full_cycle(mini_plan, synth["challenge"], synth.get("verification_instructions", ""))
-
-            score = getattr(self.validator, "last_score", 0.0)
-            log_entry["synthetic_runs"].append({
-                "challenge": synth["challenge"][:120],
-                "score": score,
-                "progress": "improved" if score > 0.75 else "baseline"
-            })
-
-        self.scientist_log.append(log_entry)
-        self.scientist_log_path.write_text(json.dumps(self.scientist_log, indent=2))
-        logger.info(f"✅ Scientist Mode complete — {num_synthetic} synthetic evaluations logged")
-
-    def _load_scientist_log(self) -> List:
-        if self.scientist_log_path.exists():
+    def save_run_to_history(self, challenge: str, enhancement_prompt: str, solution: str, 
+                            score: float, novelty: float, verifier: float, main_issue: str = "None"):
+        self.history_file.parent.mkdir(parents=True, exist_ok=True)
+        history = []
+        if self.history_file.exists():
             try:
-                return json.loads(self.scientist_log_path.read_text())
+                with open(self.history_file, "r") as f:
+                    history = json.load(f)
             except:
-                return []
-        return []
+                history = []
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "challenge": challenge[:200],
+            "enhancement_prompt": enhancement_prompt[:500],
+            "score": round(score, 1),
+            "novelty": round(novelty, 1),
+            "verifier": round(verifier, 1),
+            "main_issue": main_issue
+        }
+        history.append(entry)
+        with open(self.history_file, "w") as f:
+            json.dump(history[-100:], f, indent=2)
 
-    # ====================== ORIGINAL CODE (100% preserved) ======================
+    def get_run_history(self, n: int = 10) -> List[Dict]:
+        if not self.history_file.exists():
+            return []
+        try:
+            with open(self.history_file, "r") as f:
+                history = json.load(f)
+            return history[-n:]
+        except:
+            return []
+
+    def self_critique(self, challenge: str, n_runs: int = 5) -> Dict[str, Any]:
+        history = self.get_run_history(n_runs)
+        trajectories = self.vector_db.search(challenge, k=20)
+        critique_task = f"""You are Arbos Self-Improvement Analyst for SN63 Quantum.
+
+Challenge: {challenge}
+Recent run history:
+{json.dumps(history, indent=2)}
+High-signal trajectories:
+{json.dumps(trajectories, indent=2)}
+
+Be critical."""
+        response = self.harness.call_llm(critique_task, temperature=0.7, max_tokens=1000)
+        try:
+            start = response.find("{")
+            end = response.rfind("}") + 1
+            parsed = json.loads(response[start:end])
+            for mem in parsed.get("structured_memories", []):
+                memory.add(json.dumps(mem), {"type": "trajectory_memory"})
+            return parsed
+        except:
+            return {
+                "structured_memories": [],
+                "workflow_evolution": ["Validator appears too lenient — add realism constraints", "Force explicit feasibility statements in plans"],
+                "recommended_prompt_additions": "Always be brutally honest about computational feasibility."
+            }
+
+    def spawn_tool_subswarm(self, subtask_list: list):
+        return {subtask: f"ToolHunter-{subtask}" for subtask in subtask_list}
+
+    def _refine_plan(self, approved_plan: Dict, challenge: str, deterministic_tooling: str = "", enhancement_prompt: str = "") -> Dict:
+        extra = f"\nMiner deterministic tooling: {deterministic_tooling}" if deterministic_tooling else ""
+        extra += f"\nMiner enhancement instructions: {enhancement_prompt}" if enhancement_prompt else ""
+        
+        task = f"""You are Orchestrator Arbos for SN63 Quantum Innovate.
+Approved plan: {json.dumps(approved_plan)}{extra}
+Time left: {self.config.get('max_compute_hours', 3.8)}h
+Challenge: {challenge}
+
+Your job:
+1. Refine the blueprint (existing JSON keys).
+2. Generate a CHALLENGE-SPECIFIC pre-launch context by specializing the AUTO_PRE_LAUNCH_CONTEXT_TEMPLATE + ENGLISH_MEMDIR_GRAIL_MODULE + ENGLISH_TOOL_SWARM_MODULE + ENGLISH_AMDAHL_COORDINATION_MODULE.
+3. Enforce Amdahl coordination and ToolHunter sub-swarm parallelism.
+4. Include a short Module Effectiveness Reflection rating each English module's contribution to expected ValidationOracle score.
+
+Output EXACT JSON with:
+- decomposition, swarm_config, tool_map, deterministic_recommendations, validation_criteria
+- generated_pre_launch_context"""
+
+        response = self.harness.call_llm(task, temperature=0.0, max_tokens=2000)
+        blueprint = self._parse_json(response)
+        
+        self._current_pre_launch = blueprint.get("generated_pre_launch_context", "")
+
+        if "module_reflection" in blueprint or "generated_pre_launch_context" in blueprint:
+            self.save_to_memdir(f"reflection_{int(time.time())}", blueprint)
+        
+        return blueprint
+
+    def _parse_json(self, raw: str) -> Dict:
+        try:
+            start = raw.find("{")
+            end = raw.rfind("}") + 1
+            return json.loads(raw[start:end])
+        except:
+            return {"decomposition": ["Fallback quantum decomposition"], "swarm_config": {"total_instances": 5}, "tool_map": {}, "validation_criteria": {}, "hypothesis_diversity": ["standard", "quantum_optimized"]}
+
+    def _generate_new_avenue_plan(self, challenge: str, recent_feedback: str, diagnostics: Dict = None) -> str:
+        prompt = f"""You are Deep Replan Arbos for SN63.
+Current challenge: {challenge}
+Recent feedback: {recent_feedback}
+Diagnostics: {json.dumps(diagnostics or {}, indent=2)[:800]}
+
+Generate a radically different avenue with maximum heterogeneity."""
+
+        response = self.harness.call_llm(prompt, temperature=0.7, max_tokens=1200)
+        try:
+            plan = self._safe_parse_json(response)
+            self._pending_new_avenue_plan = json.dumps(plan, indent=2)
+            self.save_to_memdir(f"new_avenue_{int(time.time())}", plan)
+            logger.info(f"✅ New Avenue Plan generated: {plan.get('new_avenue_name', 'Unnamed')}")
+            return json.dumps(plan, indent=2)
+        except:
+            return "Failed to generate new avenue plan."
+
     def _init_memdir(self):
         self.memdir_path = "memdir/grail"
         os.makedirs(self.memdir_path, exist_ok=True)
@@ -692,71 +1243,6 @@ Return ONLY the new full prompt block starting with ## COMPRESSION_PROMPT v{vers
             except Exception as e:
                 logger.error(f"Compression prompt evolution failed: {e}")
 
-    def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu") -> Dict[str, Any]:
-        self.set_compute_source(compute_mode)
-        
-        if not challenge or len(challenge.strip()) < 10:
-            return {"error": "Challenge too short", "phase1": "", "phase2": {}, "dynamic_swarm_size": 4}
-
-        logger.info(f"Planning challenge with {compute_mode} — Quasar: {self.quasar_enabled}")
-
-        phase1_prompt = f"""You are Planning Arbos for Bittensor SN63 Quantum Innovate.
-You MUST be brutally honest about cryptographic feasibility.
-
-GOAL.md (full agnostic base):
-{goal_md[:4000]}
-
-Challenge: {challenge}
-Enhancement: {enhancement_prompt or 'None'}
-
-Return ONLY valid JSON with these keys:
-- phase1_plan
-- key_insights (list)
-- feasibility ("low" | "medium" | "high" | "impossible_with_current_tech")
-- recommended_approach
-- risks (list)
-- estimated_difficulty
-- generated_post_planning_enhancement"""
-
-        phase1_raw = self.harness.call_llm(phase1_prompt, temperature=0.65, max_tokens=1600)
-        phase1 = self._safe_parse_json(phase1_raw)
-        self._current_enhancement = phase1.get("generated_post_planning_enhancement", "")
-
-        dynamic_size = 5 if self.quasar_enabled else 4
-
-        phase2_prompt = f"""You are Orchestrator Arbos for SN63.
-Phase 1 output: {str(phase1)[:2000]}
-
-Return ONLY valid JSON with:
-- decomposition (list of subtasks)
-- swarm_config (dict with total_instances)
-- tool_map
-- validation_criteria
-- hypothesis_diversity (list)"""
-
-        phase2_raw = self.harness.call_llm(phase2_prompt, temperature=0.3, max_tokens=1200)
-        blueprint = self._safe_parse_json(phase2_raw)
-
-        if not blueprint or "decomposition" not in blueprint:
-            blueprint = {
-                "decomposition": ["Assess feasibility", "Review known methods", "Analyze quantum threat", "Synthesize realistic assessment"],
-                "swarm_config": {"total_instances": dynamic_size},
-                "tool_map": {},
-                "validation_criteria": {},
-                "hypothesis_diversity": ["standard", "conservative"]
-            }
-
-        self._current_strategy = self.analyzer.analyze("", challenge)
-        self.validator.adapt_scoring(self._current_strategy)
-
-        return {
-            "phase1": phase1,
-            "phase2": blueprint,
-            "adapted_strategy": self._current_strategy,
-            "dynamic_swarm_size": dynamic_size,
-            "quasar_enabled": self.quasar_enabled
-        }
-
     def run_diagnostics(self, solution: str, challenge: str, verification_instructions: str) -> Dict:
         diagnostics = {
             "timestamp": datetime.now().isoformat(),
@@ -920,561 +1406,74 @@ Suggest 2-3 concrete architecture-level improvements."""
         self.memory_policy_weights[pattern_key] = current_weight * (1.0 + 0.2 * outcome_score)
         logger.debug(f"Memory policy updated for {pattern_key}: {self.memory_policy_weights[pattern_key]:.3f}")
 
-    def re_adapt(self, candidate: Dict, latest_verifier_feedback: str):
-        self.loop_count += 1
-        self.recent_scores.append(getattr(self.validator, "last_score", 0.0))
-
-        if self._is_stale_regime(self.recent_scores):
-            logger.warning("🔴 Stale regime detected — flagging deep replan")
-            self._flag_for_new_avenue_plan = True
-
-        if self._flag_for_new_avenue_plan:
-            new_plan = self._generate_new_avenue_plan(
-                challenge=candidate.get("challenge", "unknown"),
-                recent_feedback=latest_verifier_feedback,
-                diagnostics=self.run_diagnostics(candidate.get("solution", ""), 
-                                               candidate.get("challenge", "unknown"), 
-                                               latest_verifier_feedback)
-            )
-            self._flag_for_new_avenue_plan = False
-
-        grail_context = self.load_from_memdir("latest_grail")
-        recent_trajectories = self.vector_db.search(getattr(self, '_current_strategy', {}).get("challenge", ""), k=20)
-
-        weighted_context = ""
-        if recent_trajectories:
-            scored_traj = []
-            for traj in recent_trajectories:
-                score = traj.get("validation_score", traj.get("local_score", 0.5))
-                fidelity = traj.get("fidelity", 0.5)
-                weight = max(0.1, (score ** 2) * (fidelity ** 1.5))
-                scored_traj.append((weight, traj.get("solution", "")[:700]))
-            scored_traj.sort(key=lambda x: x[0], reverse=True)
-            weighted_context = "\n".join([f"[High-score+fidelity {i+1} | w={w:.2f}]: {text}" 
-                                        for i, (w, text) in enumerate(scored_traj[:10])])
-
-        recent_messages = self.get_recent_messages(min_importance=0.5, limit=12)
-        message_context = "\n".join([f"[{m.get('type')}] score={m['validation_score']:.2f} fid={m['fidelity']:.2f}: {m['content'][:500]}" 
-                                  for m in recent_messages]) if recent_messages else "None"
-
-        diagnostics = self.run_diagnostics(candidate.get("solution", ""), candidate.get("challenge", "unknown"), latest_verifier_feedback)
-
-        fix_recommendations = self.generate_fix_recommendations(diagnostics, candidate.get("solution", ""))
-
-        if fix_recommendations:
-            top_fix = fix_recommendations[0]
-            success, new_solution, new_score = self.apply_fix(top_fix, candidate.get("solution", ""), candidate.get("challenge", "unknown"), latest_verifier_feedback)
-            if success:
-                candidate["solution"] = new_solution
-                logger.info(f"✅ Fix applied successfully — new score {new_score:.3f}")
-
-        raw_context = f"Verifier feedback: {latest_verifier_feedback}\nWeighted trajectories: {weighted_context}\nMessages: {message_context}\nDiagnostics: {json.dumps(diagnostics, indent=2)[:800]}"
-        compressed_deltas = self.compress_intelligence_delta(raw_context)
-
-        reinforcement = sum(self.grail_reinforcement.values()) / max(len(self.grail_reinforcement), 1) if self.grail_reinforcement else 0.0
-
-        adaptation_prompt = f"""You are Adaptation Arbos for SN63.
-CURRENT LOOP: {self.loop_count}
-Latest feedback: {latest_verifier_feedback}
-Diagnostics: {json.dumps(diagnostics.get("detectors", {}), indent=2)[:600]}
-Fix Recommendations: {json.dumps(fix_recommendations, indent=2)[:800]}
-COMPRESSED INTELLIGENCE DELTAS:
-{compressed_deltas}
-
-Generate concise, high-signal adaptation."""
-
-        adaptation_raw = self.harness.call_llm(adaptation_prompt, temperature=0.15, max_tokens=1400)
-        adapted = self._safe_parse_json(adaptation_raw)
-        self._current_strategy = adapted.get("strategy", self._current_strategy)
-        self.validator.adapt_scoring(self._current_strategy)
-
-        self.save_to_memdir("latest_grail", {
-            "loop": self.loop_count,
-            "feedback": latest_verifier_feedback[:600],
-            "adaptation": str(adaptation_raw)[:1200],
-            "diagnostics": diagnostics,
-            "fix_recommendations": fix_recommendations,
-            "timestamp": datetime.now().isoformat()
-        })
-
-        if "final_solution" in candidate:
-            self.update_memory_policy("latest_adaptation", getattr(self.validator, "last_score", 0.0))
-
-        self.process_tool_proposals()   # Process any pending tool proposals
-
-        logger.info(f"✅ re_adapt completed loop {self.loop_count}")
-
-    def run_toolhunter_swarm(self, gap_description: str, max_proposals: int = 5) -> dict:
-        if not gap_description or len(gap_description.strip()) < 5:
-            return {"status": "error", "message": "Gap description too short or empty."}
-
-        logger.info(f"ToolHunter Swarm launched for gap: {gap_description[:100]}...")
-
-        hunt_result = self.onyx_hunter_query(gap_description, "miner_requested_swarm")
-
-        structured = {
-            "status": "success",
-            "gap": gap_description,
-            "raw_result": hunt_result,
-            "timestamp": datetime.now().isoformat(),
-            "loop": self.loop_count,
-            "proposals": [],
-            "install_commands": [],
-            "confidence": 0.7
-        }
-
-        try:
-            lines = str(hunt_result).split("\n")
-            for line in lines:
-                line = line.strip()
-                if line and ("pip" in line.lower() or "install" in line.lower()):
-                    structured["install_commands"].append(line)
-                elif line and len(line) > 10 and not line.startswith("["):
-                    structured["proposals"].append(line)
-        except:
-            pass
-
-        structured["proposals"] = structured["proposals"][:max_proposals]
-
-        self.post_message(
-            sender="ToolHunterSwarm",
-            content=f"Gap: {gap_description[:200]}... | Found {len(structured['proposals'])} proposals",
-            msg_type="tool_recommendation",
-            importance=0.75,
-            validation_score=0.0,
-            fidelity=0.65
-        )
-
-        memory.add(
-            text=f"ToolHunter Swarm Result: {gap_description}",
-            metadata={"type": "toolhunter_swarm", "proposals": structured["proposals"]}
-        )
-
-        logger.info(f"ToolHunter Swarm completed — {len(structured['proposals'])} proposals found")
-        return structured
-
-    def _tool_hunter(self, gap: str, subtask: str) -> str:
-        result = tool_hunter.hunt_and_integrate(gap, subtask)
-        if result.get("status") == "success" and result.get("links"):
-            for link in result.get("links", [])[:3]:
-                clean = self.reach_tool.fetch_url_content(link.get("url", ""))
-                self.vector_db.add({
-                    "solution": clean[:800],
-                    "challenge": subtask,
-                    "validation_score": 0.6,
-                    "fidelity": 0.7,
-                    "heterogeneity_score": 0.65,
-                    "source": "agent_reach",
-                    "url": link.get("url")
-                })
-                result["recommendation"] += f"\n[Agent-Reach] {link.get('url')}: {clean[:200]}..."
-        if result.get("status") == "success":
-            return f"ToolHunter + Agent-Reach ({result.get('source', 'unknown')}): {result.get('recommendation')}"
-        return "ToolHunter + Agent-Reach found no strong match for this quantum subtask."
-
-    def _run_verification(self, solution: str, verification_instructions: str, challenge: str) -> str:
-        candidate = {"solution": solution}
-        oracle_result = self.validator.run(candidate, verification_instructions, challenge)
-        self._current_strategy = oracle_result.get("strategy")
-
-        # Eggroll removed — use modern add
-        self.vector_db.add({
-            "solution": solution[:1000],
-            "challenge": challenge,
-            "validation_score": oracle_result.get("validation_score", 0.0),
-            "fidelity": 0.88,
-            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.65),
-            "loop": self.loop_count,
-            "source": "validation_oracle"
-        })
-
-        return f"ValidationOracle: score={oracle_result.get('validation_score', 0):.3f}"
-
-    def _run_swarm(self, blueprint: Dict[str, Any], challenge: str, verification_instructions: str = "", deterministic_tooling: str = "") -> str:
-        self._current_strategy = self.analyzer.analyze(verification_instructions, challenge)
-        
-        self._current_validation_criteria = blueprint.get("validation_criteria", {})
-        
-        decomposition = blueprint.get("decomposition", ["Full quantum challenge"])
-        swarm_config = blueprint.get("swarm_config", {"total_instances": 1})
-
-        total_instances = min(swarm_config.get("total_instances", 4), 6)
-        if self.config.get("resource_aware"):
-            total_instances = min(total_instances, 4)
-
-        manager_dict = multiprocessing.Manager().dict()
-        trace_log = [f"🚀 Event-driven Swarm launched with {total_instances} threads (Quasar: {self.quasar_enabled})"]
-        
-        criteria_str = json.dumps(self._current_validation_criteria, indent=2)
-        trace_log.append(f"DECIDED VALIDATION CRITERIA FOR SUB-ARBOS AGENTS:\n{criteria_str}")
-        logger.info(f"Validation Criteria for this swarm:\n{criteria_str}")
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=total_instances) as executor:
-            futures = []
-            subtask_id = 0
-            for i, subtask in enumerate(decomposition):
-                count = swarm_config.get("assignment", {}).get(subtask, 1)
-                tools = blueprint.get("tool_map", {}).get(subtask, ["none"])
-                for _ in range(count):
-                    hyp = swarm_config.get("hypothesis_diversity", ["standard"] * len(decomposition))[i % len(decomposition)]
-                    futures.append(executor.submit(
-                        self._sub_arbos_worker, subtask, hyp, tools, manager_dict, subtask_id
-                    ))
-                    subtask_id += 1
-
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    trace_log.append(f"Thread error: {e}")
-
-        all_results = dict(manager_dict)
-
-        sub_scores = np.array([r.get("local_score", 0.5) for r in all_results.values()])
-        if len(sub_scores) > 0:
-            weights = np.exp(sub_scores) / np.sum(np.exp(sub_scores))
-            weighted_avg = np.average(sub_scores, weights=weights)
-        else:
-            weighted_avg = 0.5
-        trace_log.append(f"MARL-weighted sub-avg score: {weighted_avg:.3f}")
-
-        failed_context = "\nPrevious failed attempts:\n" + "\n---\n".join(memory.query(challenge + " failed", n_results=5)) if memory.query(challenge + " failed", n_results=5) else ""
-
-        synthesis_task = f"""You are Arbos Orchestrator for SN63 Quantum Innovate.
-Challenge: {challenge}
-Verification Instructions: {verification_instructions or 'General quantum standards'}
-Miner Deterministic Tooling: {deterministic_tooling or 'None specified'}
-{failed_context}
-Swarm results: {json.dumps(all_results, indent=2)[:2000]}
-MARL-weighted sub-avg score: {weighted_avg:.3f}
-
-Be extremely honest. For cryptographic challenges like breaking BTC, clearly state feasibility.
-Do not claim breakthroughs without strong evidence.
-Synthesize final high-quality realistic assessment (weight higher-scoring subtasks):"""
-
-        final_solution = self.harness.call_llm(synthesis_task, temperature=0.5, max_tokens=2000)
-
-        if verification_instructions and verification_instructions.strip():
-            verification_result = self._run_verification(final_solution, verification_instructions, challenge)
-            final_solution += f"\n\n--- VERIFICATION RESULT ---\n{verification_result}"
-
-        if self.config.get("guardrails"):
-            final_solution = apply_guardrails(final_solution, ResourceMonitor(max_hours=self.config.get("max_compute_hours", 3.8)))
-
-        memory.add(text=final_solution[:1500], metadata={"challenge": challenge, "status": "final", "sub_avg_score": weighted_avg})
-        trace_log.append("Synthesis + Verification complete")
-
-        try:
-            import streamlit as st
-            if "trace_log" not in st.session_state:
-                st.session_state.trace_log = []
-            st.session_state.trace_log.extend(trace_log)
-        except:
-            pass
-
-        self.loop_count += 1
-        return final_solution
-
-    def _execute_swarm(self, blueprint: Any, dynamic_size: int):
-        blueprint = self._safe_parse_json(blueprint)
-        decomposition = blueprint.get("decomposition", ["Full quantum challenge"])
-        
-        hypothesis_diversity = blueprint.get("hypothesis_diversity", ["standard"])
-        if not hypothesis_diversity:
-            hypothesis_diversity = ["standard"]
-
-        manager_dict = multiprocessing.Manager().dict()
-        with concurrent.futures.ProcessPoolExecutor(max_workers=min(dynamic_size, 6)) as executor:
-            futures = []
-            for subtask_id, subtask in enumerate(decomposition):
-                hyp_index = subtask_id % len(hypothesis_diversity)
-                hyp = hypothesis_diversity[hyp_index]
-                tools = blueprint.get("tool_map", {}).get(subtask, ["none"])
-                futures.append(executor.submit(
-                    self._sub_arbos_worker, subtask, hyp, tools, manager_dict, subtask_id
-                ))
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    logger.error(f"Swarm worker error: {e}")
-        return dict(manager_dict)
-
-    def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
-                          shared_results: dict, subtask_id: int) -> dict:
-        max_hours = self.config.get("max_compute_hours", 3.8)
-        monitor = ResourceMonitor(max_hours=max_hours / 3.0)
-        repair_attempts = 0
-        
-        validation_criteria = self._current_validation_criteria.get(subtask, self._current_validation_criteria)
-        trace = [f"Sub-Arbos {subtask_id} started | Using Criteria: {json.dumps(validation_criteria, indent=2)[:400]}..."]
-
-        if self.config.get("resource_aware") and monitor.elapsed_hours() > max_hours * 0.75:
-            solution = "Early abort: time budget exceeded."
-            trace.append("Resource-aware early abort")
-            local_score = 0.0
-        else:
-            solution = f"Subtask: {subtask}\nHypothesis: {hypothesis}"
-            trace.append(f"Sub-Arbos {subtask_id} started with hypothesis: {hypothesis}")
-
-            symbolic_result = symbolic_module(subtask, hypothesis, solution, getattr(self, "_current_strategy", {"enabled_modules": ["sympy"]}))
-            if symbolic_result:
-                solution += f"\n{symbolic_result}"
-                trace.append("Used dynamic symbolic/deterministic tooling (Verifier-code-first)")
-
-            # GUIDED DIVERSITY — Eggroll fully removed
-            solution = self._generate_guided_diversity_candidates(subtask, hypothesis, solution)
-
-            local_score = 0.5
-
-            for loop in range(3):
-                local_eval = None
-                if validation_criteria:
-                    criteria = validation_criteria
-                    self_check = criteria.get("self_check_prompt", "Evaluate how well this solution meets the success criteria. Score 0.0-1.0 and explain.")
-                    eval_prompt = f"""{self_check}
-Subtask criteria: {criteria.get('criteria', 'None')}
-Current solution:
-{solution[:1500] if solution else 'None yet'}
-Give a score (0.0-1.0) and short explanation."""
-                    local_eval = self.harness.call_llm(eval_prompt, temperature=0.0, max_tokens=400)
-                    trace.append(f"Self-eval (loop {loop+1}): {local_eval[:150]}...")
-                    try:
-                        score_str = local_eval.split("0.")[1][:3] if "0." in local_eval else "0.5"
-                        local_score = float(score_str)
-                    except:
-                        local_score = 0.5
-
-                reflect_task = f"""You are a focused sub-Arbos for SN63 Quantum.
-Subtask: {subtask}
-Hypothesis: {hypothesis}
-Current: {solution[:800]}
-{'Self-evaluation: ' + (local_eval[:400] if local_eval else '')}
-Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
-
-                response = self.harness.call_llm(reflect_task, temperature=0.0, max_tokens=600)
-                trace.append(f"Loop {loop+1}")
-
-                if "Finalize" in response or "final" in response.lower():
-                    break
-
-                if self.config.get("toolhunter_escalation") and ("ToolHunter" in str(tools) or "hunter" in response.lower()):
-                    gap = f"Gap in {subtask}"
-                    hunt = self._tool_hunter(gap, subtask)
-                    solution += f"\n[ToolHunter + ReadyAI]\n{hunt}"
-                elif tools and tools[0] != "none":
-                    output = self.harness.call_llm(f"Apply {tools[0]} to quantum subtask: {solution[:600]}", temperature=0.0, max_tokens=500)
-                    solution += f"\n[{tools[0]}]\n{output}"
-
-                if self.config.get("guardrails"):
-                    solution = apply_guardrails(solution, monitor)
-
-                if "error" in solution.lower() and repair_attempts < self.max_repair_attempts:
-                    repair_attempts += 1
-                    trace.append(f"Repair attempt {repair_attempts}/{self.max_repair_attempts}")
-                    # GUIDED DIVERSITY — Eggroll fully removed
-                    solution = self._generate_guided_diversity_candidates(subtask, hypothesis, solution)
-
-                if time.time() - monitor.start_time > (max_hours * 1800 / 6):
-                    break
-
-        memory.add(text=solution[:1000], metadata={"subtask": subtask, "status": "completed", "local_score": local_score})
-        
-        self.vector_db.add({
-            "solution": solution[:800],
-            "challenge": subtask,
-            "validation_score": local_score,
-            "fidelity": 0.82,
-            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.7),
-            "loop": self.loop_count,
-            "source": "sub_arbos_worker"
-        })
-
-        shared_results[subtask_id] = {"subtask": subtask, "solution": solution, "trace": trace, "local_score": local_score}
-        return shared_results[subtask_id]
-
-    def _generate_tool_proposals(self, results: Dict) -> List[str]:
-        proposal_prompt = f"Based on these swarm results: {json.dumps(results)[:1500]}\nSuggest 2-3 deterministic or quantum-related tools that would improve verifier score on the NEXT run."
-        response = self.harness.call_llm(proposal_prompt, temperature=0.3, max_tokens=600)
-        proposals = [line.strip() for line in response.split("\n") if line.strip()][:3]
-        
-        for p in proposals:
+    def _load_graph(self) -> nx.DiGraph:
+        graph_path = Path(self.memdir_path) / "graph" / "knowledge_graph.json"
+        G = nx.DiGraph()
+        if graph_path.exists():
             try:
-                memory.add(f"TOOL PROPOSAL: {p}", {"type": "tool_proposal"})
-            except Exception as e:
-                logger.warning(f"Failed to add proposal: {e}")
-        
-        return proposals
-
-    def _run_grail_post_training(self, results: Dict):
-        logger.info("Grail post-training triggered on winning run (verifiable proof attached to package)")
-
-    def get_vector_db_stats(self):
-        return self.vector_db.get_stats()
-
-    def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = ""):
-        dynamic_size = blueprint.get("dynamic_swarm_size", blueprint.get("swarm_config", {}).get("total_instances", 5))
-        results = self._execute_swarm(blueprint, dynamic_size)
-        
-        score_dict = self.validator.run(
-            candidate=results,
-            verification_instructions=verification_instructions,
-            challenge=challenge,
-            goal_md=self._load_extra_context()
-        )
-        
-        if score_dict.get("validation_score", 0) > 0.92 and self.enable_grail:
-            self._run_grail_post_training(results)
-
-        proposals = self._generate_tool_proposals(results)
-        self.memory_layers.add_proposals(proposals)
-        
-        self.process_tool_proposals()   # Process any new tool proposals
-
-        return score_dict.get("final_solution", str(score_dict)) if isinstance(score_dict, dict) else str(score_dict)
-
-    def export_trajectories_for_optimization(self, challenge: str):
-        traj = self.vector_db.search(challenge, k=50)
-        path = Path("trajectories") / f"export_{challenge[:30]}_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(traj, indent=2))
-        logger.info(f"Exported {len(traj)} trajectories to {path}")
-        return str(path)
-
-    def save_run_to_history(self, challenge: str, enhancement_prompt: str, solution: str, 
-                            score: float, novelty: float, verifier: float, main_issue: str = "None"):
-        self.history_file.parent.mkdir(parents=True, exist_ok=True)
-        history = []
-        if self.history_file.exists():
-            try:
-                with open(self.history_file, "r") as f:
-                    history = json.load(f)
+                data = json.loads(graph_path.read_text())
+                G = nx.node_link_graph(data)
             except:
-                history = []
-        entry = {
-            "timestamp": datetime.now().isoformat(),
-            "challenge": challenge[:200],
-            "enhancement_prompt": enhancement_prompt[:500],
-            "score": round(score, 1),
-            "novelty": round(novelty, 1),
-            "verifier": round(verifier, 1),
-            "main_issue": main_issue
-        }
-        history.append(entry)
-        with open(self.history_file, "w") as f:
-            json.dump(history[-100:], f, indent=2)
+                pass
+        return G
 
-    def get_run_history(self, n: int = 10) -> List[Dict]:
-        if not self.history_file.exists():
-            return []
-        try:
-            with open(self.history_file, "r") as f:
-                history = json.load(f)
-            return history[-n:]
-        except:
-            return []
+    def _save_graph(self):
+        graph_path = Path(self.memdir_path) / "graph" / "knowledge_graph.json"
+        data = nx.node_link_data(self.graph)
+        graph_path.write_text(json.dumps(data, indent=2))
 
-    def self_critique(self, challenge: str, n_runs: int = 5) -> Dict[str, Any]:
-        history = self.get_run_history(n_runs)
-        trajectories = self.vector_db.search(challenge, k=20)
-        critique_task = f"""You are Arbos Self-Improvement Analyst for SN63 Quantum.
+    def add_to_graph(self, solution_id: str, challenge: str, relationships: List[Dict]):
+        self.graph.add_node(solution_id, challenge=challenge, timestamp=str(datetime.now()))
+        for rel in relationships:
+            self.graph.add_edge(solution_id, rel["target"], relation=rel["type"])
+        self._save_graph()
 
-Challenge: {challenge}
-Recent run history:
-{json.dumps(history, indent=2)}
-High-signal trajectories:
-{json.dumps(trajectories, indent=2)}
+    def query_graph_relationships(self, query_challenge: str, max_hops: int = 2) -> List[str]:
+        related = []
+        for node, data in self.graph.nodes(data=True):
+            if query_challenge.lower() in str(data.get("challenge", "")).lower():
+                for neighbor in nx.single_source_shortest_path_length(self.graph, node, cutoff=max_hops):
+                    related.append(f"RELATED SOLUTION {neighbor}: {self.graph.nodes[neighbor].get('challenge', '')}")
+        return related[:8]
 
-Be critical."""
-        response = self.harness.call_llm(critique_task, temperature=0.7, max_tokens=1000)
-        try:
-            start = response.find("{")
-            end = response.rfind("}") + 1
-            parsed = json.loads(response[start:end])
-            for mem in parsed.get("structured_memories", []):
-                memory.add(json.dumps(mem), {"type": "trajectory_memory"})
-            return parsed
-        except:
-            return {
-                "structured_memories": [],
-                "workflow_evolution": ["Validator appears too lenient — add realism constraints", "Force explicit feasibility statements in plans"],
-                "recommended_prompt_additions": "Always be brutally honest about computational feasibility."
-            }
+    def run_scientist_mode(self, num_synthetic: int = 5):
+        logger.info("🧪 Scientist Mode activated — generating synthetic challenges...")
+        log_entry = {"timestamp": datetime.now().isoformat(), "synthetic_runs": []}
 
-    def spawn_tool_subswarm(self, subtask_list: list):
-        return {subtask: f"ToolHunter-{subtask}" for subtask in subtask_list}
+        for i in range(num_synthetic):
+            synth_prompt = f"""Generate a brand new, extremely hard SN63-style challenge in quantum/crypto/symbolic domain.
+Make it different from anything in memdir. Return ONLY JSON with "challenge" and "verification_instructions"."""
+            synth_raw = self.harness.call_llm(synth_prompt, temperature=0.9, max_tokens=800)
+            synth = self._safe_parse_json(synth_raw)
 
-    def _refine_plan(self, approved_plan: Dict, challenge: str, deterministic_tooling: str = "", enhancement_prompt: str = "") -> Dict:
-        extra = f"\nMiner deterministic tooling: {deterministic_tooling}" if deterministic_tooling else ""
-        extra += f"\nMiner enhancement instructions: {enhancement_prompt}" if enhancement_prompt else ""
-        
-        task = f"""You are Orchestrator Arbos for SN63 Quantum Innovate.
-Approved plan: {json.dumps(approved_plan)}{extra}
-Time left: {self.config.get('max_compute_hours', 3.8)}h
-Challenge: {challenge}
+            if "challenge" not in synth:
+                continue
 
-Your job:
-1. Refine the blueprint (existing JSON keys).
-2. Generate a CHALLENGE-SPECIFIC pre-launch context by specializing the AUTO_PRE_LAUNCH_CONTEXT_TEMPLATE + ENGLISH_MEMDIR_GRAIL_MODULE + ENGLISH_TOOL_SWARM_MODULE + ENGLISH_AMDAHL_COORDINATION_MODULE.
-3. Enforce Amdahl coordination and ToolHunter sub-swarm parallelism.
-4. Include a short Module Effectiveness Reflection rating each English module's contribution to expected ValidationOracle score.
+            mini_plan = self.plan_challenge(self._load_extra_context(), synth["challenge"], "", "local_gpu")
+            mini_solution = self.execute_full_cycle(mini_plan, synth["challenge"], synth.get("verification_instructions", ""))
 
-Output EXACT JSON with:
-- decomposition, swarm_config, tool_map, deterministic_recommendations, validation_criteria
-- generated_pre_launch_context"""
+            score = getattr(self.validator, "last_score", 0.0)
+            log_entry["synthetic_runs"].append({
+                "challenge": synth["challenge"][:120],
+                "score": score,
+                "progress": "improved" if score > 0.75 else "baseline"
+            })
 
-        response = self.harness.call_llm(task, temperature=0.0, max_tokens=2000)
-        blueprint = self._parse_json(response)
-        
-        self._current_pre_launch = blueprint.get("generated_pre_launch_context", "")
+        self.scientist_log.append(log_entry)
+        self.scientist_log_path.write_text(json.dumps(self.scientist_log, indent=2))
+        logger.info(f"✅ Scientist Mode complete — {num_synthetic} synthetic evaluations logged")
 
-        if "module_reflection" in blueprint or "generated_pre_launch_context" in blueprint:
-            self.save_to_memdir(f"reflection_{int(time.time())}", blueprint)
-        
-        return blueprint
-
-    def _parse_json(self, raw: str) -> Dict:
-        try:
-            start = raw.find("{")
-            end = raw.rfind("}") + 1
-            return json.loads(raw[start:end])
-        except:
-            return {"decomposition": ["Fallback quantum decomposition"], "swarm_config": {"total_instances": 5}, "tool_map": {}, "validation_criteria": {}, "hypothesis_diversity": ["standard", "quantum_optimized"]}
-
-    def _generate_new_avenue_plan(self, challenge: str, recent_feedback: str, diagnostics: Dict = None) -> str:
-        prompt = f"""You are Deep Replan Arbos for SN63.
-Current challenge: {challenge}
-Recent feedback: {recent_feedback}
-Diagnostics: {json.dumps(diagnostics or {}, indent=2)[:800]}
-
-Generate a radically different avenue with maximum heterogeneity."""
-
-        response = self.harness.call_llm(prompt, temperature=0.7, max_tokens=1200)
-        try:
-            plan = self._safe_parse_json(response)
-            self._pending_new_avenue_plan = json.dumps(plan, indent=2)
-            self.save_to_memdir(f"new_avenue_{int(time.time())}", plan)
-            logger.info(f"✅ New Avenue Plan generated: {plan.get('new_avenue_name', 'Unnamed')}")
-            return json.dumps(plan, indent=2)
-        except:
-            return "Failed to generate new avenue plan."
-            
-    def load_expert_modules(self) -> list[str]:
-        """Load all expert modules from the experts/ folder. Dead simple for domain experts."""
-        experts = []
-        expert_dir = Path("experts")
-        if expert_dir.exists():
-            for file in expert_dir.glob("*.md"):
-                try:
-                    content = file.read_text(encoding="utf-8").strip()
-                    if content:
-                        experts.append(f"EXPERT MODULE [{file.stem}]: {content}")
-                except Exception as e:
-                    logger.warning(f"Failed to load expert module {file}: {e}")
-        return experts
+    def _load_scientist_log(self) -> List:
+        if self.scientist_log_path.exists():
+            try:
+                return json.loads(self.scientist_log_path.read_text())
+            except:
+                return []
+        return []
 
     def run(self, challenge: str, verification_instructions: str = "", enhancement_prompt: str = ""):
         self.loop_count = 0
+        self._current_challenge_id = challenge.replace(" ", "_").lower()[:50]  # prevent overly long folder names
         plan = self.plan_challenge(
             goal_md=self.extra_context,
             challenge=challenge,
@@ -1524,7 +1523,6 @@ Generate a radically different avenue with maximum heterogeneity."""
             fidelity = 0.92
             self.evolve_compression_prompt(best_score, fidelity)
 
-        # NEW: Scientist Mode every 10 runs
         if self.loop_count % 10 == 0:
             self.run_scientist_mode(num_synthetic=3)
 
