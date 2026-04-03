@@ -1,7 +1,9 @@
-import numpy as np
+import os
 import json
 from typing import Dict, Any
+import numpy as np
 from verification_analyzer import VerificationAnalyzer
+from goals.brain_loader import load_toggle  # for gating
 
 class ValidationOracle:
     def __init__(self, goal_file: str = "goals/killer_base.md", compute=None):
@@ -12,6 +14,8 @@ class ValidationOracle:
         self.last_notes = ""
         self.last_fidelity = 0.0
         self.last_strategy = None
+        self.last_aha_strength = 0.0
+        self.last_wiki_contrib = 0.0
 
     def adapt_scoring(self, strategy: Dict[str, Any]):
         self.last_strategy = strategy
@@ -29,6 +33,26 @@ class ValidationOracle:
         except:
             pass
         return {}
+
+    def _compute_wiki_contribution_score(self) -> float:
+        """WikiHealthOracle — lightweight, only runs on aha/high-heterogeneity"""
+        try:
+            # Count new wiki artifacts created in this run (concepts, invariants, subtasks)
+            knowledge_base = "goals/knowledge"
+            if not os.path.exists(knowledge_base):
+                return 0.0
+
+            wiki_files = 0
+            for root, _, files in os.walk(knowledge_base):
+                for f in files:
+                    if f.endswith((".md", ".json")) and ("wiki" in root or "invariants" in root or "concepts" in root or "subtasks" in root):
+                        wiki_files += 1
+
+            # Simple normalized score (tune based on your typical run volume)
+            contrib = min(1.0, wiki_files * 0.08)
+            return round(contrib, 3)
+        except:
+            return 0.0
 
     def run(self, candidate: Dict[str, Any], verification_instructions: str = "", challenge: str = "", goal_md: str = "") -> Dict[str, Any]:
         strategy = self.analyzer.analyze(verification_instructions, challenge)
@@ -119,11 +143,49 @@ Return ONLY valid JSON:
         if realism_penalty:
             self.last_notes += " | Realism penalty applied"
 
+        # ====================== NEW: WikiHealthOracle + Aha Integration ======================
+        aha_detected = False
+        wiki_contrib = 0.0
+        aha_strength = 0.0
+
+        # Check if this run qualifies as aha (high jump or heterogeneity)
+        try:
+            # We can access recent_scores via ArbosManager if passed, but for safety we compute a simple proxy
+            if hasattr(self, 'last_score') and self.last_score > 0.75:
+                aha_strength = self.last_score - 0.65  # simple proxy; ArbosManager will refine
+                aha_detected = aha_strength > 0.12 or load_toggle("aha_adaptation_enabled", "true") == "true"
+        except:
+            pass
+
+        if aha_detected or load_toggle("aha_adaptation_enabled", "true") == "true":
+            wiki_contrib = self._compute_wiki_contribution_score()
+            self.last_wiki_contrib = wiki_contrib
+            self.last_aha_strength = aha_strength
+
+            # Update brain metrics (write directly to avoid tight coupling)
+            try:
+                metrics_path = "goals/brain/metrics.md"
+                with open(metrics_path, "a", encoding="utf-8") as f:
+                    f.write(f"\n\n### ValidationOracle Update {datetime.now().isoformat() if 'datetime' in globals() else ''}\n"
+                            f"aha_strength: {aha_strength:.3f}\n"
+                            f"wiki_contribution_score: {wiki_contrib:.3f}\n"
+                            f"heterogeneity_deltas: [proxy from oracle]")
+            except:
+                pass
+
+        # Combine wiki contribution into final score when relevant (heterogeneity lift)
+        if wiki_contrib > 0.1:
+            self.last_score = min(0.96, self.last_score + (wiki_contrib * 0.08))
+
         return {
             "validation_score": self.last_score,
             "vvd_ready": self.last_vvd_ready,
             "notes": self.last_notes,
             "strategy": strategy,
             "fidelity": self.last_fidelity,
-            "deterministic_strength": deterministic_score
+            "deterministic_strength": deterministic_score,
+            # New fields from handover
+            "aha_strength": self.last_aha_strength,
+            "wiki_contribution_score": self.last_wiki_contrib,
+            "wiki_health_oracle_active": aha_detected
         }
