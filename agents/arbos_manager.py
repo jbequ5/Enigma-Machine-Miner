@@ -28,6 +28,7 @@ from validation_oracle import ValidationOracle
 from trajectories.trajectory_vector_db import vector_db
 from tools.agent_reach_tool import AgentReachTool
 from verification_analyzer import VerificationAnalyzer
+from goals.brain_loader import load_brain_component, load_toggle
 
 # ====================== v4.8 UPGRADES ======================
 from autoharness import AutoHarness
