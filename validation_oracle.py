@@ -35,25 +35,28 @@ class ValidationOracle:
             pass
         return {}
 
-    def _compute_wiki_contribution_score(self, message_bus: list = None) -> float:
-        """WikiHealthOracle — reacts to high_signal_finding messages from Sub-Arbos"""
-        if not message_bus:
+    def _compute_wiki_contrib_simple(self) -> float:
+        """Simple, lightweight WikiHealthOracle — no heavy operations"""
+        try:
+            # Very cheap check: does the wiki/subtasks directory exist and have any content?
+            subtasks_path = "goals/knowledge"
+            if not os.path.exists(subtasks_path):
+                return 0.0
+            
+            # Count any .md or .json files in wiki-related folders (very fast)
+            wiki_files = 0
+            for root, _, files in os.walk(subtasks_path):
+                if any(x in root for x in ["wiki", "subtasks", "invariants", "concepts"]):
+                    wiki_files += len([f for f in files if f.endswith((".md", ".json"))])
+            
+            # Gentle normalized contribution
+            contrib = min(0.25, wiki_files * 0.05)
+            return round(contrib, 3)
+        except:
             return 0.0
-
-        # Count high-signal findings from Sub-Arbos (the core v5 signal)
-        high_signal_msgs = [m for m in message_bus if m.get("type") == "high_signal_finding"]
-        if not high_signal_msgs:
-            return 0.0
-
-        count = len(high_signal_msgs)
-        total_impact = sum(m.get("validation_score", 0.0) for m in high_signal_msgs)
-        
-        # Normalized contribution (tuned for typical runs)
-        contrib = min(0.28, (count * 0.09) + (total_impact * 0.11))
-        return round(contrib, 3)
 
     def run(self, candidate: Dict[str, Any], verification_instructions: str = "", 
-            challenge: str = "", goal_md: str = "", message_bus: list = None) -> Dict[str, Any]:
+            challenge: str = "", goal_md: str = "") -> Dict[str, Any]:
         
         strategy = self.analyzer.analyze(verification_instructions, challenge)
         self.last_strategy = strategy
@@ -84,7 +87,7 @@ Produced Solution:
             except Exception:
                 pass
 
-        # === PRIORITY 2: LLM SCORING (fallback when deterministic is weak) ===
+        # === PRIORITY 2: LLM SCORING (fallback) ===
         if deterministic_score <= 0.35 and self.compute is not None:
             scoring_prompt = f"""You are a strict, expert Validation Oracle for Bittensor SN63.
 
@@ -139,32 +142,29 @@ Return ONLY valid JSON:
         if realism_penalty:
             self.last_notes += " | Realism penalty applied"
 
-        # ====================== WIKIHEALTH ORACLE + AHA INTEGRATION ======================
-        wiki_contrib = self._compute_wiki_contribution_score(message_bus)
+        # ====================== SIMPLE WIKI + AHA INTEGRATION (v5.1 lean) ======================
+        wiki_contrib = self._compute_wiki_contrib_simple()
         self.last_wiki_contrib = wiki_contrib
 
         aha_strength = 0.0
-        aha_detected = False
         if self.last_score > 0.70:
-            aha_strength = max(0.0, self.last_score - 0.65)  # simple proxy; can be refined from ArbosManager
-            aha_detected = aha_strength > 0.12 or load_toggle("aha_adaptation_enabled", "true") == "true"
-
+            aha_strength = max(0.0, self.last_score - 0.65)
         self.last_aha_strength = round(aha_strength, 3)
 
-        # Boost final score from high-signal Sub-Arbos findings
-        if wiki_contrib > 0.08:
-            self.last_score = min(0.96, self.last_score + (wiki_contrib * 0.09))
+        # Gentle boost from wiki activity (Sub-Arbos stigmergy)
+        if wiki_contrib > 0.05:
+            self.last_score = min(0.96, self.last_score + (wiki_contrib * 0.06))
 
-        # Update brain metrics (append to metrics.md)
-        try:
-            metrics_path = "goals/brain/metrics.md"
-            with open(metrics_path, "a", encoding="utf-8") as f:
-                f.write(f"\n\n### ValidationOracle Update {datetime.now().isoformat()}\n"
-                        f"aha_strength: {self.last_aha_strength:.3f}\n"
-                        f"wiki_contribution_score: {self.last_wiki_contrib:.3f}\n"
-                        f"heterogeneity_deltas: [from ArbosManager]")
-        except:
-            pass
+        # Update metrics only when meaningful (no spam)
+        if wiki_contrib > 0.05 or aha_strength > 0.1:
+            try:
+                metrics_path = "goals/brain/metrics.md"
+                with open(metrics_path, "a", encoding="utf-8") as f:
+                    f.write(f"\n\n### ValidationOracle Update {datetime.now().isoformat()}\n"
+                            f"aha_strength: {self.last_aha_strength:.3f}\n"
+                            f"wiki_contribution_score: {self.last_wiki_contrib:.3f}")
+            except:
+                pass
 
         return {
             "validation_score": self.last_score,
@@ -174,6 +174,15 @@ Return ONLY valid JSON:
             "fidelity": self.last_fidelity,
             "deterministic_strength": deterministic_score,
             "aha_strength": self.last_aha_strength,
-            "wiki_contribution_score": self.last_wiki_contrib,
-            "wiki_health_oracle_active": aha_detected
+            "wiki_contribution_score": self.last_wiki_contrib
         }
+
+How to Use ItIn ArbosManager (in _run_swarm or execute_full_cycle), call it without message_bus:python
+
+oracle_result = self.validator.run(
+    candidate=...,
+    verification_instructions=...,
+    challenge=challenge,
+    goal_md=...
+)
+
