@@ -1,43 +1,26 @@
-# Centralized Toggles (parsed by arbos_manager — v4.9 verbatim + new brain toggles)
+# Centralized Toggles (High-Leverage Only — parsed by arbos_manager)
 
-### Brain
-brain_depth: "lean"  # "lean" or "rich"
-aha_adaptation_enabled: true
-mycelial_pruning: true
-quantum_coherence_mode: false
-symbiosis_synthesis: true
-micro_evolution_frequency: "every_aha"
+### Brain Intelligence Layer
+brain_depth: "lean"                  # "lean" (recommended) or "rich"
+aha_adaptation_enabled: true         # Enable aha detection + micro-evolution
+mycelial_pruning: true               # Stigmergy via .md writes + local adaptation
+quantum_coherence_mode: false        # Quantum-bio heuristics (Guided Diversity only)
+symbiosis_synthesis: true            # Cross-field mutualism detection (Symbiosis Arbos)
+micro_evolution_frequency: "every_aha"   # or "every_run" / "grail_only"
 
-### Core Behavior (v4.9)
-miner_review_after_loop: false
-max_loops: 8
-miner_review_final: true
+### Core Behavior & Safety
+resource_aware: true                 # Enforce compute limits aggressively
+verifier_first: true                 # Force symbolic/deterministic checks first
+guardrails: true                     # Safety layer
+low_score_threshold: 0.65            # Trigger re_adapt below this score
 
-### Compute & Resource Management (v4.9)
-compute_source: local_gpu
-max_compute_hours: 4.0
-resource_aware: true
-dynamic_swarm: true
-light_compression: true
+### Self-Improvement
+grail_on_winning_runs: true          # Extract & reinforce on high ValidationOracle runs
+stale_regime_detection: true         # Enable ecosystem health / stale detection
 
-### Safety & Quality (v4.9)
-guardrails: true
-verifier_first: true
-toolhunter_escalation: true
-manual_tool_installs_allowed: true
-
-### Self-Improvement & Adaptation (v4.9)
-grail_on_winning_runs: true
-self_critique_enabled: true
-low_score_threshold: 0.65
-use_trajectory_search: true
-stale_regime_detection: true
-deep_replan_on_stale: true
-
-## LOCAL_MODEL_ROUTING (v4.9 verbatim)
+## LOCAL_MODEL_ROUTING (v4.9 — high-leverage models only)
 planning_model: deepseek-r1:14b-q4_K_M
 orchestrator_model: deepseek-r1:14b-q4_K_M
 adaptation_model: deepseek-r1:14b-q4_K_M
 synthesis_model: qwen2.5-coder:14b-q4_K_M
-sub_arbos_model: qwen2.5-coder:7b-q5_K_M
 compression_model: qwen2.5-coder:7b-q5_K_M
