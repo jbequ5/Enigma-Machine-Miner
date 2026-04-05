@@ -32,12 +32,16 @@ class LongTermMemory:
 
 
 class MemoryLayers:
-    """Three-layer memory system - enhanced for Grail sync."""
+    """Three-layer memory system — fully upgraded to v5.1 ByteRover + MAU Pyramid."""
     def __init__(self):
         self.long_term = LongTermMemory()           # Layer 3: Persistent vector DB
         self.short_term: List[Dict] = []            # Layer 1: Recent raw trajectories
         self.long_term_summaries: List[Dict] = []   # Layer 2: Compressed summaries
         self.tool_proposals: List[str] = []         # Tool suggestions only
+
+        # v5.1 MAU Pyramid settings
+        self.byterover_mau_enabled = False          # Will be synced from toggles
+        self.mau_reinforcement_weight = 1.0
 
     def add(self, text: str, metadata: dict = None):
         if metadata is None:
@@ -48,7 +52,28 @@ class MemoryLayers:
         if len(self.short_term) > 40:
             self.compress_to_long_term()
 
-        self.long_term.add(text, metadata)
+        # v5.1: Add to long-term with MAU scoring if enabled
+        if self.byterover_mau_enabled and "local_score" in metadata:
+            self._add_with_mau_scoring(text, metadata)
+        else:
+            self.long_term.add(text, metadata)
+
+    def _add_with_mau_scoring(self, text: str, metadata: dict):
+        """Break into MAUs and score with reinforcement formula"""
+        # Simple MAU split (paragraphs/sentences)
+        maus = [s.strip() for s in text.split("\n\n") if len(s.strip()) > 30]
+        
+        for mau in maus:
+            # Reinforcement scoring from v5.1 diff
+            validation_score = metadata.get("local_score", 0.5)
+            fidelity = metadata.get("fidelity", 0.8)
+            heterogeneity = metadata.get("heterogeneity_score", 0.7)
+            symbolic_coverage = 0.85 if any(k in mau.lower() for k in ["sympy", "deterministic", "invariant"]) else 0.6
+            
+            reinforcement = validation_score * (fidelity ** 1.5) * symbolic_coverage * heterogeneity
+            
+            mau_metadata = {**metadata, "mau_reinforcement": reinforcement, "type": "mau"}
+            self.long_term.add(mau, mau_metadata)
 
     def add_proposals(self, proposals: List[str]):
         self.tool_proposals.extend(proposals)
@@ -72,8 +97,15 @@ class MemoryLayers:
         self.long_term.add(summary_text, {"type": "compressed_summary"})
 
     def compress_low_value(self, current_score: float = 0.0):
-        self.short_term = [entry for entry in self.short_term 
-                          if entry.get("metadata", {}).get("local_score", 0.5) > 0.4]
+        """v5.1 pruning: remove low-reinforcement items"""
+        if not self.byterover_mau_enabled:
+            self.short_term = [entry for entry in self.short_term 
+                              if entry.get("metadata", {}).get("local_score", 0.5) > 0.4]
+        else:
+            # MAU-aware pruning
+            self.short_term = [entry for entry in self.short_term 
+                              if entry.get("metadata", {}).get("local_score", 0.5) > 0.35]
+        
         if len(self.short_term) > 25:
             self.compress_to_long_term()
 
@@ -101,6 +133,29 @@ class MemoryLayers:
             for s in summaries:
                 context += f"- {s['summary'][:400]}...\n"
         return context
+
+    # ====================== v5.1 MAU Pyramid Promotion ======================
+    def promote_high_signal(self, text: str, metadata: dict):
+        """Promote high-signal MAUs to permanent wiki locations"""
+        if not self.byterover_mau_enabled:
+            return
+        
+        reinforcement = self._compute_mau_reinforcement(text, metadata)
+        if reinforcement > 0.75:  # High-signal threshold
+            # This would normally call wiki write functions in ArbosManager
+            # For now we log and add to long-term with permanent flag
+            metadata["permanent"] = True
+            metadata["mau_reinforcement"] = reinforcement
+            self.long_term.add(text, metadata)
+            logger.info(f"ByteRover promoted high-signal MAU (reinforcement: {reinforcement:.3f})")
+
+
+    def _compute_mau_reinforcement(self, text: str, metadata: dict) -> float:
+        validation_score = metadata.get("local_score", 0.5)
+        fidelity = metadata.get("fidelity", 0.8)
+        heterogeneity = metadata.get("heterogeneity_score", 0.7)
+        symbolic_coverage = 0.85 if any(k in text.lower() for k in ["sympy", "deterministic", "invariant"]) else 0.6
+        return validation_score * (fidelity ** 1.5) * symbolic_coverage * heterogeneity
 
 
 # Global instances
