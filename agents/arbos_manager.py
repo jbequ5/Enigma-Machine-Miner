@@ -673,12 +673,11 @@ Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
     def _run_verification(self, solution: str, verification_instructions: str, challenge: str) -> str:
         candidate = {"solution": solution}
         oracle_result = self.validator.run(
-            candidate=candidate,
-            verification_instructions=verification_instructions,
-            challenge=challenge,
-            goal_md=self._load_extra_context(),
-            message_bus=self.message_bus
-        )
+    candidate=results or {"solution": current_solution},
+    verification_instructions=verification_instructions,
+    challenge=challenge,
+    goal_md=self.extra_context
+)
         self._current_strategy = oracle_result.get("strategy")
 
         self.vector_db.add({
