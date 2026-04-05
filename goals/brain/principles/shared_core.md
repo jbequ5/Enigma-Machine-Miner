@@ -12,3 +12,56 @@ Strictly weight Sub-Arbos and ToolHunter sub-swarms by ValidationOracle score (p
 
 # Smart Oracle Generation Rules
 Prioritize deterministic symbolic tools (SymPy, invariant extraction, formal verification snippets) on every subtask. ToolHunter sub-swarm MUST hunt in parallel. If no verifier_code_snippets exist in memdir/trajectory_vector_db, generate Python snippets EXCLUSIVELY focused on: (1) extracting/proving symbolic invariants, (2) exhaustive edge-case 0-1 scoring, (3) algebraic closures before any approximation. Always run deterministic symbolic checks FIRST.
+
+# v5.1 Intelligence Hardening — C3A + Decision Journal + Dynamic Tool Creation
+
+## C3A (Confidence-aware Continuous Convergent Annealing)
+At every Planning / Orchestrator / re_adapt and Sub-Arbos level:
+m = exp(-k·d) × c^β
+where:
+- d = normalized distance from current best (0..1)
+- c = deterministic confidence = 0.4·edge_coverage + 0.4·invariant_tightness + 0.2·ByteRover_historical_reliability
+- novelty_floor = 0.20 (never drops below this even on completely new subtasks)
+
+This replaces binary Exploit Lock with smooth, progress-and-confidence-aware tightening.
+
+## Decision Journal (new outer-loop memory)
+Every re_adapt and every Sub-Arbos now writes:
+- hypothesis
+- evidence_vs_instinct
+- performance_delta (Δc, Δs, context_cost)
+- organic_thought / aha
+
+These entries drive:
+- re_adapt prompts
+- principle evolution
+- ByteRover curation
+- ValidationOracle replay tests
+
+## Dynamic Tool Creation (gated)
+In Sub-Arbos:
+if dynamic_tool_creation_enabled and (tool gap detected or critique signals novelty):
+    proposed_tool = llm_generate_tool_proposal(subtask_description)
+    execution_result = sandbox_execute(proposed_tool)
+    critique_delta = critique_loop(execution_result, current_criteria)
+    if validation_oracle.replay_test(critique_delta) and critique_delta.c_increase > 0:
+        brv_curate(critique_delta, subtask_id)
+        register_new_tool(proposed_tool)
+
+## ByteRover / MAU Pyramid Upgrades
+- Minimal Atomic Units (MAU) representation for wiki entries
+- Progressive pyramid retrieval under token budget
+- LEANN embeddings on-demand (when leann_efficiency_enabled)
+- High-degree preserving pruning
+
+## SimulationHunter / The Well Integration
+ToolHunter and ValidationOracle can now pull physics traces from The Well (15 TB simulation corpus) to recompute confidence c when symbolic or quantum claims are made.
+
+Toggle defaults (brain/toggles.md):
+byterover_mau_enabled: false
+pareto_efficiency_enabled: true
+leann_efficiency_enabled: false
+simulationhunter_enabled: false
+well_scientist_mode: false
+decision_journal_enabled: true
+dynamic_tool_creation_enabled: false   # conservative default
