@@ -25,6 +25,17 @@ knowledge/<challenge_id>/
 4. Enforce pruning: remove or archive low-signal or redundant items.
 5. Generate strict JSON deltas for all folder creation, file writes, and updates.
 
+# Wiki Strategy — v5.1 MAU Pyramid
+
+When ingesting raw context:
+1. Break into Minimal Atomic Units (MAU)
+2. Score each MAU by reinforcement potential (validation_score × fidelity^1.5 × symbolic_coverage × heterogeneity_bonus)
+3. Insert into progressive pyramid (coarse → fine) under current token budget
+4. On high-signal runs: promote MAUs to permanent concepts/invariants
+5. Prune low-utility leaves while preserving high-degree nodes
+
+This gives ByteRover a living, compressible second brain that improves with every run.
+
 **Output Format (JSON only)**
 {
   "actions": [
