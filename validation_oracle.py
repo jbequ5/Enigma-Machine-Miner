@@ -24,6 +24,14 @@ class ValidationOracle:
     def adapt_scoring(self, strategy: Dict[str, Any]):
         self.last_strategy = strategy
 
+    def _sota_partial_credit_score(self, data: dict) -> float:
+        """deterministic 45% + edge/invariant/sim/fidelity rubric modulated by c^0.3"""
+        ...
+
+    def _subarbos_gate(self, output, theta_dynamic: float):
+        """mandatory replay for EVERY Sub-Arbos output, tool, retrospective, hybrid import, meta-tuning candidate"""
+        ...
+
     def _safe_parse_json(self, raw: Any) -> Dict:
         if isinstance(raw, dict):
             return raw
