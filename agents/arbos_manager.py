@@ -24,6 +24,13 @@ from agents.tools.tool_hunter import tool_hunter, load_registry, save_registry
 from agents.tools.compute import ComputeRouter, compute_router
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
+from agents.video_archiver import VideoArchiver
+from agents.history_parse_hunter import HistoryParseHunter
+from agents.meta_tuning_arbos import MetaTuningArbos
+from tools.archive_hunter import ArchiveHunter
+from agents.embodiment import NeurogenesisArbos, MicrobiomeLayer, VagusFeedbackLoop  # new embodiment module
+from agents.pattern_surfacer import ResonancePatternSurfacer, PhotoelectricPatternSurfacer
+
 
 from validation_oracle import ValidationOracle
 from trajectories.trajectory_vector_db import vector_db
@@ -77,6 +84,15 @@ class ArbosManager:
         self.config = self._load_config()
         self.extra_context = self._load_extra_context()
         self._setup_real_arbos()
+        self.video_archiver = VideoArchiver()
+        self.history_hunter = HistoryParseHunter(self.validation_oracle)
+        self.meta_tuner = MetaTuningArbos(self.validation_oracle)
+        self.archive_hunter = ArchiveHunter(self.validation_oracle)
+        self.neurogenesis = NeurogenesisArbos()
+        self.microbiome = MicrobiomeLayer()
+        self.vagus = VagusFeedbackLoop()
+        self.rps = ResonancePatternSurfacer()
+        self.pps = PhotoelectricPatternSurfacer()
 
         self.history_file = Path("submissions/run_history.json")
         self._ensure_history_file()
@@ -1612,3 +1628,18 @@ Return ONLY JSON with key 'deltas': list of strings, each ready to append to a .
             f.write(f"\n\n### Update {datetime.now().isoformat()}\naha_strength: {aha_strength:.3f}\nwiki_contribution_score: {wiki_contrib:.3f}\nheterogeneity_deltas: {self._compute_heterogeneity_score()['heterogeneity_score']}")
 
     # End of complete v5.1.3 ArbosManager.py — everything wired, nothing left out.
+
+     def _end_of_run(self, run_data: dict):
+         ...
+        # 1. MP4 Archival (post-run automatic)
+        mp4_path = self.video_archiver.archive_run_to_mp4(run_data, self.current_run_id)
+        
+        # 6. Embodiment modules (background, toggleable)
+        if self.toggles.get("embodiment_enabled", True):
+            self.neurogenesis.spawn_if_high_delta()
+            self.microbiome.ferment_novelty()
+            self.vagus.monitor_hardware_state()
+        
+        # 7. RPS + PPS (read-only, after HistoryParseHunter)
+        self.rps.surface_resonance()
+        self.pps.surface_photoelectric()
