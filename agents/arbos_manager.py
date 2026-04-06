@@ -96,15 +96,27 @@ class ArbosManager:
         self.rps = ResonancePatternSurfacer()
         self.pps = PhotoelectricPatternSurfacer()
 
-        # v0.6 toggles (loaded from brain suite - fully toggleable)
-        self.toggles = {
-            "embodiment_enabled": load_toggle("embodiment_enabled", "true") == "true",
-            "rps_pps_enabled": load_toggle("rps_pps_enabled", "true") == "true",
-            "hybrid_ingestion_enabled": load_toggle("hybrid_ingestion_enabled", "true") == "true",
-            "retrospective_enabled": load_toggle("retrospective_enabled", "true") == "true",
-            "meta_tuning_enabled": load_toggle("meta_tuning_enabled", "true") == "true",
-            "audit_enabled": load_toggle("audit_enabled", "true") == "true",
-        }
+   # v0.6 toggles (all useful and wired)
+self.toggles = {
+    "embodiment_enabled": load_toggle("embodiment_enabled", "true") == "true",
+    "rps_pps_enabled": load_toggle("rps_pps_enabled", "true") == "true",
+    "hybrid_ingestion_enabled": load_toggle("hybrid_ingestion_enabled", "true") == "true",
+    "retrospective_enabled": load_toggle("retrospective_enabled", "true") == "true",
+    "meta_tuning_enabled": load_toggle("meta_tuning_enabled", "true") == "true",
+    "audit_enabled": load_toggle("audit_enabled", "true") == "true",
+    # Legacy toggles now meaningfully wired
+    "aha_adaptation_enabled": load_toggle("aha_adaptation_enabled", "true") == "true",
+    "mycelial_pruning": load_toggle("mycelial_pruning", "true") == "true",
+    "symbiosis_synthesis": load_toggle("symbiosis_synthesis", "true") == "true",
+    "byterover_mau_enabled": load_toggle("byterover_mau_enabled", "false") == "true",
+    "dynamic_tool_creation_enabled": load_toggle("dynamic_tool_creation_enabled", "false") == "true",
+    "decision_journal_enabled": load_toggle("decision_journal_enabled", "true") == "true",
+    "model_compute_capability_enabled": load_toggle("model_compute_capability_enabled", "true") == "true",
+    "allow_per_subarbos_breakthrough": load_toggle("allow_per_subarbos_breakthrough", "true") == "true",
+}
+
+# Removed: leann_efficiency_enabled, pareto_efficiency_enabled, old quasar dead code
+
         logger.info(f"✅ v0.6 toggles loaded: {self.toggles}")
 
         self.history_file = Path("submissions/run_history.json")
@@ -407,9 +419,8 @@ Return ONLY valid JSON with keys: phase1_plan, key_insights, feasibility, recomm
         phase1 = self._safe_parse_json(phase1_raw)
         self._current_enhancement = phase1.get("generated_post_planning_enhancement", "")
 
-        dynamic_size = 5 if self.quasar_enabled else 4
-
-        phase2_prompt = f"""You are Orchestrator Arbos for SN63.
+        dynamic_size = 5 
+        phase2_prompt = f"""You are Orchestrator Arbos for Enigma.
 Phase 1 output: {str(phase1)[:2000]}
 {shared_core}
 Heterogeneity Principle: {heterogeneity}
@@ -431,8 +442,7 @@ Return ONLY valid JSON with: decomposition, swarm_config, tool_map, validation_c
             "phase1": phase1,
             "phase2": blueprint,
             "adapted_strategy": self._current_strategy,
-            "dynamic_swarm_size": dynamic_size,
-            "quasar_enabled": self.quasar_enabled
+            "dynamic_swarm_size": dynamic_size
         }
 
     # ====================== RE_ADAPT ======================
@@ -1009,7 +1019,6 @@ Generate a radically different avenue with maximum heterogeneity."""
             return ""
 
     def update_toggles(self, toggles: dict):
-        self.quasar_enabled = toggles.get("Quasar", True)
         self.enable_grail = toggles.get("Grail on winning runs", False)
         self.config["toolhunter_escalation"] = toggles.get("ToolHunter + ReadyAI", True)
         self.config["resource_aware"] = toggles.get("Light Compression", True)
