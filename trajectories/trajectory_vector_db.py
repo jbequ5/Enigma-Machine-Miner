@@ -1,3 +1,4 @@
+import re
 import json
 import faiss
 import numpy as np
@@ -31,6 +32,7 @@ class TrajectoryVectorDB:
         self.meta_path = self.path / "vector_meta.jsonl"
         self.path.mkdir(exist_ok=True)
 
+        self.arbos = None  # wired by ArbosManager
         self.load()
         logger.info(f"✅ TrajectoryVectorDB initialized | Max: {self.max_entries} | VRAM: {self.vram_gb:.1f}GB | RAM: {self.ram_gb:.1f}GB")
 
@@ -80,7 +82,7 @@ class TrajectoryVectorDB:
         return emb.astype('float32')
 
     def _compute_value(self, traj: dict) -> float:
-        """Reinforcement-aware value for pruning."""
+        """Reinforcement-aware value for pruning (tied to ByteRover + EFS)."""
         score = traj.get("validation_score", 0.0)
         fidelity = traj.get("fidelity", 0.5)
         hetero = traj.get("heterogeneity_score", 0.5)
@@ -89,16 +91,42 @@ class TrajectoryVectorDB:
         return (score ** 1.7) * (fidelity ** 1.9) * (hetero ** 1.3) * np.exp(-age_days * 0.1)
 
     def add(self, traj: dict, compress: bool = True):
-        """Add trajectory with optional compression integration."""
+        """Add trajectory with v0.6 SOTA gate + compression."""
         if not traj:
             return
 
-        # Integrate with Compression Layer
-        if compress and hasattr(self, 'arbos') and self.arbos is not None:
+        # v0.6 SOTA upgrade: gate before storing
+        if self.arbos and hasattr(self.arbos.validator, '_subarbos_gate'):
+            gate_data = {
+                "deterministic_strength": traj.get("validation_score", 0.45),
+                "edge_coverage": 0.78,
+                "invariant_tightness": 0.72,
+                "simulation_quality": 0.75,
+                "fidelity": traj.get("fidelity", 0.82),
+                "c3a_confidence": getattr(self.arbos, 'compute_confidence', lambda *a: 0.75)(0.78, 0.70, 0.88)
+            }
+            sota_score = self.arbos.validator._sota_partial_credit_score(gate_data)
+            theta_dynamic = 0.65 * (1 - 0.4 * (1 - gate_data["c3a_confidence"])**0.8) * min(1.0, traj.get("validation_score", 0.5) + 0.3)
+            
+            if not self.arbos.validator._subarbos_gate(output=traj, theta_dynamic=theta_dynamic):
+                logger.debug("Trajectory rejected by SOTA gate")
+                return
+
+        # Integrate with Compression Layer (already present, now explicitly v0.6 aware)
+        if compress and self.arbos is not None:
             try:
                 raw_context = json.dumps(traj)
                 compressed = self.arbos.compress_intelligence_delta(raw_context)
-                traj["compressed_delta"] = compressed[:2000]  # Store summary
+                traj["compressed_delta"] = compressed[:2000]
+            except:
+                pass
+
+        # Optional retrospective boost via HistoryParseHunter
+        if self.arbos and hasattr(self.arbos, 'history_hunter') and self.arbos.toggles.get("retrospective_enabled", True):
+            try:
+                retro_score = self.arbos.history_hunter.compute_retrospective_score(traj, {})
+                if retro_score > 0.7:
+                    traj["retrospective_delta"] = retro_score
             except:
                 pass
 
@@ -121,12 +149,6 @@ class TrajectoryVectorDB:
         except Exception as e:
             logger.warning(f"Persist failed: {e}")
 
-    def add_eggroll(self, traj: dict, perturbation_info: dict = None):
-        if perturbation_info:
-            traj["eggroll_perturbation"] = perturbation_info
-            traj["heterogeneity_score"] = traj.get("heterogeneity_score", 0) + 0.18
-        self.add(traj)
-
     def search(self, query_goal: str, k: int = 12, min_score: float = 0.0, min_fidelity: float = 0.0):
         if not self.trajectories:
             return []
@@ -144,12 +166,9 @@ class TrajectoryVectorDB:
             if len(results) >= k:
                 break
 
-        # Final re-ranking
+        # Final re-ranking by value (EFS-aware)
         if results:
-            results.sort(
-                key=lambda x: self._compute_value(x),
-                reverse=True
-            )
+            results.sort(key=self._compute_value, reverse=True)
         return results[:k]
 
     def _rebuild_index(self):
