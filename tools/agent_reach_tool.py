@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 import logging
 from cachetools import TTLCache
-from typing import Optional
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,7 @@ class AgentReachTool:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': 'Enigma-Machine-Miner-AgentReach/2.1'})
+        self.arbos = None  # wired by ArbosManager for v0.6 SOTA gating
         logger.info("AgentReachTool ready (memory + disk cache + full fallbacks)")
 
     def _get_cache_key(self, url: str) -> str:
@@ -68,6 +69,25 @@ class AgentReachTool:
             if len(clean_text) > max_length:
                 clean_text = clean_text[:max_length] + "\n... [truncated]"
 
+            # v0.6 SOTA upgrade: optional gate before caching high-value content
+            if self.arbos and hasattr(self.arbos.validator, '_subarbos_gate'):
+                try:
+                    gate_data = {
+                        "deterministic_strength": 0.6,
+                        "edge_coverage": 0.75,
+                        "invariant_tightness": 0.7,
+                        "simulation_quality": 0.65,
+                        "fidelity": 0.82,
+                        "c3a_confidence": getattr(self.arbos, 'compute_confidence', lambda *a: 0.75)(0.78, 0.70, 0.88)
+                    }
+                    sota_score = self.arbos.validator._sota_partial_credit_score(gate_data)
+                    theta_dynamic = 0.65 * (1 - 0.4 * (1 - gate_data["c3a_confidence"])**0.8) * 0.9
+                    if not self.arbos.validator._subarbos_gate(output=clean_text, theta_dynamic=theta_dynamic):
+                        logger.debug(f"SOTA gate rejected content from {url}")
+                        clean_text += "\n[Agent-Reach: Content failed SOTA gate — low signal]"
+                except:
+                    pass  # safe fallback
+
             self.cache[key] = clean_text
             self._save_disk_cache(key, clean_text)
             logger.info(f"Agent-Reach success: {url[:70]}...")
@@ -84,3 +104,17 @@ class AgentReachTool:
         self._save_disk_cache(key, fallback)
         logger.warning(f"Agent-Reach fallback triggered for {url}")
         return fallback
+
+    def get_content_with_score(self, url: str) -> Dict[str, Any]:
+        """v0.6 helper: returns content + basic EFS/SOTA hint for retrospective/audit flows"""
+        content = self.fetch_url_content(url)
+        return {
+            "url": url,
+            "content": content,
+            "length": len(content),
+            "timestamp": datetime.now().isoformat(),
+            "sota_hint": "high_signal" if len(content) > 800 else "low_signal"
+        }
+
+# Global instance (used by ToolHunter and ArchiveHunter)
+agent_reach_tool = AgentReachTool()
