@@ -36,6 +36,15 @@ When ingesting raw context:
 
 This gives ByteRover a living, compressible second brain that improves with every run.
 
+# v1.0 Wiki Strategy Update
+
+Wiki now ingests:
+- MP4-decoded archives via HistoryParseHunter
+- Resonance and Photoelectric deltas from pattern surfacers
+- EFS-weighted MAUs from meta-tuning
+
+High-Δ_retro patterns are automatically promoted to permanent wiki branches.
+
 **Output Format (JSON only)**
 {
   "actions": [
