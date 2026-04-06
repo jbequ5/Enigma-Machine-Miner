@@ -57,11 +57,10 @@ if dynamic_tool_creation_enabled and (tool gap detected or critique signals nove
 ## SimulationHunter / The Well Integration
 ToolHunter and ValidationOracle can now pull physics traces from The Well (15 TB simulation corpus) to recompute confidence c when symbolic or quantum claims are made.
 
-Toggle defaults (brain/toggles.md):
-byterover_mau_enabled: false
-pareto_efficiency_enabled: true
-leann_efficiency_enabled: false
-simulationhunter_enabled: false
-well_scientist_mode: false
-decision_journal_enabled: true
-dynamic_tool_creation_enabled: false   # conservative default
+# v1.0 Shared Core Extension
+
+The core now includes self-optimization as a first-class invariant:
+- Meta-tuning cycles battle-test genome mutations via EFS tournaments.
+- Retrospective scoring converts past runs into evolutionary fuel.
+- Pattern surfacers (RPS + PPS) surface hidden invariants that human or LLM planners might miss.
+- All changes remain verifier-first, replay-tested, and human-previewed before principle mutation.
