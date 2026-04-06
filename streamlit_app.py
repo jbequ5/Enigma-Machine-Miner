@@ -315,6 +315,16 @@ with tab_brain:
             st.json(compressed)
             st.rerun()
 
+    with tab4:
+        st.header("🔬 Optimization & Audit (v0.6)")
+        if st.button("🚀 Run Meta-Tuning Cycle"):
+            ...
+        if st.button("📼 Trigger Retrospective on Latest MP4"):
+            ...
+        if st.button("🔍 Run Full-System Audit"):
+            ...
+        # toggles for embodiment, RPS/PPS, hybrid ingestion, etc.
+
 # ====================== SIDEBAR - MISSION CONTROLS ======================
 with st.sidebar:
     st.header("⚙️ MISSION CONTROLS")
