@@ -87,33 +87,31 @@ class ArbosManager:
         # ====================== v0.6 FULLY WIRED: New feature instances ======================
         self.validator = ValidationOracle(goal_file, compute=self.compute, arbos=self)
         self.video_archiver = VideoArchiver()
-        self.history_hunter = HistoryParseHunter(self.validation_oracle)  # oracle wired later
-        self.meta_tuner = MetaTuningArbos(self.validation_oracle)
-        self.archive_hunter = ArchiveHunter(self.validation_oracle)
+        self.history_hunter = HistoryParseHunter(self.validator)          # ← was validation_oracle
+        self.meta_tuner = MetaTuningArbos(self.validator)                 # ← was validation_oracle
+        self.archive_hunter = ArchiveHunter(self.validator)               # ← was validation_oracle
         self.neurogenesis = NeurogenesisArbos()
         self.microbiome = MicrobiomeLayer()
         self.vagus = VagusFeedbackLoop()
         self.rps = ResonancePatternSurfacer()
         self.pps = PhotoelectricPatternSurfacer()
-
-   # v0.6 toggles (all useful and wired)
-self.toggles = {
-    "embodiment_enabled": load_toggle("embodiment_enabled", "true") == "true",
-    "rps_pps_enabled": load_toggle("rps_pps_enabled", "true") == "true",
-    "hybrid_ingestion_enabled": load_toggle("hybrid_ingestion_enabled", "true") == "true",
-    "retrospective_enabled": load_toggle("retrospective_enabled", "true") == "true",
-    "meta_tuning_enabled": load_toggle("meta_tuning_enabled", "true") == "true",
-    "audit_enabled": load_toggle("audit_enabled", "true") == "true",
-    # Legacy toggles now meaningfully wired
-    "aha_adaptation_enabled": load_toggle("aha_adaptation_enabled", "true") == "true",
-    "mycelial_pruning": load_toggle("mycelial_pruning", "true") == "true",
-    "symbiosis_synthesis": load_toggle("symbiosis_synthesis", "true") == "true",
-    "byterover_mau_enabled": load_toggle("byterover_mau_enabled", "false") == "true",
-    "dynamic_tool_creation_enabled": load_toggle("dynamic_tool_creation_enabled", "false") == "true",
-    "decision_journal_enabled": load_toggle("decision_journal_enabled", "true") == "true",
-    "model_compute_capability_enabled": load_toggle("model_compute_capability_enabled", "true") == "true",
-    "allow_per_subarbos_breakthrough": load_toggle("allow_per_subarbos_breakthrough", "true") == "true",
-}
+        self.toggles = {
+            "embodiment_enabled": load_toggle("embodiment_enabled", "true") == "true",
+            "rps_pps_enabled": load_toggle("rps_pps_enabled", "true") == "true",
+            "hybrid_ingestion_enabled": load_toggle("hybrid_ingestion_enabled", "true") == "true",
+            "retrospective_enabled": load_toggle("retrospective_enabled", "true") == "true",
+            "meta_tuning_enabled": load_toggle("meta_tuning_enabled", "true") == "true",
+            "audit_enabled": load_toggle("audit_enabled", "true") == "true",
+            # Legacy toggles now meaningfully wired
+            "aha_adaptation_enabled": load_toggle("aha_adaptation_enabled", "true") == "true",
+            "mycelial_pruning": load_toggle("mycelial_pruning", "true") == "true",
+            "symbiosis_synthesis": load_toggle("symbiosis_synthesis", "true") == "true",
+            "byterover_mau_enabled": load_toggle("byterover_mau_enabled", "false") == "true",
+            "dynamic_tool_creation_enabled": load_toggle("dynamic_tool_creation_enabled", "false") == "true",
+            "decision_journal_enabled": load_toggle("decision_journal_enabled", "true") == "true",
+            "model_compute_capability_enabled": load_toggle("model_compute_capability_enabled", "true") == "true",
+            "allow_per_subarbos_breakthrough": load_toggle("allow_per_subarbos_breakthrough", "true") == "true",
+            {
 
 # Removed: leann_efficiency_enabled, pareto_efficiency_enabled, old quasar dead code
 
@@ -743,28 +741,28 @@ Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
         return oracle_result
 
     # ====================== ALL OTHER ORIGINAL METHODS (100% PRESERVED) ======================
-    def _run_verification(self, solution: str, verification_instructions: str, challenge: str) -> str:
-        candidate = {"solution": solution}
-        oracle_result = self.validator.run(
-            candidate=results or {"solution": current_solution},   # note: this line had a bug in your paste; fixed to use local variables
-            verification_instructions=verification_instructions,
-            challenge=challenge,
-            goal_md=self.extra_context
-        )
-        self._current_strategy = oracle_result.get("strategy")
 
-        self.vector_db.add({
-            "solution": solution[:1000],
-            "challenge": challenge,
-            "validation_score": oracle_result.get("validation_score", 0.0),
-            "fidelity": 0.88,
-            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.65),
-            "loop": self.loop_count,
-            "source": "validation_oracle"
-        })
+def _run_verification(self, solution: str, verification_instructions: str, challenge: str) -> str:
+    oracle_result = self.validator.run(
+        candidate={"solution": solution},
+        verification_instructions=verification_instructions,
+        challenge=challenge,
+        goal_md=self.extra_context
+    )
+    self._current_strategy = oracle_result.get("strategy")
 
-        return f"ValidationOracle: score={oracle_result.get('validation_score', 0):.3f}"
+    self.vector_db.add({
+        "solution": solution[:1000],
+        "challenge": challenge,
+        "validation_score": oracle_result.get("validation_score", 0.0),
+        "fidelity": 0.88,
+        "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.65),
+        "loop": self.loop_count,
+        "source": "validation_oracle"
+    })
 
+    return f"ValidationOracle: score={oracle_result.get('validation_score', 0):.3f}"
+    
     def _tool_hunter(self, gap: str, subtask: str) -> str:
         result = tool_hunter.hunt_and_integrate(gap, subtask)
         if result.get("status") == "success" and result.get("links"):
@@ -1026,7 +1024,8 @@ Generate a radically different avenue with maximum heterogeneity."""
         for k, v in toggles.items():
             if k in self.toggles:
                 self.toggles[k] = bool(v)
-        logger.info(f"Toggles updated: Quasar={self.quasar_enabled}, Grail={self.enable_grail}, v0.6={self.toggles}")
+        logger.info(f"Toggles updated: Grail={self.enable_grail}, v0.6={self.toggles}")
+
 
     def set_compute_source(self, source: str, custom_endpoint: str = None):
         self.compute_source = source
