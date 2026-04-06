@@ -17,6 +17,15 @@ Post-Planning Refinement v5: Elevate the high-level plan with strict symbolic-fi
 ### AUTO_PRE_LAUNCH_CONTEXT_TEMPLATE
 Pre-Launch Final Context v5: Before spawning the Dynamic Swarm, apply these final constraints: Aggressively coordinate the four ToolHunter sub-swarms in parallel where possible. Every verifier snippet or oracle must pass deterministic symbolic checks prior to synthesis. Synthesis must strictly follow MARL credit rule. Preserve high-value patterns from memdir, wiki/, and bio layers. Insert extra self-critique if stochastic drift or stale regime is detected. Target ValidationOracle ≥ 0.92 while staying under max_compute_hours. Include Module Effectiveness Reflection. This overrides any weaker suggestions.
 
-### EMBODIMENT_TEMPLATE
-v0.6 introduces episodic self-optimization via MP4 archival, retrospective scoring, EFS meta-tuning, and full embodiment (Neurogenesis, Microbiome, Vagus). All changes remain gated by verifier-first replay testing, SOTA rubric, and human preview for any principle-impacting mutation.
+# v1.0 Evolution — Self-Optimizing Embodied Organism
+
+As of April 2026, the miner has evolved into a living, self-optimizing organism.
+
+New principles now active:
+- Episodic self-optimization via Meta-Tuning Arbos and Enigma Fitness Score (EFS = weighted V+S+H+C+E).
+- Full embodiment: Neurogenesis (structural plasticity), Microbiome (controlled novelty injection), Vagus (bidirectional hardware feedback).
+- Resonance (RPS) and Photoelectric (PPS) pattern surfacers extract invisible multi-scale invariants from MAU clusters and archives.
+- MP4 archival with Memvid Smart Frames makes all runs rewindable and auditable.
+- Retrospective scoring turns past compute into renewable evolutionary fuel.
+- All new outputs, MAUs, and genome mutations pass mandatory SOTA partial-credit replay testing + dynamic θ_dynamic gating.
 
