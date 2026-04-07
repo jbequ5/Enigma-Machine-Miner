@@ -23,7 +23,7 @@ class VerificationAnalyzer:
                 "symbolic": 0.40,
                 "deterministic": 0.35,
                 "novelty": 0.15,
-                "realism": 0.10,      # realism weight — feeds into SOTA rubric
+                "realism": 0.10,
                 "speed": 0.0
             },
             "self_check_commands": [],
@@ -95,4 +95,33 @@ class VerificationAnalyzer:
         if any(k in text_lower for k in ["resonance", "photoelectric", "microtubule", "kruse", "pattern", "invariant cluster"]):
             strategy["pattern_surfacing_hints"].append("multi_scale_pattern_opportunity")
 
+        # ===================================================================
+        # NEW: VERIFIABILITY SPEC (orchestrator self-dialogue contract)
+        # Passed to every layer: dry-run simulator, Sub-Arbos workers, merger, oracle, wiki trace
+        # ===================================================================
+        strategy["verifiability_spec"] = self._generate_verifiability_spec(challenge, verification_instructions)
+
         return strategy
+
+    def _generate_verifiability_spec(self, challenge: str, instructions: str) -> Dict[str, Any]:
+        """PhD-rigorous, machine-readable contract generated from every challenge.
+        This is the single source of truth for artifacts, composability, dry-run criteria, and stigmergic learning."""
+        return {
+            "version": "1.0",
+            "artifacts_required": [],  # populated dynamically by orchestrator self-dialogue / decomp
+            "composability_rules": [
+                "No internal state contradictions between artifacts",
+                "Clear merge interfaces defined in each artifact schema",
+                "Merged candidate must be executable against full verifier_code_snippets"
+            ],
+            "dry_run_success_criteria": {
+                "edge_coverage": ">= 0.75",
+                "invariant_tightness": ">= 0.70",
+                "fidelity": ">= 0.78",
+                "c3a_confidence": ">= 0.78",
+                "theta_dynamic_gate": "passed",
+                "EFS": ">= 0.65"
+            },
+            "learning_mandate": "Every dry-run and swarm outcome MUST write full trace (spec + grades + failures + real_delta) to wiki/trajectories for mycelial evolution",
+            "heterogeneity_mandate": "Subtasks must explore all five axes (symbolic, numeric, linguistic, edge-case, invariant-tight)"
+        }
