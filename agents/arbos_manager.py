@@ -319,8 +319,113 @@ class ArbosManager:
     def compute_c3a_multiplier(self, d: float, c: float) -> float:
         return math.exp(-self.c3a_k * d) * (c ** self.c3a_beta)
 
-    def _analyze_swarm_stall(self, subtask_outputs: List[Dict], validation_result: Dict, 
-                             dry_run_result: Dict) -> Dict:
+        def _orchestrator_self_dialogue(self, task: str, goal_md: str) -> Dict[str, Any]:
+        """Explicit inner self-dialogue for Orchestrator Arbos."""
+        shared_core = load_brain_component("principles/shared_core")
+        heterogeneity = load_brain_component("principles/heterogeneity")
+
+        dialogue_prompt = f"""You are Orchestrator Arbos for SN63 Enigma Miner.
+
+TASK: {task}
+
+GOAL CONTEXT:
+{goal_md[:3000]}
+
+{shared_core}
+
+Heterogeneity Principle:
+{heterogeneity}
+
+VERIFIABILITY CONTRACT RULES (must obey):
+- Explicitly list every required artifact (x, y, z...) the subtasks must produce.
+- Define clear merge interfaces so recomposition is deterministic.
+- Ensure the merged candidate can pass the full verifier set (edge ≥ 0.75, c ≥ 0.78, EFS ≥ 0.65 in best case).
+
+Return ONLY valid JSON with these keys:
+{{
+  "artifacts_required": [list of dicts with name, schema, verifier_snippets, merge_interface],
+  "composability_rules": [list of strings],
+  "dry_run_success_criteria": {{...}},
+  "decomposition_strategy": "brief description",
+  "risks_and_mitigations": [list]
+}}"""
+
+        model_config = self.load_model_registry(role="planner")
+        raw_response = self.harness.call_llm(dialogue_prompt, temperature=0.35, max_tokens=1400, model_config=model_config)
+        spec = self._safe_parse_json(raw_response)
+
+        analyzer_spec = self.analyzer._generate_verifiability_spec(task, "")
+        if "artifacts_required" in spec:
+            analyzer_spec["artifacts_required"] = spec.get("artifacts_required", [])
+
+        return {
+            "self_dialogue_output": spec,
+            "final_verifiability_spec": analyzer_spec,
+            "decomposition_strategy": spec.get("decomposition_strategy", "Standard heterogeneous decomposition")
+        }
+
+    def _build_failure_context(self, failure_type: str, task: str, goal_md: str,
+                               strategy: Dict, dry_run: Dict = None,
+                               swarm_results: List = None, validation_result: Dict = None) -> Dict:
+        """Rich failure context packet for intelligent replanning."""
+        oracle_metrics = {
+            "edge_coverage": getattr(self.validator, "_compute_edge_coverage", lambda *a: 0.0)({}, []),
+            "invariant_tightness": getattr(self.validator, "_compute_invariant_tightness", lambda *a: 0.0)({}, []),
+            "fidelity": getattr(self.validator, "last_fidelity", 0.0),
+            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.72),
+            "c3a_confidence": getattr(self.validator, "last_c", 0.75),
+            "theta_dynamic": getattr(self.validator, "last_theta", 0.65),
+            "EFS": getattr(self, "last_efs", 0.0),
+            "real_vs_dry_run_delta": (getattr(self, "last_efs", 0.0) - (dry_run.get("best_case_efs", 0.0) if dry_run else 0.0))
+        }
+
+        return {
+            "failure_type": failure_type,
+            "task": task,
+            "timestamp": datetime.now().isoformat(),
+            "original_verifiability_spec": strategy.get("verifiability_spec", {}),
+            "orchestrator_dialogue": strategy.get("orchestrator_dialogue", {}),
+            "dry_run_result": dry_run,
+            "swarm_results_summary": {
+                "total_subtasks": len(swarm_results or []),
+                "avg_local_score": sum(r.get("local_score", 0) for r in (swarm_results or [])) / max(1, len(swarm_results or []))
+            },
+            "oracle_metrics": oracle_metrics,
+            "failure_modes": [],
+            "loop_count": self.loop_count,
+            "recent_history_summary": self.recent_scores[-5:] if hasattr(self, "recent_scores") else []
+        }
+
+    def _intelligent_replan(self, failure_context: Dict) -> Dict:
+        """Structured reflection step that decides fix vs new strategy."""
+        prompt = f"""You are Replanning Arbos for SN63.
+
+FAILURE CONTEXT:
+{json.dumps(failure_context, indent=2)}
+
+Respect the original verifiability_spec as an invariant unless you explicitly justify breaking it.
+
+Return ONLY valid JSON:
+{{
+  "reflection_summary": "short diagnosis",
+  "decision": "fix_current_plan" | "new_strategy_needed",
+  "rationale": "detailed reasoning",
+  "spec_fixes": [list of specific changes] | null,
+  "new_strategy_directives": "guidance for next self-dialogue" | null,
+  "confidence_in_decision": 0.0-1.0,
+  "recommended_next_action": "refine_decomp" | "escalate_meta_tuner" | "full_replan"
+}}"""
+
+        model_config = self.load_model_registry(role="planner")
+        raw = self.harness.call_llm(prompt, temperature=0.25, max_tokens=900, model_config=model_config)
+        decision = self._safe_parse_json(raw)
+
+        self.save_to_memdir(f"replan_reflection_{int(time.time())}", decision)
+        logger.info(f"Intelligent replan decision: {decision.get('decision')} | confidence {decision.get('confidence_in_decision', 0.0):.2f}")
+        return decision
+
+    def _analyze_swarm_stall(self, subtask_outputs: List[Dict], validation_result: Dict, dry_run_result: Dict) -> Dict:
+        """Analyzes real swarm stall despite passed dry-run."""
         real_efs = validation_result.get("efs", 0.0)
         dry_run_efs = dry_run_result.get("best_case_efs", 0.0)
         
@@ -329,10 +434,7 @@ class ArbosManager:
             "dry_run_efs": round(dry_run_efs, 4),
             "delta": round(real_efs - dry_run_efs, 4),
             "is_severe_stall": (real_efs < dry_run_efs - 0.15) or self._is_stale_regime(self.recent_scores),
-            "low_performing_subtasks": [
-                {"subtask": out.get("subtask", "unknown"), "local_score": out.get("local_score", 0.0)}
-                for out in subtask_outputs if out.get("local_score", 0.0) < 0.65
-            ],
+            "low_performing_subtasks": [{"subtask": out.get("subtask", "unknown"), "local_score": out.get("local_score", 0.0)} for out in subtask_outputs if out.get("local_score", 0.0) < 0.65],
             "heterogeneity_drop": self._compute_heterogeneity_score([out.get("solution", "") for out in subtask_outputs]) < 0.6,
             "failure_modes": []
         }
@@ -345,83 +447,7 @@ class ArbosManager:
             stall_context["failure_modes"].append("heterogeneity_collapse_in_real_execution")
 
         return stall_context
-    
-    
-    def _build_failure_context(self, failure_type: str, task: str, goal_md: str,
-                               strategy: Dict, dry_run: Dict = None,
-                               swarm_results: List = None, validation_result: Dict = None) -> Dict:
-        """Builds the rich failure context packet for intelligent replanning."""
-        oracle_metrics = {
-            "edge_coverage": getattr(self.validator, "_compute_edge_coverage", lambda *a: 0.0)({}, []),
-            "invariant_tightness": getattr(self.validator, "_compute_invariant_tightness", lambda *a: 0.0)({}, []),
-            "fidelity": getattr(self.validator, "last_fidelity", 0.0),
-            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.72),
-            "c3a_confidence": getattr(self.validator, "last_c", 0.75),
-            "theta_dynamic": getattr(self.validator, "last_theta", 0.65),
-            "EFS": getattr(self, "last_efs", 0.0),
-            "real_vs_dry_run_delta": (getattr(self, "last_efs", 0.0) - dry_run.get("best_case_efs", 0.0)) if dry_run else 0.0
-        }
 
-        failure_modes = []
-        if dry_run and not dry_run.get("dry_run_passed", True):
-            failure_modes.append("dry_run_gate_failed")
-        if validation_result and validation_result.get("validation_score", 0) < 0.65:
-            failure_modes.append("low_final_validation_score")
-
-        context = {
-            "failure_type": failure_type,
-            "task": task,
-            "timestamp": datetime.now().isoformat(),
-            "original_verifiability_spec": strategy.get("verifiability_spec", {}),
-            "orchestrator_dialogue": strategy.get("orchestrator_dialogue", {}),
-            "dry_run_result": dry_run,
-            "swarm_results_summary": {
-                "total_subtasks": len(swarm_results or []),
-                "avg_local_score": sum(r.get("local_score", 0) for r in (swarm_results or [])) / max(1, len(swarm_results or []))
-            },
-            "oracle_metrics": oracle_metrics,
-            "failure_modes": failure_modes,
-            "loop_count": self.loop_count,
-            "recent_history_summary": self.recent_scores[-5:] if hasattr(self, "recent_scores") else []
-        }
-        return context
-
-    def _intelligent_replan(self, failure_context: Dict) -> Dict:
-        """Structured reflection step: analyzes failure and decides fix vs new strategy.
-        Must respect verifiability_spec at all times."""
-        
-        prompt = f"""You are Replanning Arbos for SN63 Enigma Miner.
-
-FAILURE CONTEXT:
-{json.dumps(failure_context, indent=2)}
-
-You must respect the original verifiability_spec as an invariant unless you explicitly justify breaking it.
-
-Perform this analysis:
-1. Root cause diagnosis from the full packet.
-2. Is this fixable within the current spec/decomposition? (small targeted changes)
-3. Or do we need a fundamentally new strategy/test plan?
-
-Return ONLY valid JSON:
-{{
-  "reflection_summary": "short diagnosis",
-  "decision": "fix_current_plan" | "new_strategy_needed",
-  "rationale": "detailed reasoning",
-  "spec_fixes": [list of specific changes to current verifiability_spec] | null,
-  "new_strategy_directives": "guidance for next self-dialogue" | null,
-  "confidence_in_decision": 0.0-1.0,
-  "recommended_next_action": "refine_decomp" | "escalate_meta_tuner" | "full_replan"
-}}"""
-
-        model_config = self.load_model_registry(role="planner")
-        raw = self.harness.call_llm(prompt, temperature=0.25, max_tokens=900, model_config=model_config)
-        decision = self._safe_parse_json(raw)
-
-        # Write reflection to wiki for stigmergic learning
-        self.save_to_memdir(f"replan_reflection_{int(time.time())}", decision)
-
-        logger.info(f"Intelligent replan decision: {decision.get('decision')} | confidence {decision.get('confidence_in_decision', 0.0):.2f}")
-        return decision
     def compute_confidence(self, edge_coverage: float, invariant_tightness: float, historical_reliability: float) -> float:
         raw_c = (0.4 * edge_coverage) + (0.4 * invariant_tightness) + (0.2 * historical_reliability)
         return max(self.novelty_floor, min(1.0, raw_c))
@@ -598,7 +624,7 @@ Return ONLY valid JSON with: decomposition, swarm_config, tool_map, validation_c
             "dialogue": dialogue_result
         }
         
-    # ====================== RE_ADAPT ======================
+    # ====================== RE_ADAPT (FULLY WIRED WITH INTELLIGENT REPLANNING) ======================
     def re_adapt(self, candidate: Dict, latest_verifier_feedback: str):
         self.loop_count += 1
         self.recent_scores.append(getattr(self.validator, "last_score", 0.0))
@@ -606,14 +632,15 @@ Return ONLY valid JSON with: decomposition, swarm_config, tool_map, validation_c
         if self._is_stale_regime(self.recent_scores):
             logger.warning("🔴 Stale regime detected — flagging deep replan")
             self._flag_for_new_avenue_plan = True
-            # v0.6: Retrospective triggered on stale regime (episodic, gated)
             if self.toggles.get("retrospective_enabled", True):
                 try:
                     self.history_hunter.trigger_retrospective()
                 except Exception as e:
                     logger.debug(f"Retrospective skipped (safe): {e}")
 
-        if self.model_compute_capability_enabled and self.allow_per_subarbos_breakthrough and self.is_stagnant_subarbos("global"):
+        if (self.model_compute_capability_enabled and 
+            self.allow_per_subarbos_breakthrough and 
+            self.is_stagnant_subarbos("global")):
             gap = self.generate_gap_diagnosis("global")
             rec_model = self.recommend_breakthrough_model(gap)
             logger.info(f"🌍 Global stagnation detected — recommending {rec_model} breakthrough run")
@@ -630,6 +657,27 @@ Return ONLY valid JSON with: decomposition, swarm_config, tool_map, validation_c
             aha_strength = getattr(self.validator, "last_score", 0.0) - (self.recent_scores[-2] if len(self.recent_scores) > 1 else 0)
             self._update_brain_metrics(aha_strength=aha_strength)
 
+        # Intelligent replanning integration
+        if self._flag_for_new_avenue_plan or self._is_stale_regime(self.recent_scores):
+            failure_context = self._build_failure_context(
+                failure_type="re_adapt_stall",
+                task=candidate.get("challenge", "unknown"),
+                goal_md=self.extra_context,
+                strategy=self._current_strategy or {},
+                validation_result={"efs": getattr(self, "last_efs", 0.0), "validation_score": getattr(self.validator, "last_score", 0.0)}
+            )
+            replan_decision = self._intelligent_replan(failure_context)
+            
+            if replan_decision.get("decision") == "new_strategy_needed":
+                logger.info("Re-adapt reflection decided NEW STRATEGY needed")
+                self._flag_for_new_avenue_plan = True
+            else:
+                logger.info("Re-adapt reflection decided fixable within current plan")
+                if replan_decision.get("spec_fixes") and self._current_strategy:
+                    if "verifiability_spec" in self._current_strategy:
+                        self._current_strategy["verifiability_spec"]["fixes_applied"] = replan_decision["spec_fixes"]
+
+        # Normal re-adapt flow
         if self._flag_for_new_avenue_plan:
             new_plan = self._generate_new_avenue_plan(
                 candidate.get("challenge", "unknown"), 
@@ -690,7 +738,6 @@ Generate concise, high-signal adaptation."""
 
         self.process_tool_proposals()
 
-        # ByteRover promotion after adaptation
         if getattr(self.validator, "last_score", 0.0) > 0.75:
             self.memory_layers.promote_high_signal(
                 latest_verifier_feedback,
@@ -760,7 +807,7 @@ Return ONLY valid JSON with these keys:
             "decomposition_strategy": spec.get("decomposition_strategy", "Standard heterogeneous decomposition")
         }
         
-    # ====================== ORCHESTRATE SUB-ARBOS (FULLY HARDENED WITH INNER DIALOGUE) ======================
+    # ====================== ORCHESTRATE SUB-ARBOS (FULLY HARDENED & WIRED) ======================
     def orchestrate_subarbos(self, task: str, goal_md: str = "", previous_outputs: List[Any] = None) -> Dict[str, Any]:
         """Single source of truth with intelligent context-aware replanning."""
 
@@ -769,7 +816,7 @@ Return ONLY valid JSON with these keys:
         # 1. Orchestrator Inner Self-Dialogue
         dialogue_result = self._orchestrator_self_dialogue(task, goal_md)
 
-        # 2. Decomposition + Strategy
+        # 2. Decomposition + Strategy with enforced spec
         decomp = self.dvr.decomp_template(task, goal_md)
         strategy = self.analyzer.analyze("", task)
         strategy.update(decomp)
@@ -777,7 +824,7 @@ Return ONLY valid JSON with these keys:
         strategy["orchestrator_dialogue"] = dialogue_result["self_dialogue_output"]
         strategy["hardening_dialogue"] = self.dvr.hardening_conversation_template()
 
-        # 3. Dry-run test-plan validation
+        # 3. Dry-run test-plan validation (cheap gate)
         full_verifier_snippets = strategy.get("verifier_code_snippets", [])
         dry_run = self.simulator.run_dry_run(
             decomposed_subtasks=strategy["verifiability_spec"].get("artifacts_required", []),
@@ -786,8 +833,8 @@ Return ONLY valid JSON with these keys:
         )
         strategy["dry_run_result"] = dry_run
 
+        # === INTELLIGENT REPLAN ON DRY-RUN FAILURE ===
         if dry_run.get("recommendation") == "ITERATE_DECOMP":
-            # === INTELLIGENT REPLAN ON DRY-RUN FAILURE ===
             failure_context = self._build_failure_context(
                 failure_type="dry_run_failed",
                 task=task,
@@ -805,14 +852,13 @@ Return ONLY valid JSON with these keys:
                 )
             else:
                 logger.info("Replan decided fixable — applying targeted fixes")
-                # Optional: apply spec fixes
                 if replan_decision.get("spec_fixes"):
                     strategy["verifiability_spec"]["fixes_applied"] = replan_decision["spec_fixes"]
 
-        # 4. Proceed to swarm only if dry-run passes or we chose to continue
+        # 4. Proceed to real swarm
         subtask_outputs = self._launch_hyphal_workers(task, strategy)
 
-        # 5-7. Recompose, validate, trace (unchanged from previous version)
+        # 5. Recompose + full validation
         merged = self._recompose(subtask_outputs, {})
         validation_result = self.validator.run(
             candidate=merged,
@@ -822,9 +868,7 @@ Return ONLY valid JSON with these keys:
             subtask_outputs=subtask_outputs
         )
 
-        # ===================================================================
-        # 6. FULL DETERMINISTIC VARIABLE COMPUTATION
-        # ===================================================================
+        # 6. Full deterministic variable computation
         edge = self.validator._compute_edge_coverage(merged, full_verifier_snippets)
         invariant = self.validator._compute_invariant_tightness(merged, full_verifier_snippets)
         fidelity = self.validator._compute_fidelity(merged, full_verifier_snippets)
@@ -845,9 +889,7 @@ Return ONLY valid JSON with these keys:
 
         passed = self.validator._subarbos_gate(merged, strategy, subtask_outputs)
 
-        # ===================================================================
-        # 7. STIGMERGIC TRACE (mycelial learning)
-        # ===================================================================
+        # 7. Stigmergic trace (mycelial learning)
         trace = {
             "task": task,
             "orchestrator_dialogue": dialogue_result["self_dialogue_output"],
@@ -930,7 +972,9 @@ Return ONLY valid JSON with these keys:
         return dict(manager_dict)
 
     def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = ""):
-        dynamic_size = blueprint.get("dynamic_swarm_size", blueprint.get("swarm_config", {}).get("total_instances", 5))
+        """Full cycle execution with intelligent stall detection and replanning."""
+        dynamic_size = blueprint.get("dynamic_swarm_size", 
+                                    blueprint.get("swarm_config", {}).get("total_instances", 5))
         
         # Run the swarm
         results = self._execute_swarm(blueprint, dynamic_size)
@@ -948,7 +992,7 @@ Return ONLY valid JSON with these keys:
         score = validation_result.get("validation_score", 0.0)
         efs = validation_result.get("efs", 0.0)
 
-        # ByteRover promotion
+        # ByteRover promotion (preserved)
         if score > 0.70:
             self.memory_layers.promote_high_signal(
                 str(results),
@@ -962,17 +1006,18 @@ Return ONLY valid JSON with these keys:
         self.memory_layers.compress_low_value(current_score=score)
 
         # ====================== INTELLIGENT STALL DETECTION & REPLAN ======================
-        dry_run_result = blueprint.get("dry_run_result", {})  # passed down from orchestrate_subarbos
+        dry_run_result = blueprint.get("dry_run_result", {})  # passed from orchestrate_subarbos
+
         stall_analysis = self._analyze_swarm_stall(
             list(results.values()) if isinstance(results, dict) else [],
             validation_result,
             dry_run_result
         )
 
-        if stall_analysis["is_severe_stall"]:
-            logger.warning(f"Real swarm stall detected despite passed dry-run. Delta: {stall_analysis['delta']:.3f}")
+        if stall_analysis.get("is_severe_stall", False):
+            logger.warning(f"Real swarm stall detected despite passed dry-run. Delta: {stall_analysis.get('delta', 0):.3f}")
 
-            # Build rich failure context
+            # Build rich failure context packet
             failure_context = self._build_failure_context(
                 failure_type="swarm_stall_on_passed_spec",
                 task=challenge,
@@ -988,17 +1033,16 @@ Return ONLY valid JSON with these keys:
 
             if replan_decision.get("decision") == "new_strategy_needed":
                 logger.info("Stall reflection decided NEW STRATEGY needed — triggering full replan")
-                # Escalate with full context
                 new_task = f"{challenge} [STALL RECOVERY - previous spec failed in practice]"
+                # Return the new orchestrate call to restart the DVRP loop with full context
                 return self.orchestrate_subarbos(new_task, self.extra_context)
             else:
                 logger.info("Stall reflection decided fixable — applying targeted fixes")
-                # Apply spec fixes if provided
-                if replan_decision.get("spec_fixes"):
+                if replan_decision.get("spec_fixes") and self._current_strategy:
                     if "verifiability_spec" in self._current_strategy:
                         self._current_strategy["verifiability_spec"]["fixes_applied"] = replan_decision["spec_fixes"]
 
-        # Grail / meta updates (only on strong runs)
+        # Normal success path (Grail / evolution)
         if score > 0.92 and self.enable_grail:
             self.consolidate_grail(str(results), score, validation_result)
 
@@ -1008,29 +1052,31 @@ Return ONLY valid JSON with these keys:
         self.save_run_to_history(challenge, "", str(results), score, 0.5, score)
 
         return validation_result
-
+        
     # ====================== ALL OTHER ORIGINAL METHODS (100% PRESERVED) ======================
 
-def _run_verification(self, solution: str, verification_instructions: str, challenge: str) -> str:
-    oracle_result = self.validator.run(
-        candidate={"solution": solution},
-        verification_instructions=verification_instructions,
-        challenge=challenge,
-        goal_md=self.extra_context
-    )
-    self._current_strategy = oracle_result.get("strategy")
+    def _run_verification(self, solution: str, verification_instructions: str, challenge: str) -> str:
+        oracle_result = self.validator.run(
+            candidate={"solution": solution},
+            verification_instructions=verification_instructions,
+            challenge=challenge,
+            goal_md=self.extra_context,
+            subtask_outputs=[solution]
+        )
 
-    self.vector_db.add({
-        "solution": solution[:1000],
-        "challenge": challenge,
-        "validation_score": oracle_result.get("validation_score", 0.0),
-        "fidelity": 0.88,
-        "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.65),
-        "loop": self.loop_count,
-        "source": "validation_oracle"
-    })
+        self._current_strategy = oracle_result.get("strategy")
 
-    return f"ValidationOracle: score={oracle_result.get('validation_score', 0):.3f}"
+        self.vector_db.add({
+            "solution": solution[:1000],
+            "challenge": challenge,
+            "validation_score": oracle_result.get("validation_score", 0.0),
+            "fidelity": oracle_result.get("fidelity", 0.88),
+            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.65),
+            "loop": self.loop_count,
+            "source": "validation_oracle"
+        })
+
+        return f"ValidationOracle: score={oracle_result.get('validation_score', 0):.3f} | EFS={oracle_result.get('efs', 0.0):.3f}"
     
     def _tool_hunter(self, gap: str, subtask: str) -> str:
         result = tool_hunter.hunt_and_integrate(gap, subtask)
@@ -1430,10 +1476,18 @@ Return ONLY the new full prompt block starting with ## COMPRESSION_PROMPT v{vers
             "detectors": {}
         }
 
-        symbolic_result = symbolic_module("", solution, solution, self._current_strategy or {})
+        # Use real oracle validation instead of legacy symbolic_module
+        validation = self.validator.run(
+            candidate=solution,
+            verification_instructions=verification_instructions,
+            challenge=challenge,
+            goal_md=self.extra_context,
+            subtask_outputs=[solution]
+        )
+
         diagnostics["detectors"]["symbolic_invariant"] = {
-            "passed": "deterministic" in symbolic_result.lower() or "sympy" in symbolic_result.lower(),
-            "details": symbolic_result[:300]
+            "passed": validation.get("validation_score", 0) > 0.7,
+            "details": validation.get("notes", "")[:300]
         }
 
         diagnostics["detectors"]["prompt_coherence"] = {
@@ -1446,16 +1500,6 @@ Return ONLY the new full prompt block starting with ## COMPRESSION_PROMPT v{vers
             "details": "No obvious parsing errors detected"
         }
 
-        diagnostics["detectors"]["novelty_drift"] = {
-            "passed": True,
-            "details": "No significant drift detected"
-        }
-
-        diagnostics["detectors"]["cross_stage_coherence"] = {
-            "passed": True,
-            "details": "Subtasks appear aligned"
-        }
-
         self.diagnostic_history.append(diagnostics)
         if len(self.diagnostic_history) > 20:
             self.diagnostic_history.pop(0)
@@ -1464,7 +1508,7 @@ Return ONLY the new full prompt block starting with ## COMPRESSION_PROMPT v{vers
                           diagnostics["overall_score"], 0.85)
 
         return diagnostics
-
+        
     def memory_reinforcement_signal(self, pattern: Dict, score: float, fidelity: float, 
                                     symbolic_coverage: float = 0.8, heterogeneity_score: float = 0.0) -> float:
         base = score * (fidelity ** 1.5) * symbolic_coverage
