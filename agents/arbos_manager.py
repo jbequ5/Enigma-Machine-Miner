@@ -2442,12 +2442,16 @@ Return ONLY valid JSON:
             if hasattr(self, 'meta_reflect'):
                 self.meta_reflect(run_data.get("best_solution", ""), score, run_data.get("diagnostics"))
 
-        # 4. Embodiment + Pattern Surfacers (background)
+          # Advanced Embodiment + Pattern Surfacers
         if self.toggles.get("embodiment_enabled", True):
             try:
-                threading.Thread(target=self.neurogenesis.spawn_if_high_delta, daemon=True, args=(None, run_data)).start()
-                threading.Thread(target=self.microbiome.ferment_novelty, daemon=True, args=(run_data,)).start()
-                threading.Thread(target=self.vagus.monitor_hardware_state, daemon=True, args=(run_data,)).start()
+                # Background threads for non-blocking operation
+                threading.Thread(target=neurogenesis.spawn_if_high_delta, 
+                               args=(validation_result,), daemon=True).start()
+                threading.Thread(target=microbiome.ferment_novelty, 
+                               args=(validation_result,), daemon=True).start()
+                threading.Thread(target=vagus.monitor_hardware_state, 
+                               args=(validation_result,), daemon=True).start()
             except Exception as e:
                 logger.debug(f"Embodiment skipped: {e}")
                 
