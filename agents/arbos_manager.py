@@ -833,7 +833,7 @@ Return ONLY valid JSON with these keys:
         )
         strategy["dry_run_result"] = dry_run
 
-        # === INTELLIGENT REPLAN ON DRY-RUN FAILURE ===
+        # Intelligent replan on dry-run failure
         if dry_run.get("recommendation") == "ITERATE_DECOMP":
             failure_context = self._build_failure_context(
                 failure_type="dry_run_failed",
@@ -874,9 +874,7 @@ Return ONLY valid JSON with these keys:
         fidelity = self.validator._compute_fidelity(merged, full_verifier_snippets)
         hetero = self.validator._compute_heterogeneity_score(subtask_outputs)
 
-        c = self.validator._compute_c3a_confidence(
-            edge, invariant, getattr(self, 'historical_reliability', 0.0)
-        )
+        c = self.validator._compute_c3a_confidence(edge, invariant, getattr(self, 'historical_reliability', 0.0))
         theta = self.validator._compute_theta_dynamic(c, self.loop_count / 10.0)
 
         efs = self.validator._compute_efs(
@@ -889,7 +887,7 @@ Return ONLY valid JSON with these keys:
 
         passed = self.validator._subarbos_gate(merged, strategy, subtask_outputs)
 
-        # 7. Stigmergic trace (mycelial learning)
+        # 7. Stigmergic trace
         trace = {
             "task": task,
             "orchestrator_dialogue": dialogue_result["self_dialogue_output"],
@@ -914,10 +912,10 @@ Return ONLY valid JSON with these keys:
             "merged_candidate": merged,
             "validation_result": validation_result,
             "dvr_trace": trace["real"],
-            "notes": f"FULL DVR PIPELINE COMPLETE | Dry-run passed → Swarm executed | EFS={efs:.4f} | c={c:.4f}",
+            "notes": f"FULL DVR PIPELINE COMPLETE | EFS={efs:.4f} | c={c:.4f}",
             "orchestrator_dialogue": dialogue_result["self_dialogue_output"]
         }
-
+        
     # ====================== SUB-ARBOS WORKER (FULLY HARDENED v5.2 - BUG FREE) ======================
     def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
                           shared_results: dict, subtask_id: int) -> dict:
@@ -976,10 +974,8 @@ Return ONLY valid JSON with these keys:
         dynamic_size = blueprint.get("dynamic_swarm_size", 
                                     blueprint.get("swarm_config", {}).get("total_instances", 5))
         
-        # Run the swarm
         results = self._execute_swarm(blueprint, dynamic_size)
         
-        # Final validation
         merged_candidate = self._recompose(results, {}) if results else {"solution": str(results)}
         validation_result = self.validator.run(
             candidate=merged_candidate,
@@ -990,9 +986,7 @@ Return ONLY valid JSON with these keys:
         )
 
         score = validation_result.get("validation_score", 0.0)
-        efs = validation_result.get("efs", 0.0)
 
-        # ByteRover promotion (preserved)
         if score > 0.70:
             self.memory_layers.promote_high_signal(
                 str(results),
@@ -1005,9 +999,8 @@ Return ONLY valid JSON with these keys:
 
         self.memory_layers.compress_low_value(current_score=score)
 
-        # ====================== INTELLIGENT STALL DETECTION & REPLAN ======================
-        dry_run_result = blueprint.get("dry_run_result", {})  # passed from orchestrate_subarbos
-
+        # Intelligent stall detection
+        dry_run_result = blueprint.get("dry_run_result", {})
         stall_analysis = self._analyze_swarm_stall(
             list(results.values()) if isinstance(results, dict) else [],
             validation_result,
@@ -1015,9 +1008,8 @@ Return ONLY valid JSON with these keys:
         )
 
         if stall_analysis.get("is_severe_stall", False):
-            logger.warning(f"Real swarm stall detected despite passed dry-run. Delta: {stall_analysis.get('delta', 0):.3f}")
+            logger.warning(f"Real swarm stall detected. Delta: {stall_analysis.get('delta', 0):.3f}")
 
-            # Build rich failure context packet
             failure_context = self._build_failure_context(
                 failure_type="swarm_stall_on_passed_spec",
                 task=challenge,
@@ -1028,21 +1020,19 @@ Return ONLY valid JSON with these keys:
                 validation_result=validation_result
             )
 
-            # Intelligent reflection + decision
             replan_decision = self._intelligent_replan(failure_context)
 
             if replan_decision.get("decision") == "new_strategy_needed":
-                logger.info("Stall reflection decided NEW STRATEGY needed — triggering full replan")
+                logger.info("Stall reflection decided NEW STRATEGY needed")
                 new_task = f"{challenge} [STALL RECOVERY - previous spec failed in practice]"
-                # Return the new orchestrate call to restart the DVRP loop with full context
                 return self.orchestrate_subarbos(new_task, self.extra_context)
             else:
-                logger.info("Stall reflection decided fixable — applying targeted fixes")
+                logger.info("Stall reflection decided fixable")
                 if replan_decision.get("spec_fixes") and self._current_strategy:
                     if "verifiability_spec" in self._current_strategy:
                         self._current_strategy["verifiability_spec"]["fixes_applied"] = replan_decision["spec_fixes"]
 
-        # Normal success path (Grail / evolution)
+        # Success path
         if score > 0.92 and self.enable_grail:
             self.consolidate_grail(str(results), score, validation_result)
 
