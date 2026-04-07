@@ -780,7 +780,7 @@ Return ONLY valid JSON with these keys:
                              orchestrator_input: Dict = None) -> Dict[str, Any]:
         """Top-tier Orchestrator Arbos — maximum intelligence coordination with full transparency."""
         
-        logger.info(f"🚀 Orchestrator Arbos starting full intelligence mode: {task[:80]}...")
+        logger.info(f"🚀 Orchestrator Arbos starting: {task[:80]}...")
 
         # 1. Receive structured handoff from Planning Arbos
         if orchestrator_input:
@@ -788,15 +788,17 @@ Return ONLY valid JSON with these keys:
             human_refinement = orchestrator_input.get("human_refinement", "")
             logger.info("✅ Received rich structured Verifiability Contract from Planning")
         else:
+            # Fallback
             contract_result = self.generate_verifiability_contract(task, goal_md)
-            verifiability_contract = contract_result["final_verifiability_contract"]
+            verifiability_contract = contract_result.get("final_verifiability_contract", {})
             human_refinement = ""
 
-        # 2. Build strategy
+        # 2. Build strategy with contract as single source of truth
         strategy = self.analyzer.analyze("", task)
         strategy["verifiability_contract"] = verifiability_contract
         strategy["human_refinement"] = human_refinement
         strategy["hardening_dialogue"] = self.dvr.hardening_conversation_template()
+        self._current_strategy = strategy
 
         # 3. Dry-run gate (critical safety layer)
         full_verifier_snippets = strategy.get("verifier_code_snippets", [])
@@ -809,9 +811,13 @@ Return ONLY valid JSON with these keys:
 
         # Dry-run intelligent replan
         if dry_run.get("recommendation") == "ITERATE_DECOMP":
+            logger.warning("Dry-run failed — triggering intelligent replan")
             failure_context = self._build_failure_context(
-                failure_type="dry_run_failed", task=task, goal_md=goal_md,
-                strategy=strategy, dry_run=dry_run
+                failure_type="dry_run_failed", 
+                task=task, 
+                goal_md=goal_md,
+                strategy=strategy, 
+                dry_run=dry_run
             )
             replan_decision = self._intelligent_replan(failure_context)
             
@@ -824,7 +830,7 @@ Return ONLY valid JSON with these keys:
                 )
             else:
                 if replan_decision.get("spec_fixes"):
-                    strategy["verifiability_contract"]["fixes_applied"] = replan_decision.get("spec_fixes", [])
+                    verifiability_contract["fixes_applied"] = replan_decision.get("spec_fixes", [])
 
         # 4. Advanced Swarm Execution
         subtask_outputs = self._launch_hyphal_workers(task, strategy)
@@ -833,8 +839,8 @@ Return ONLY valid JSON with these keys:
         raw_merged = self._recompose(subtask_outputs, {})
         synthesis_result = self.synthesis_arbos(
             subtask_outputs=subtask_outputs,
-            recomposition_plan=strategy.get("recomposition_plan", {}),
-            verifiability_spec=verifiability_contract
+            recomposition_plan=verifiability_contract.get("recomposition_plan", {}),
+            verifiability_contract=verifiability_contract   # ← Fully consistent naming
         )
 
         final_candidate = synthesis_result.get("final_candidate", raw_merged)
@@ -858,11 +864,11 @@ Return ONLY valid JSON with these keys:
         score = validation_result.get("validation_score", 0.0)
         efs = validation_result.get("efs", 0.0)
 
-        # 8. Deterministic metrics
+        # 8. Compute deterministic metrics
         edge = self.validator._compute_edge_coverage(final_candidate, full_verifier_snippets)
         invariant = self.validator._compute_invariant_tightness(final_candidate, full_verifier_snippets)
         fidelity = self.validator._compute_fidelity(final_candidate, full_verifier_snippets)
-        hetero = self.validator._compute_heterogeneity_score(subtask_outputs)
+        hetero = self.validator._compute_heterogeneity_score(subtask_outputs) if subtask_outputs else 0.0
 
         c = self.validator._compute_c3a_confidence(edge, invariant, getattr(self, 'historical_reliability', 0.85))
         theta = self.validator._compute_theta_dynamic(c, self.loop_count / 10.0)
@@ -872,6 +878,7 @@ Return ONLY valid JSON with these keys:
         # 9. Swarm stall detection & intelligent replan
         stall_analysis = self._analyze_swarm_stall(subtask_outputs, validation_result, dry_run)
         if stall_analysis.get("is_severe_stall", False):
+            logger.warning("Severe swarm stall detected despite passed dry-run")
             failure_context = self._build_failure_context(
                 failure_type="swarm_stall_on_passed_spec",
                 task=task,
@@ -884,7 +891,7 @@ Return ONLY valid JSON with these keys:
             replan_decision = self._intelligent_replan(failure_context)
             
             if replan_decision.get("decision") == "new_strategy_needed":
-                logger.info("Severe stall detected → full replan")
+                logger.info("Severe stall → full replan")
                 new_task = f"{task} [STALL RECOVERY]"
                 return self.orchestrate_subarbos(new_task, goal_md, orchestrator_input=orchestrator_input)
 
@@ -907,13 +914,21 @@ Return ONLY valid JSON with these keys:
             "task": task,
             "verifiability_contract": verifiability_contract,
             "dry_run": dry_run,
-            "real": {"edge": edge, "invariant": invariant, "fidelity": fidelity, 
-                     "hetero": hetero, "c": c, "theta": theta, "EFS": efs, "score": score},
+            "real": {
+                "edge": round(edge, 4),
+                "invariant": round(invariant, 4),
+                "fidelity": round(fidelity, 4),
+                "hetero": round(hetero, 4),
+                "c": round(c, 4),
+                "theta": round(theta, 4),
+                "EFS": round(efs, 4),
+                "score": round(score, 4)
+            },
             "loop": self.loop_count,
             "timestamp": datetime.now().isoformat()
         })
 
-        # Embodiment and outer loop
+        # Final embodiment & outer loop processing
         self._end_of_run({
             "final_score": score,
             "efs": efs,
