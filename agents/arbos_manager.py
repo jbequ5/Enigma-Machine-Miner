@@ -38,6 +38,7 @@ from tools.agent_reach_tool import AgentReachTool
 from verification_analyzer import VerificationAnalyzer
 from goals.brain_loader import load_brain_component, load_toggle
 from tools.pruning_advisor import generate_pruning_recommendations, update_module_toggle
+from tools.pruning_advisor import pruning_advisor  # if it's a global instance
 
 
 from autoharness import AutoHarness
@@ -136,7 +137,14 @@ class ArbosManager:
         # ====================== v0.6 FULLY WIRED: New feature instances ======================
         self.validator = ValidationOracle(goal_file, compute=self.compute, arbos=self)
         self.memory_layers.arbos = self   # wire for SOTA gating access
-        self.pruning_advisor = pruning_advisor  # or make it global
+                # Proper pruning advisor wiring
+        try:
+            from tools.pruning_advisor import pruning_advisor
+            self.pruning_advisor = pruning_advisor
+        except ImportError:
+            logger.warning("pruning_advisor module not found — using fallback")
+            self.pruning_advisor = None
+            
         self.dvr = DVRPipeline()
         self.simulator = DVRDryRunSimulator(self.validator)
         self.video_archiver = VideoArchiver()
@@ -261,6 +269,7 @@ class ArbosManager:
         self.byterover_mau_enabled = load_toggle("byterover_mau_enabled", "false") == "true"
         self.pareto_efficiency_enabled = load_toggle("pareto_efficiency_enabled", "true") == "true"
         self.leann_efficiency_enabled = load_toggle("leann_efficiency_enabled", "false") == "true"
+        
 
         # Wire ByteRover / MAU Pyramid
         self.memory_layers = memory_layers
@@ -1017,30 +1026,6 @@ Return ONLY valid JSON with these keys:
 
         return list(subtask_outputs.values())
         
-    def _swarm_evolutionary_tournament(self, outputs: Dict, message_bus: List, contract: Dict) -> Dict:
-        """Advanced intra-swarm selection: debate + evolutionary tournament."""
-        if len(outputs) <= 3:
-            return outputs
-
-        # Simple debate round (workers critique each other via message bus)
-        for oid, out in list(outputs.items()):
-            critique_prompt = f"Critique this subtask output in light of the message bus:\n{json.dumps(message_bus[-5:], indent=2)}"
-            # (You can expand this with real LLM critique if you want later)
-
-        # Evolutionary tournament
-        scored = []
-        for oid, out in outputs.items():
-            score = out.get("local_score", 0.5)
-            # Contract alignment bonus
-            if any(a.lower() in str(out.get("solution", "")).lower() for a in contract.get("artifacts_required", [])):
-                score += 0.3
-            scored.append((oid, score, out))
-
-        scored.sort(key=lambda x: x[1], reverse=True)
-        keep_count = max(4, int(len(scored) * 0.7))
-
-        return {oid: out for oid, _, out in scored[:keep_count]}      
-        
     def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
                           shared_results: dict, subtask_id: int,
                           role: str = "base", message_bus: List = None) -> dict:
@@ -1153,32 +1138,58 @@ Return ONLY valid JSON with these keys:
 
     
     def _assign_dynamic_roles(self, decomposition: List, contract: Dict) -> List[str]:
-        """Dynamic role assignment based on the verifiability contract."""
+        """Dynamic role assignment based on the verifiability contract and subtask type."""
         base_roles = ["symbolic_reasoner", "edge_case_hunter", "invariant_tightener", 
                      "numerical_optimizer", "creative_synthesizer", "verifier_specialist"]
-        return [base_roles[i % len(base_roles)] for i in range(len(decomposition))]
+        
+        roles = []
+        for i, subtask in enumerate(decomposition):
+            # Smart role selection based on keywords
+            sub_lower = str(subtask).lower()
+            if any(k in sub_lower for k in ["invariant", "symbolic", "proof"]):
+                roles.append("invariant_tightener")
+            elif any(k in sub_lower for k in ["edge", "corner", "extreme"]):
+                roles.append("edge_case_hunter")
+            elif any(k in sub_lower for k in ["merge", "combine", "integrate"]):
+                roles.append("creative_synthesizer")
+            else:
+                roles.append(base_roles[i % len(base_roles)])
+        return roles
 
-    
-    def _evolutionary_selection(self, outputs: Dict, contract: Dict) -> Dict:
-        """Light intra-swarm evolutionary selection — keeps highest value outputs."""
-        if not outputs or len(outputs) <= 3:
+    def _swarm_evolutionary_tournament(self, outputs: Dict, message_bus: List, contract: Dict) -> Dict:
+        """Advanced intra-swarm selection: debate simulation + evolutionary tournament."""
+        if len(outputs) <= 3:
             return outputs
-            
+
         scored = []
         required_artifacts = contract.get("artifacts_required", [])
-        
+
         for oid, out in outputs.items():
-            score = out.get("local_score", 0.5)
-            # Bonus if it helps satisfy the contract
-            artifact_bonus = 0.25 if any(str(a).lower() in str(out.get("solution", "")).lower() 
-                                       for a in required_artifacts) else 0.0
-            scored.append((oid, score + artifact_bonus))
-        
+            base_score = out.get("local_score", 0.5)
+            # Contract alignment bonus
+            artifact_bonus = 0.25 if any(
+                str(a).lower() in str(out.get("solution", "")).lower() 
+                for a in required_artifacts
+            ) else 0.0
+            
+            # Heterogeneity / diversity bonus
+            hetero_bonus = 0.15 if out.get("role") in ["creative_synthesizer", "edge_case_hunter"] else 0.0
+            
+            final_score = base_score + artifact_bonus + hetero_bonus
+            scored.append((oid, final_score, out))
+
+        # Sort and keep top performers
         scored.sort(key=lambda x: x[1], reverse=True)
-        keep_count = max(3, int(len(scored) * 0.75))  # keep top 75%
+        keep_count = max(3, int(len(scored) * 0.75))  # Keep top 75%
+
+        winners = {oid: out for oid, _, out in scored[:keep_count]}
         
-        to_keep = [oid for oid, _ in scored[:keep_count]]
-        return {k: v for k, v in outputs.items() if k in to_keep}
+        logger.info(f"Evolutionary tournament completed — kept {len(winners)}/{len(outputs)} subtasks")
+        return winners
+
+    def _evolutionary_selection(self, outputs: Dict, contract: Dict) -> Dict:
+        """Lightweight fallback evolutionary selection (used by older paths)."""
+        return self._swarm_evolutionary_tournament(outputs, [], contract)  # reuse the better version
         
     def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = ""):
         """Full inner loop execution with advanced swarm, synthesis, symbiosis, and intelligent replanning."""
@@ -1315,19 +1326,25 @@ Return ONLY valid JSON with these keys:
         return merged
         
     def synthesis_arbos(self, subtask_outputs: List[Dict], recomposition_plan: Dict, 
-                        verifiability_spec: Dict, failure_context: Dict = None) -> Dict:
+                        verifiability_contract: Dict, failure_context: Dict = None) -> Dict:
         """Maximum capability Synthesis Arbos — multi-proposal generation, structured debate, 
         iterative refinement, and strict contract enforcement."""
         
         if not subtask_outputs or len(subtask_outputs) == 0:
-            return {"final_candidate": "", "synthesis_notes": "No outputs received", 
-                    "spec_compliance": "low", "confidence": 0.0}
+            return {
+                "final_candidate": "", 
+                "synthesis_notes": "No outputs received", 
+                "spec_compliance": "low", 
+                "confidence": 0.0
+            }
 
+        # Use consistent contract naming
         contract = {
-            "artifacts_required": verifiability_spec.get("artifacts_required", []),
-            "composability_rules": verifiability_spec.get("composability_rules", []),
-            "synthesis_guidance": verifiability_spec.get("synthesis_guidance", ""),
-            "dry_run_criteria": verifiability_spec.get("dry_run_success_criteria", {})
+            "artifacts_required": verifiability_contract.get("artifacts_required", []),
+            "composability_rules": verifiability_contract.get("composability_rules", []),
+            "synthesis_guidance": verifiability_contract.get("synthesis_guidance", ""),
+            "dry_run_criteria": verifiability_contract.get("dry_run_success_criteria", {}),
+            "recomposition_plan": recomposition_plan
         }
 
         # Stage 1: Generate multiple diverse proposals
@@ -1336,14 +1353,11 @@ Return ONLY valid JSON with these keys:
 VERIFIABILITY CONTRACT (must be strictly satisfied):
 {json.dumps(contract, indent=2)}
 
-RECOMPOSITION PLAN:
-{json.dumps(recomposition_plan, indent=2)}
-
 SUBTASK OUTPUTS:
 {json.dumps([{
-    "subtask": o.get("subtask", ""),
+    "subtask": o.get("subtask", "unknown"),
     "role": o.get("role", "unknown"),
-    "solution": o.get("solution", "")[:700]
+    "solution": str(o.get("solution", ""))[:700]
 } for o in subtask_outputs], indent=2)}
 
 {f"PAST FAILURE CONTEXT: {json.dumps(failure_context, indent=2)[:800]}" if failure_context else ""}
@@ -1356,7 +1370,7 @@ Return ONLY a valid JSON array containing 4 proposals. Each proposal must have:
         proposals = self._safe_parse_json(raw_proposals)
 
         if not isinstance(proposals, list):
-            proposals = [proposals]
+            proposals = [proposals] if proposals else []
 
         # Stage 2: Multi-round debate and critique
         debate_prompt = f"""You are Synthesis Arbos running a structured internal debate.
@@ -1367,10 +1381,9 @@ Contract (non-negotiable):
 Proposals to debate:
 {json.dumps(proposals, indent=2)}
 
-Critique each proposal harshly.
+Critique each proposal harshly against the contract.
 Identify which best satisfies the contract.
-Create the strongest possible hybrid or select the winner.
-Perform explicit critique rounds in your reasoning.
+Create the strongest possible hybrid if needed.
 
 Return ONLY valid JSON:
 {{
@@ -1388,13 +1401,22 @@ Return ONLY valid JSON:
 
         # Stage 3: Final strict contract enforcement pass
         if result.get("spec_compliance") != "high":
-            logger.warning("Synthesis did not achieve high compliance — running final enforcement pass")
-            enforcement_prompt = f"Take this candidate and make it fully compliant with the contract:\n\nCandidate:\n{result.get('final_candidate', '')[:2500]}\n\nContract:\n{json.dumps(contract, indent=2)}"
+            logger.warning("Synthesis compliance not high — running final enforcement pass")
+            enforcement_prompt = f"""Take this candidate and make it FULLY compliant with the verifiability contract.
+
+Candidate:
+{result.get('final_candidate', '')[:3000]}
+
+Contract:
+{json.dumps(contract, indent=2)}
+
+Return only the improved final_candidate."""
+            
             fixed_candidate = self.harness.call_llm(enforcement_prompt, temperature=0.2, max_tokens=2200, model_config=model_config)
             result["final_candidate"] = fixed_candidate
-            result["refinement_steps"].append("Final contract enforcement pass")
+            result.setdefault("refinement_steps", []).append("Final contract enforcement pass")
 
-        logger.info(f"Maximum Synthesis Arbos completed | Compliance: {result.get('spec_compliance')} | Confidence: {result.get('confidence', 0.0):.3f}")
+        logger.info(f"Synthesis Arbos completed | Compliance: {result.get('spec_compliance', 'medium')} | Confidence: {result.get('confidence', 0.0):.3f}")
 
         return result
                             
