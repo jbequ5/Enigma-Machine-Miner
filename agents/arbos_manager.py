@@ -425,7 +425,7 @@ After creating the contract, critique it internally for completeness and feasibi
             "failure_type": failure_type,
             "task": task,
             "timestamp": datetime.now().isoformat(),
-            "original_verifiability_spec": strategy.get("verifiability_spec", {}),
+            "original_verifiability_contract": strategy.get("verifiability_contract", {}),
             "orchestrator_dialogue": strategy.get("orchestrator_dialogue", {}),
             "dry_run_result": dry_run,
             "swarm_results_summary": {
@@ -439,21 +439,27 @@ After creating the contract, critique it internally for completeness and feasibi
         }
 
     def _intelligent_replan(self, failure_context: Dict) -> Dict:
-        """Structured reflection step that decides fix vs new strategy."""
-        prompt = f"""You are Replanning Arbos for SN63.
+        """Structured, contract-respecting reflection that decides fix vs new strategy."""
+        prompt = f"""You are Replanning Arbos for SN63 Enigma Miner.
 
-FAILURE CONTEXT:
+FAILURE CONTEXT (full packet):
 {json.dumps(failure_context, indent=2)}
 
-Respect the original verifiability_spec as an invariant unless you explicitly justify breaking it.
+VERIFIABILITY CONTRACT (must respect as invariant unless explicitly justified):
+{json.dumps(failure_context.get("original_verifiability_contract", {}), indent=2)}
+
+Your job:
+- Diagnose why the current plan failed
+- Decide whether to fix the current plan or trigger a new strategy
+- Respect the verifiability contract unless you have strong justification to change it
 
 Return ONLY valid JSON:
 {{
   "reflection_summary": "short diagnosis",
   "decision": "fix_current_plan" | "new_strategy_needed",
   "rationale": "detailed reasoning",
-  "spec_fixes": [list of specific changes] | null,
-  "new_strategy_directives": "guidance for next self-dialogue" | null,
+  "spec_fixes": [list of specific changes to the contract] | null,
+  "new_strategy_directives": "guidance for next self-dialogue if new strategy" | null,
   "confidence_in_decision": 0.0-1.0,
   "recommended_next_action": "refine_decomp" | "escalate_meta_tuner" | "full_replan"
 }}"""
@@ -462,7 +468,9 @@ Return ONLY valid JSON:
         raw = self.harness.call_llm(prompt, temperature=0.25, max_tokens=900, model_config=model_config)
         decision = self._safe_parse_json(raw)
 
+        # Save reflection for stigmergic learning
         self.save_to_memdir(f"replan_reflection_{int(time.time())}", decision)
+
         logger.info(f"Intelligent replan decision: {decision.get('decision')} | confidence {decision.get('confidence_in_decision', 0.0):.2f}")
         return decision
 
@@ -477,7 +485,7 @@ Return ONLY valid JSON:
             "delta": round(real_efs - dry_run_efs, 4),
             "is_severe_stall": (real_efs < dry_run_efs - 0.15) or self._is_stale_regime(self.recent_scores),
             "low_performing_subtasks": [{"subtask": out.get("subtask", "unknown"), "local_score": out.get("local_score", 0.0)} for out in subtask_outputs if out.get("local_score", 0.0) < 0.65],
-            "heterogeneity_drop": self._compute_heterogeneity_score([out.get("solution", "") for out in subtask_outputs]) < 0.6,
+            "heterogeneity_drop": self._compute_heterogeneity_score().get("heterogeneity_score", 0.72) < 0.6,
             "failure_modes": []
         }
 
@@ -489,7 +497,6 @@ Return ONLY valid JSON:
             stall_context["failure_modes"].append("heterogeneity_collapse_in_real_execution")
 
         return stall_context
-
     def compute_confidence(self, edge_coverage: float, invariant_tightness: float, historical_reliability: float) -> float:
         raw_c = (0.4 * edge_coverage) + (0.4 * invariant_tightness) + (0.2 * historical_reliability)
         return max(self.novelty_floor, min(1.0, raw_c))
@@ -922,7 +929,32 @@ Return ONLY valid JSON with these keys:
             "human_refinement": human_refinement,
             "metrics": {"score": score, "efs": efs, "c": c, "theta": theta}
         }
+                                 
+    def _execute_swarm(self, blueprint: Dict, dynamic_size: int):
+        """Updated swarm executor — now routes through the advanced _launch_hyphal_workers."""
+        blueprint = self._safe_parse_json(blueprint) if isinstance(blueprint, str) else blueprint
         
+        decomposition = blueprint.get("decomposition", ["Full challenge execution"])
+        hypothesis_diversity = blueprint.get("hypothesis_diversity", ["standard"])
+        if not hypothesis_diversity:
+            hypothesis_diversity = ["standard"]
+
+        logger.info(f"Executing swarm with {dynamic_size} workers using advanced launch system")
+
+        # Use the new advanced launch method (dynamic roles, message bus, evolutionary selection)
+        subtask_outputs = self._launch_hyphal_workers(
+            task=blueprint.get("challenge", "current"),
+            strategy=blueprint
+        )
+
+        # Convert to the old expected format for backward compatibility
+        manager_dict = {}
+        for output in subtask_outputs:
+            subtask_id = output.get("subtask_id", len(manager_dict))
+            manager_dict[subtask_id] = output
+
+        logger.info(f"Swarm execution completed — {len(subtask_outputs)} subtasks returned")
+        return manager_dict
     # ====================== SUB-ARBOS WORKER (FULLY HARDENED v5.2 - BUG FREE) ======================
     def _launch_hyphal_workers(self, task: str, strategy: Dict) -> List[Dict]:
         """Advanced swarm execution with stigmergic communication, debate, and evolutionary tournament.
@@ -992,27 +1024,27 @@ Return ONLY valid JSON with these keys:
         scored.sort(key=lambda x: x[1], reverse=True)
         keep_count = max(4, int(len(scored) * 0.7))
 
-        return {oid: out for oid, _, out in scored[:keep_count]}        
+        return {oid: out for oid, _, out in scored[:keep_count]}      
+        
     def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
-                      shared_results: dict, subtask_id: int,
-                      role: str = "base", message_bus: List = None) -> dict:
-                          
-        """Hardened Sub-Arbos worker — verifier-first, deterministic oracle on every loop.
-        No NameError, no legacy calls, full sandboxed validation, safe defaults."""
+                          shared_results: dict, subtask_id: int,
+                          role: str = "base", message_bus: List = None) -> dict:
+        """Top-tier Sub-Arbos Worker — verifier-first, deterministic oracle on every loop,
+        supports dynamic roles and stigmergic message bus."""
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours / 3.0)
         repair_attempts = 0
         
-        trace = [f"Sub-Arbos {subtask_id} started | Hardening dialogue active | Dry-run gate already passed"]
+        if message_bus is None:
+            message_bus = []
+        self.current_role = role
+
+        trace = [f"Sub-Arbos {subtask_id} started | Role: {role} | Hardening dialogue active | Dry-run gate already passed"]
 
         challenge_id = getattr(self, "_current_challenge_id", "current_challenge")
         subtask_path = self._create_subtask_wiki_folder(challenge_id, str(subtask_id))
-                          
-        if message_bus is None:
-            message_bus = []
-        self.current_role = role  # optional — you can use this in prompts later
-                          
-        # Breakthrough check
+
+        # Localized breakthrough check
         if (self.model_compute_capability_enabled and 
             self.allow_per_subarbos_breakthrough and 
             self.is_stagnant_subarbos(str(subtask_id))):
@@ -1023,7 +1055,86 @@ Return ONLY valid JSON with these keys:
         if self.config.get("resource_aware") and monitor.elapsed_hours() > max_hours * 0.75:
             solution = "Early abort: time budget exceeded."
             trace.append("Resource-aware early abort")
-            local_score = 0
+            local_score = 0.0
+        else:
+            # Main solving loop with verifier-first feedback on every iteration
+            solution = None
+            for attempt in range(self.max_repair_attempts):
+                # Generate candidate
+                solution = self.harness.call_llm(
+                    f"Subtask: {subtask}\nHypothesis: {hypothesis}\nRole: {role}\nTools: {tools}\nCurrent trace: {trace[-3:]}",
+                    temperature=0.45,
+                    max_tokens=1800,
+                    model_config=self.load_model_registry(role=role)
+                )
+
+                # Verifier-first feedback on this candidate
+                validation = self.validator.run(
+                    candidate=solution,
+                    verification_instructions="",
+                    challenge=subtask,
+                    goal_md=self.extra_context,
+                    subtask_outputs=[solution]
+                )
+
+                local_score = validation.get("validation_score", 0.0)
+                trace.append(f"Attempt {attempt+1} | Score: {local_score:.3f} | EFS: {validation.get('efs', 0.0):.3f}")
+
+                if local_score >= 0.78:
+                    break
+
+                # Guided diversity repair if needed
+                if local_score < 0.65:
+                    solution = self._generate_guided_diversity_candidates(subtask, hypothesis, solution)
+                    repair_attempts += 1
+
+                if time.time() - monitor.start_time > (max_hours * 1800 / 6):
+                    break
+
+        # Final oracle validation (guaranteed deterministic)
+        final_validation = self.validator.run(
+            candidate=solution,
+            verification_instructions="",
+            challenge=subtask,
+            goal_md=self.extra_context,
+            subtask_outputs=[solution]
+        )
+
+        local_score = final_validation.get("validation_score", 0.0)
+
+        # Stigmergic write
+        self._write_subtask_md(subtask_path, solution, bio_delta="")
+
+        # Write to decision journal
+        self.write_decision_journal(
+            subtask_id=str(subtask_id),
+            hypothesis=hypothesis,
+            evidence=solution[:800] if solution else "",
+            performance_delta={"delta_s": local_score, "delta_c": final_validation.get("c3a_confidence", 0.0)},
+            organic_thought=final_validation.get("notes", "")
+        )
+
+        # Broadcast to message bus
+        if message_bus is not None:
+            message_bus.append({
+                "subtask_id": subtask_id,
+                "role": role,
+                "solution_snippet": solution[:400] if solution else "",
+                "local_score": local_score
+            })
+
+        # Store result
+        shared_results[subtask_id] = {
+            "subtask": subtask,
+            "solution": solution,
+            "trace": trace,
+            "local_score": local_score,
+            "oracle_result": final_validation,
+            "role": role
+        }
+
+        logger.info(f"Sub-Arbos {subtask_id} completed | Score: {local_score:.3f} | Role: {role}")
+        return shared_results[subtask_id]
 
     
     def _assign_dynamic_roles(self, decomposition: List, contract: Dict) -> List[str]:
@@ -1055,27 +1166,27 @@ Return ONLY valid JSON with these keys:
         return {k: v for k, v in outputs.items() if k in to_keep}
         
     def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = ""):
-        """Full inner loop execution with intelligent Synthesis and Symbiosis Arbos."""
+        """Full inner loop execution with advanced swarm, synthesis, symbiosis, and intelligent replanning."""
         dynamic_size = blueprint.get("dynamic_swarm_size", 
-                                    blueprint.get("swarm_config", {}).get("total_instances", 5))
+                                    blueprint.get("swarm_config", {}).get("total_instances", 6))
         
-        # 1. Run the swarm (hyphal workers)
+        # 1. Advanced Swarm Execution
         results = self._execute_swarm(blueprint, dynamic_size)
         
-        # 2. Raw recompose (simple merge)
+        # 2. Raw recompose
         raw_merged = self._recompose(results, {}) if results else {"solution": str(results)}
 
-        # 3. SYNTHESIS ARBOS — intelligent recombination (the key step)
+        # 3. Advanced Synthesis Arbos (intelligent recombination with debate)
         synthesis_result = self.synthesis_arbos(
             subtask_outputs=list(results.values()) if isinstance(results, dict) else [],
             recomposition_plan=blueprint.get("recomposition_plan", {}),
-            verifiability_spec=blueprint.get("verifiability_spec", {}),
-            failure_context=None  # can pass stall context here in future iterations
+            verifiability_spec=blueprint.get("verifiability_contract", blueprint.get("verifiability_spec", {})),
+            failure_context=None
         )
 
         final_candidate = synthesis_result.get("final_candidate", raw_merged)
 
-        # 4. SYMBIOSIS ARBOS — cross-field mutualism detection
+        # 4. Symbiosis Arbos (emergent pattern detection)
         symbiosis_patterns = self._run_symbiosis_arbos(
             aggregated_outputs=results,
             message_bus=self.message_bus,
@@ -1137,8 +1248,8 @@ Return ONLY valid JSON with these keys:
             else:
                 logger.info("Stall reflection decided fixable — applying targeted fixes")
                 if replan_decision.get("spec_fixes") and self._current_strategy:
-                    if "verifiability_spec" in self._current_strategy:
-                        self._current_strategy["verifiability_spec"]["fixes_applied"] = replan_decision["spec_fixes"]
+                    if "verifiability_contract" in self._current_strategy:
+                        self._current_strategy["verifiability_contract"]["fixes_applied"] = replan_decision["spec_fixes"]
 
         # Success path
         if score > 0.92 and self.enable_grail:
@@ -1146,11 +1257,48 @@ Return ONLY valid JSON with these keys:
 
         if score > 0.85:
             self.evolve_principles_post_run(str(final_candidate), score, validation_result)
-
+            
+        raw_merged = self._recompose(results, {}) if results else {"solution": str(results)}
         self.save_run_to_history(challenge, "", str(final_candidate), score, 0.5, score)
 
         return validation_result
+        
+    def _write_stigmergic_trace(self, trace: Dict):
+        """Core stigmergic learning — writes full traceable record to wiki and memory."""
+        try:
+            challenge_id = getattr(self, "_current_challenge_id", "current")
+            path = Path(f"goals/knowledge/{challenge_id}/wiki/traces")
+            path.mkdir(parents=True, exist_ok=True)
+            
+            filename = f"trace_{self.loop_count}_{int(datetime.now().timestamp())}.json"
+            (path / filename).write_text(json.dumps(trace, indent=2))
+            
+            # Also add to long-term memory
+            memory.add(json.dumps(trace), {"type": "stigmergic_trace", "loop": self.loop_count})
+            
+            logger.info(f"Stigmergic trace written: {filename}")
+        except Exception as e:
+            logger.warning(f"Failed to write stigmergic trace: {e}")
 
+    def _recompose(self, subtask_outputs: List[Dict], recomposition_plan: Dict) -> Dict:
+        """Robust recomposition — fidelity-ordered merge."""
+        if not subtask_outputs:
+            return {"solution": "", "recomposition_notes": "No outputs"}
+
+        sorted_outputs = sorted(subtask_outputs, key=lambda x: x.get("local_score", 0.0), reverse=True)
+
+        merged = {"solution": ""}
+        for output in sorted_outputs:
+            sol = output.get("solution", "")
+            if isinstance(sol, dict):
+                merged.update(sol)
+            else:
+                merged["solution"] += str(sol) + "\n\n"
+
+        merged["recomposition_notes"] = f"Merged {len(subtask_outputs)} subtasks by fidelity"
+        merged["total_subtasks"] = len(subtask_outputs)
+        return merged
+        
     def synthesis_arbos(self, subtask_outputs: List[Dict], recomposition_plan: Dict, 
                         verifiability_spec: Dict, failure_context: Dict = None) -> Dict:
         """Maximum capability Synthesis Arbos — multi-proposal generation, structured debate, 
@@ -1369,51 +1517,70 @@ Be critical."""
         return {subtask: f"ToolHunter-{subtask}" for subtask in subtask_list}
 
     def _refine_plan(self, approved_plan: Dict, challenge: str, deterministic_tooling: str = "", enhancement_prompt: str = "") -> Dict:
+        """Intelligent plan refinement after each loop or re-adapt — returns improved blueprint."""
         extra = f"\nMiner deterministic tooling: {deterministic_tooling}" if deterministic_tooling else ""
         extra += f"\nMiner enhancement instructions: {enhancement_prompt}" if enhancement_prompt else ""
         
-        task = f"""You are Orchestrator Arbos for SN63 Quantum Innovate.
-Approved plan: {json.dumps(approved_plan)}{extra}
-Time left: {self.config.get('max_compute_hours', 3.8)}h
-Challenge: {challenge}
+        refine_prompt = f"""You are Orchestrator Arbos for SN63 Quantum Innovate.
 
-Your job:
-1. Refine the blueprint (existing JSON keys).
-2. Generate a CHALLENGE-SPECIFIC pre-launch context by specializing the AUTO_PRE_LAUNCH_CONTEXT_TEMPLATE + ENGLISH_MEMDIR_GRAIL_MODULE + ENGLISH_TOOL_SWARM_MODULE + ENGLISH_AMDAHL_COORDINATION_MODULE.
-3. Enforce Amdahl coordination and ToolHunter sub-swarm parallelism.
-4. Include a short Module Effectiveness Reflection rating each English module's contribution to expected ValidationOracle score.
+Approved plan from previous loop:
+{json.dumps(approved_plan, indent=2)}
 
-Output EXACT JSON with:
-- decomposition, swarm_config, tool_map, deterministic_recommendations, validation_criteria
-- generated_pre_launch_context"""
+Latest human refinement: {enhancement_prompt}
+Current challenge: {challenge}
+{extra}
 
-        response = self.harness.call_llm(task, temperature=0.0, max_tokens=2000)
-        blueprint = self._safe_parse_json(response)
-        
-        self._current_pre_launch = blueprint.get("generated_pre_launch_context", "")
+Refine the blueprint intelligently:
+- Keep what worked (high EFS/c areas)
+- Fix what failed (low replay pass rate or contract violations)
+- Increase heterogeneity where needed
+- Strengthen Synthesis guidance and contract compliance
 
-        if "module_reflection" in blueprint or "generated_pre_launch_context" in blueprint:
-            self.save_to_memdir(f"reflection_{int(time.time())}", blueprint)
-        
-        return blueprint
+Return ONLY valid JSON with the same structure as the input plan, plus:
+- "refinement_notes": "what changed and why"
+- "expected_efs_gain": estimated improvement (0.0-1.0)"""
+
+        model_config = self.load_model_registry(role="planner")
+        response = self.harness.call_llm(refine_prompt, temperature=0.35, max_tokens=1600, model_config=model_config)
+        refined = self._safe_parse_json(response)
+
+        if not refined or "decomposition" not in refined:
+            logger.warning("Plan refinement failed — returning original plan with notes")
+            approved_plan["refinement_notes"] = "Refinement failed — using original plan"
+            return approved_plan
+
+        logger.info(f"Plan refined successfully — expected EFS gain: {refined.get('expected_efs_gain', 'unknown')}")
+        return refined
 
     def _generate_new_avenue_plan(self, challenge: str, recent_feedback: str, diagnostics: Dict = None) -> str:
-        prompt = f"""You are Deep Replan Arbos for SN63.
+        """Generates a radically different new strategy when the current path is stalled."""
+        prompt = f"""You are Deep Replan Arbos for SN63 Quantum Innovate.
+
 Current challenge: {challenge}
-Recent feedback: {recent_feedback}
+Recent feedback: {recent_feedback[:1500]}
 Diagnostics: {json.dumps(diagnostics or {}, indent=2)[:800]}
 
-Generate a radically different avenue with maximum heterogeneity."""
+The current strategy has stalled. Generate a completely new, high-heterogeneity avenue that respects the verifiability contract but approaches the problem from a fresh angle (different decomposition, new tools, new symbolic framing, etc.).
 
-        response = self.harness.call_llm(prompt, temperature=0.7, max_tokens=1200)
-        try:
-            plan = self._safe_parse_json(response)
-            self._pending_new_avenue_plan = json.dumps(plan, indent=2)
-            self.save_to_memdir(f"new_avenue_{int(time.time())}", plan)
-            logger.info(f"✅ New Avenue Plan generated: {plan.get('new_avenue_name', 'Unnamed')}")
-            return json.dumps(plan, indent=2)
-        except:
-            return "Failed to generate new avenue plan."
+Return ONLY valid JSON:
+{{
+  "new_avenue_name": "short memorable name",
+  "decomposition_strategy": "high-level new breakdown",
+  "key_hypotheses": ["list of new hypotheses"],
+  "tool_recommendations": ["new tools or approaches"],
+  "expected_advantages": "why this should outperform the previous path",
+  "risks": ["potential risks"]
+}}"""
+
+        model_config = self.load_model_registry(role="planner")
+        response = self.harness.call_llm(prompt, temperature=0.7, max_tokens=1400, model_config=model_config)
+        new_plan = self._safe_parse_json(response)
+
+        self._pending_new_avenue_plan = json.dumps(new_plan, indent=2)
+        self.save_to_memdir(f"new_avenue_{int(time.time())}", new_plan)
+
+        logger.info(f"✅ New Avenue Plan generated: {new_plan.get('new_avenue_name', 'Unnamed radical direction')}")
+        return json.dumps(new_plan, indent=2)
 
     def _init_memdir(self):
         self.memdir_path = "memdir/grail"
@@ -2100,21 +2267,21 @@ Return ONLY JSON with key 'deltas': list of strings, each ready to append to a .
 
     # ====================== RUN METHOD ======================
     def run(self, challenge: str, verification_instructions: str = "", enhancement_prompt: str = ""):
-        """Main entry point — full DVRP pipeline with all advanced intelligence layers."""
+        """Main mission entry point — full top-tier DVRP pipeline with all advanced layers."""
         self.loop_count = 0
         self._current_challenge_id = challenge.replace(" ", "_").lower()[:60]
         self.recent_scores = []
 
-        logger.info(f"🚀 Starting full mission for challenge: {challenge[:80]}...")
+        logger.info(f"🚀 Starting full SN63 mission: {challenge[:100]}...")
 
-        # 1. Planning Arbos (rich context + contract generation)
+        # 1. Planning Arbos (rich context + formal contract)
         plan = self.plan_challenge(
             goal_md=self.extra_context,
             challenge=challenge,
-            enhancement_prompt=enhancement_prompt or "Maximize verifier compliance, heterogeneity across five axes, and deterministic paths."
+            enhancement_prompt=enhancement_prompt or "Maximize verifier compliance, heterogeneity across five axes, deterministic/symbolic paths, and clean composability for Synthesis Arbos."
         )
 
-        if "error" in plan:
+        if isinstance(plan, dict) and "error" in plan:
             logger.error(plan["error"])
             return plan["error"]
 
@@ -2126,7 +2293,7 @@ Return ONLY JSON with key 'deltas': list of strings, each ready to append to a .
         for loop in range(max_loops):
             logger.info(f"Outer loop {loop+1}/{max_loops} starting")
 
-            # 2. Full execution with advanced swarm, synthesis, symbiosis
+            # 2. Full execution cycle (advanced swarm + synthesis + symbiosis + validation)
             result = self.execute_full_cycle(plan, challenge, verification_instructions)
 
             score = result.get("validation_score", 0.0) if isinstance(result, dict) else 0.0
@@ -2141,10 +2308,10 @@ Return ONLY JSON with key 'deltas': list of strings, each ready to append to a .
 
             # Early stop on strong performance
             if score >= 0.88:
-                logger.info(f"Early stop triggered at score {score:.3f}")
+                logger.info(f"Early stop triggered at high score {score:.3f}")
                 break
 
-            # Re-adapt on low performance or periodic
+            # Intelligent re-adaptation on low performance
             if score < 0.72 or loop < max_loops - 1:
                 logger.info(f"Low score ({score:.3f}) → triggering re_adapt")
                 self.re_adapt({"solution": current_solution, "challenge": challenge}, f"Validation score: {score:.3f}")
@@ -2258,7 +2425,10 @@ Return ONLY valid JSON:
             self._current_strategy = adaptation["strategy"]
 
         self.validator.adapt_scoring(self._current_strategy)
-
+        
+        if adaptation.get("principle_deltas"):
+            self._apply_principle_deltas(adaptation["principle_deltas"])
+            
         # Intelligent replanning integration
         if is_stale or global_stagnant or aha_detected:
             failure_context = self._build_failure_context(
@@ -2301,6 +2471,23 @@ Return ONLY valid JSON:
         
         return adaptation
         
+    def _apply_principle_deltas(self, deltas: List[str]):
+        """Apply principle evolution deltas from re-adaptation or meta-tuning."""
+        if not deltas:
+            return
+
+        for delta in deltas:
+            if not delta or not isinstance(delta, str):
+                continue
+                
+            # Append to the core principles file
+            try:
+                with open("goals/brain/principles/shared_core.md", "a", encoding="utf-8") as f:
+                    f.write(f"\n\n# EVOLVED DELTA (Loop {self.loop_count})\n{delta.strip()}\n")
+                logger.info(f"Principle delta applied: {delta[:80]}...")
+            except Exception as e:
+                logger.warning(f"Failed to apply principle delta: {e}")
+                
     def run_meta_tuning_cycle(self, stall_detected: bool = False, oracle_result: Dict = None):
         """Top-tier Meta-Tuning Arbos — evolutionary genome tournament, principle evolution, 
         and long-term organism optimization."""
