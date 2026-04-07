@@ -1,5 +1,5 @@
-# agents/tools/tool_hunter.py
-# Hybrid ToolHunter with HF auto-download + ReadyAI llms.txt (SN33) grounding
+# agents/tools/tool_hunter.py - v2.0 MAXIMUM CAPABILITY ToolHunter
+# Hybrid registry + live search + HF auto-download + ReadyAI grounding + verifier-first + contract-aware
 
 import json
 import os
@@ -10,176 +10,67 @@ from datetime import datetime
 from typing import Dict, Any, List
 
 from agents.memory import memory
-from agents.tools.compute import ComputeRouter
+from agents.tools.compute import compute_router
 from huggingface_hub import snapshot_download
 
-# ReadyAI integration
-from agents.tools.readyai_tool import readyai_tool
+# ReadyAI integration (SN33 grounding)
+try:
+    from agents.tools.readyai_tool import readyai_tool
+    READYAI_AVAILABLE = True
+except ImportError:
+    READYAI_AVAILABLE = False
+    logging.getLogger(__name__).warning("ReadyAI not available — falling back to basic search")
 
 logger = logging.getLogger(__name__)
 
-REGISTRY_PATH = "agents/tools/registry.json"
+REGISTRY_PATH = Path("agents/tools/registry.json")
 
-def load_registry():
-    if os.path.exists(REGISTRY_PATH):
+def load_registry() -> Dict:
+    if REGISTRY_PATH.exists():
         try:
-            with open(REGISTRY_PATH, "r") as f:
-                return json.load(f)
+            return json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
         except Exception:
             pass
     return {"tools": [], "models": [], "last_updated": ""}
 
-def save_registry(registry):
+def save_registry(registry: Dict):
     registry["last_updated"] = datetime.now().isoformat()
-    os.makedirs(os.path.dirname(REGISTRY_PATH), exist_ok=True)
-    with open(REGISTRY_PATH, "w") as f:
-        json.dump(registry, f, indent=2)
+    REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    REGISTRY_PATH.write_text(json.dumps(registry, indent=2))
 
 class ToolHunter:
     def __init__(self):
-        self.compute = ComputeRouter()
+        self.compute = compute_router
         self.github_token = os.getenv("GITHUB_TOKEN", "")
         self.models_dir = Path("models")
-        self.models_dir.mkdir(exist_ok=True)
-        print("🔍 ToolHunter: Hybrid mode active (registry + live search + HF auto-download + ReadyAI llms.txt)")
+        self.models_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("🔍 ToolHunter v2.0 initialized — hybrid registry + live search + HF auto-download + ReadyAI + verifier-first")
 
-    def hunt_and_integrate(self, gap_description: str, subtask: str, challenge_context: str = "") -> Dict[str, Any]:
+    def hunt_and_integrate(self, gap_description: str, subtask: str, challenge_context: str = "", 
+                          verifiability_contract: Dict = None) -> Dict[str, Any]:
+        """Main entry point — now contract-aware and oracle-driven."""
         registry = load_registry()
         full_query = (gap_description + " " + subtask + " " + challenge_context).lower()
 
-        # Step 1: Fast registry lookup
+        # 1. Fast registry lookup
         for tool in registry.get("tools", []):
             keywords = [k.lower() for k in tool.get("keywords", [])]
             if any(k in full_query for k in keywords):
-                return {"status": "success", "tool_name": tool.get("name"), "source": "registry"}
+                logger.info(f"ToolHunter hit registry: {tool.get('name')}")
+                return {"status": "success", "tool_name": tool.get("name"), "source": "registry", "confidence": 0.9}
 
-        # Step 2: ReadyAI llms.txt grounding (very useful for real-world challenges)
-        if any(k in full_query for k in ["company", "domain", "technology", "research", "org", "site", "arxiv", "gov", "who", "institute"]):
+        # 2. ReadyAI grounding (strong for domain-specific gaps)
+        if READYAI_AVAILABLE and any(k in full_query for k in ["company", "domain", "research", "arxiv", "who", "institute", "paper"]):
             try:
-                readyai_result = readyai_tool.query(gap_description + " " + subtask, limit=4)
+                readyai_result = readyai_tool.query(gap_description + " " + subtask, limit=5)
                 if readyai_result.get("success"):
                     memory.add(
-                        text=f"ReadyAI grounding: {readyai_result['summary']}", 
-                        metadata={"source": "readyai", "query": gap_description}
+                        text=f"ReadyAI grounding: {readyai_result.get('summary', '')}", 
+                        metadata={"source": "readyai", "query": gap_description, "subtask": subtask}
                     )
                     return {
                         "status": "success",
                         "source": "readyai_llms.txt",
-                        "results": readyai_result["results"],
-                        "summary": readyai_result["summary"],
-                        "recommendation": "Use structured domain knowledge from ReadyAI"
-                    }
-            except Exception as e:
-                logger.warning(f"ReadyAI query failed: {e}")
-
-        # Step 3: Full live hunt (GitHub + HF models)
-        search_task = f"""Generate precise search queries for this SN63 gap:
-Gap: {gap_description}
-Subtask: {subtask}
-Context: {challenge_context or 'General verifier-driven challenge'}
-
-Reply exactly:
-Queries: ["github query1", "huggingface query2"]"""
-
-        queries_response = self.compute.run_on_compute(search_task, task_type="toolhunter")
-        queries = self._extract_queries(queries_response)
-
-        candidates = self._real_search(queries)
-
-        decision_task = f"""Rank these candidates for SN63 gap: {gap_description}
-
-Candidates:
-{json.dumps(candidates, indent=2)}
-
-Choose the SINGLE best HF model or tool (or 'none'). Provide:
-- chosen_item
-- integration_idea
-- confidence (0-10)
-
-JSON only."""
-
-        decision = self.compute.run_on_compute(decision_task, task_type="toolhunter")
-        result = self._parse_json(decision)
-
-        if result.get("chosen_item") in (None, "none") or result.get("confidence", 0) < 6:
-            return self._create_skip_result(result.get("reason", "No suitable item"))
-
-        # Auto-download HF model if recommended
-        if "/" in result.get("chosen_item", "") and "github" not in result["chosen_item"].lower():
-            self._auto_download_hf_model(result["chosen_item"])
-
-        # Save to registry
-        registry = load_registry()
-        registry["models"].append({
-            "name": result.get("chosen_item"),
-            "keywords": [word.lower() for word in subtask.split() if len(word) > 3],
-            "added": datetime.now().isoformat()
-        })
-        save_registry(registry)
-
-        memory.add(
-            text=f"ToolHunter recommendation: {result['chosen_item']}", 
-            metadata={"subtask": subtask, "confidence": result["confidence"]}
-        )
-
-        return {
-            "status": "success",
-            "chosen_item": result.get("chosen_item"),
-            "integration_idea": result.get("integration_idea", ""),
-            "confidence": result.get("confidence", 5),
-            "miner_action": "Model auto-downloaded and ready"
-        }
-
-    def _auto_download_hf_model(self, model_id: str):
-        try:
-            target_dir = self.models_dir / model_id.replace("/", "__")
-            if target_dir.exists():
-                logger.info(f"Model {model_id} already cached")
-                return
-            print(f"📥 Auto-downloading recommended model: {model_id}")
-            snapshot_download(repo_id=model_id, local_dir=target_dir, local_dir_use_symlinks=False)
-            logger.info(f"✅ Successfully downloaded {model_id}")
-        except Exception as e:
-            logger.warning(f"HF auto-download failed for {model_id}: {e}")
-
-    def _real_search(self, queries: List[str]) -> List[Dict]:
-        candidates = []
-        for q in queries[:2]:
-            try:
-                url = f"https://api.github.com/search/repositories?q={q.replace(' ', '+')}&sort=stars&order=desc&per_page=3"
-                headers = {"Authorization": f"token {self.github_token}"} if self.github_token else {}
-                r = requests.get(url, headers=headers, timeout=10)
-                if r.status_code == 200:
-                    for item in r.json().get("items", [])[:2]:
-                        candidates.append({
-                            "source": "github",
-                            "name": item["full_name"],
-                            "url": item["html_url"],
-                            "stars": item["stargazers_count"],
-                            "description": item.get("description", "")
-                        })
-            except Exception:
-                pass
-        return candidates[:5]
-
-    def _extract_queries(self, response: str) -> List[str]:
-        try:
-            start = response.find("[")
-            end = response.rfind("]") + 1
-            return json.loads(response[start:end])
-        except:
-            return [response.strip()[:100]]
-
-    def _parse_json(self, raw: str) -> Dict:
-        try:
-            start = raw.find("{")
-            end = raw.rfind("}") + 1
-            return json.loads(raw[start:end])
-        except:
-            return {"chosen_item": None, "confidence": 0}
-
-    def _create_skip_result(self, reason: str) -> Dict:
-        return {"status": "skip", "reason": reason}
-
-# Global instance
-tool_hunter = ToolHunter()
+                        "results": readyai_result.get("results", []),
+                        "summary": readyai_result.get("summary", ""),
+                        "recommendation": "Use
