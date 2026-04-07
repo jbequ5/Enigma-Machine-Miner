@@ -61,22 +61,24 @@ The Arbos Self-Learning Loop is the beating heart of Enigma — a closed, biolog
 **Inner Loop: Per-Challenge Execution & Rapid Convergence**  
 The inner loop drives focused problem-solving within a single run:
 
-1. **Planning Arbos** loads the full suite of brain principles (`shared_core.md`, `heterogeneity.md`, `wiki_strategy.md`, `bio_strategy.md`, and `english_evolution.md`) and generates an **editable enhancement prompt**. The miner can review and refine this prompt, injecting human insight while keeping the swarm tightly aligned with the sponsor’s verification requirements.
+1. **Planning Arbos** loads the full suite of brain principles (`shared_core.md`, `heterogeneity.md`, `wiki_strategy.md`, `bio_strategy.md`, and `english_evolution.md`) and generates a **formal Verifiability Contract** plus an **editable enhancement prompt**. The miner can review and refine this prompt, injecting human insight while keeping the swarm tightly aligned with the sponsor’s verification requirements.
 
-2. **Orchestrator Arbos** transforms the enhanced prompt into a detailed blueprint, propagating task-specific validation criteria (self-check prompts, symbolic invariants ≥0.85, success thresholds) down to every worker.
+2. **Orchestrator Arbos** receives the structured **Verifiability Contract** (containing `artifacts_required`, `composability_rules`, `dry_run_success_criteria`, and `synthesis_guidance`) and transforms the enhanced prompt into a detailed blueprint, propagating task-specific validation criteria down to every worker. It immediately runs a **dry-run simulation gate** to test the entire plan *before* any swarm compute is spent — this is one of the most important new safeguards.
 
-3. **Dynamic Swarm** launches parallel **Sub-Arbos workers** (hyphal tips) alongside **ToolHunter sub-swarms** (ModelHunter, ToolHunter, PaperHunter, ReadyAI-DataHunter) in an Amdahl-aware configuration that maximizes parallel efficiency. Each Sub-Arbos worker executes with:
-   - Continuous verifier-first self-checks against the propagated criteria
+3. **Dynamic Swarm** launches parallel **Sub-Arbos workers** (hyphal tips) with dynamic role assignment, stigmergic message bus, and evolutionary tournament selection. Each Sub-Arbos worker executes with:
+   - Continuous verifier-first self-checks against the propagated criteria from the contract
    - Guided diversity generation (enforced by `heterogeneity.md`)
-   - Dynamic tool creation for novel subtasks
-   - Local reflection and C3A confidence updates
+   - Dynamic tool creation for novel subtasks (replay-tested)
+   - Local reflection and real-time C3A confidence updates
    - Immediate **stigmergy writes** to the hierarchical wiki (`goals/knowledge/<challenge_id>/wiki/`) for high-signal findings — concepts, invariants, subtasks, or cross-field patterns
 
-4. **Synthesis Arbos** aggregates outputs and hands them to **Symbiosis Arbos**, which scans for emergent mutualisms across subtasks and writes them as `BIO_MYCELIAL_DELTA` sections in the wiki.
+4. **Synthesis Arbos** aggregates outputs using multi-proposal generation, structured internal debate, **and a final strict contract enforcement pass** to guarantee the merged solution satisfies the Verifiability Contract.
 
-5. **ValidationOracle** (with WikiHealthOracle integration) scores the candidate solution, boosts credit for wiki contributions, and feeds deterministic confidence back into C3A calculations. Low scores trigger **re_adapt**, which uses compressed deltas and bio heuristics to refine the strategy without restarting from scratch.
+5. **Symbiosis Arbos** scans for emergent mutualisms across subtasks and writes them as `BIO_MYCELIAL_DELTA` sections in the wiki.
 
-This inner loop creates rapid, run-time convergence: the swarm sharpens its reasoning in real time through continuous self-critique, diversity enforcement, and stigmergy feedback — turning potential drift into focused progress.
+6. **ValidationOracle** (with full deterministic metrics) scores the candidate solution using hardened edge coverage, invariant tightness, fidelity, C3A confidence, θ_dynamic, and EFS. Low scores trigger **intelligent replan** via rich failure context packets and `re_adapt`, which uses compressed deltas and bio heuristics to refine the strategy without restarting from scratch.
+
+This inner loop creates rapid, run-time convergence: the swarm sharpens its reasoning in real time through continuous self-critique, diversity enforcement, contract-aware synthesis, and stigmergy feedback — turning potential drift into focused progress.
 
 **Outer Loop: Foundational Growth & Compounding Intelligence**  
 After the inner loop completes, the outer loop ensures permanent evolution:
@@ -89,26 +91,27 @@ After the inner loop completes, the outer loop ensures permanent evolution:
 - **Resonance Pattern Surfacer (RPS)** and **Photoelectric Pattern Surfacer (PPS)** are read-only background tools that extract signals invisible to linear methods: RPS uses fractal resonance coupling on MAU clusters to surface multi-scale invariants, while PPS applies photoelectric and redox proxies; both run episodically after retrospective or tuning passes and inject only replay-verified, fitness-positive `RESONANCE_DELTA` or `PHOTOELECTRIC_DELTA` MAUs into the wiki.
 - **Pruning Advisor** continuously analyzes real EFS contribution, replay pass rates, compute overhead, promoted vs. discarded deltas, and historical trends for every optional module, then delivers clear, traceable, one-click recommendations (“Strongly keep enabled”, “Consider disabling — low ROI”, “Reduce frequency”) directly in the Optimization & Audit tab so the organism remains powerful yet surgically maintainable without ever bloating.
 - **Hybrid Genome/Paper Ingestion** (via ArchiveHunter) safely ingests external evolutionary knowledge — EvoAgent genomes, Sakana archives, or research papers — atomizes them into MAUs, applies reinforcement scoring, writes them as stigmergy signals to the wiki, and lets Symbiosis Arbos cross-pollinate them with the living brain, folding proven external intelligence into the organism without breaking verifier-first invariants.
+
 **Why this is huge on Enigma**  
 Most agent systems are single-loop and static — they solve (or fail) a challenge and reset with the same prompts and memory. Enigma’s dual inner/outer loop + ByteRover memory + stigmergic wiki and pattern surfacers creates a true self-improving research organism. Each run not only attacks the current sponsor challenge with maximum focus but also permanently upgrades the system’s principles, knowledge hierarchy, and prompt substrate. Over time, Enigma becomes sharper, more knowledgeable, and better adapted to frontier quantum, cryptographic, and symbolic problems — delivering a decisive, compounding edge in a distributed, compute-constrained environment where every run must count toward long-term intelligence growth.
 
 ### 5. Verification Intelligence
 
-Verification is not an afterthought — it is the **unbreakable core** and arguably the single most important architectural feature of the Enigma Machine. Every other layer (natural-language substrate, core principles, prompt evolution, Arbos loops, ByteRover memory) ultimately converges here. From the moment a sponsor challenge is ingested, the system operates in a relentlessly verifier-first mode that treats partial correctness as failure and demands deterministic, replayable proof at every scale.
+**This is the single biggest reason the system can now work reliably.** Verification is not an afterthought — it is the **unbreakable core** and the central architectural innovation of the Enigma Machine. Every other layer ultimately converges here.
+
+From the moment a sponsor challenge is ingested, the system operates in a relentlessly **verifier-first mode** built around a formal **Verifiability Contract**. This contract (generated by Planning Arbos) contains `artifacts_required`, `composability_rules`, `dry_run_success_criteria`, and `synthesis_guidance`. It becomes the single source of truth for the entire run.
 
 The miner supplies exact verification requirements and executable validation code at the outset. These are parsed by the **ValidationOracle**, which immediately:
-- Extracts deterministic scoring snippets (symbolic invariants, edge-coverage thresholds, fidelity metrics, quantum feasibility checks) that run before any LLM call.
-- Propagates task-specific `validation_criteria` JSON down to the Orchestrator Arbos and every Sub-Arbos worker.
-- Injects live C3A (Confidence-aware Continuous Convergent Annealing) parameters so that confidence `c` is recomputed from `edge_coverage + invariant_tightness + ByteRover historical_reliability` (with the 0.20 novelty floor) at both global and hyphal levels.
+- Extracts deterministic scoring snippets.
+- Propagates the full Verifiability Contract down to the Orchestrator and every Sub-Arbos worker.
+- Runs a **dry-run simulation gate** *before* any swarm compute is spent to validate the plan.
 
-Inside the inner loop, **every Sub-Arbos worker** performs continuous verifier-first self-checks on every candidate output. Dynamic tool creation is explicitly gated: when a novel subtask appears, the worker proposes a tool via `llm_generate_tool_proposal`, executes it in the sandbox, runs the full critique loop, and submits the result to the ValidationOracle’s **replay test**. Only if the replay passes **and** `critique_delta.c_increase > 0` is the new tool curated into ByteRover.
+Inside the inner loop, every Sub-Arbos worker performs continuous verifier-first self-checks. **Synthesis Arbos** now performs multi-proposal generation + structured debate + a **final strict contract enforcement pass** to guarantee the merged solution satisfies the contract. Dynamic tool creation is replay-tested against the contract. The SOTA hybrid scoring engine (edge coverage, invariant tightness, fidelity, C3A, θ_dynamic, EFS) is fully deterministic and contract-aware. The dynamic θ gate adjusts thresholds intelligently based on confidence and progress.
 
-The SOTA hybrid scoring engine now combines the deterministic base (45 % weight) with an automatic rubric for edge coverage, invariant tightness, simulation fidelity, and redox-like proxies, all modulated by C3A confidence. The dynamic θ gate is the key to malleability: when confidence (c) and distance-to-convergence (d) are weak, the threshold stays permissive so the brain can explore freely; as c rises and d shrinks, it tightens automatically. High-signal Sub-Arbos outputs trigger immediate stigmergy writes to the wiki, which the integrated **WikiHealthOracle** scores via the MAU Pyramid reinforcement formula. These wiki contributions are added to the ValidationOracle’s final score, creating a closed reinforcement loop: better verification → richer wiki → higher future confidence → sharper convergence.
-
-The outer loop closes the circuit: Grail RL only reinforces trajectories that survive the ValidationOracle’s full replay suite. `evolve_principles_post_run` and ByteRover promotions occur exclusively on runs that demonstrate verifiable, high-fidelity progress. Low-score paths trigger `re_adapt` with compressed deltas that are themselves validated before acceptance. The entire system — principles, prompts, memory, swarm behavior — is therefore shaped and hardened by verification intelligence at every layer.
+The outer loop closes the circuit: only trajectories that survive the full ValidationOracle replay suite are reinforced in the Grail. `evolve_principles_post_run` and ByteRover promotions occur exclusively on runs that demonstrate verifiable, high-fidelity progress. Low-score paths trigger intelligent replan via rich failure context packets.
 
 **Why this is huge on Enigma**  
-In Bittensor SN63’s prize-pool reality, sponsor challenges are deliberately frontier-level: quantum, cryptographic, or symbolic problems where “almost correct” is worthless and only rigorously verifiable solutions win. Most agent frameworks treat verification as a post-hoc check or optional evaluator, leading to massive wasted compute on plausible-but-false solutions. Enigma’s verifier-first architecture — with deterministic-first snippets, propagated criteria, C3A-gated annealing, dynamic-tool replay testing, SimulationHunter grounding, and WikiHealthOracle reinforcement — creates a converging, self-hardening organism that eliminates drift early, maximizes every joule of compute, and turns verification itself into the primary evolutionary pressure. This is where the living second brain becomes decisive: the system does not merely attempt solutions — it relentlessly converges on provably correct, compounding intelligence that is purpose-built for the hardest, highest-stakes challenges on the subnet.
+In Bittensor SN63’s prize-pool reality, sponsor challenges are deliberately frontier-level: quantum, cryptographic, or symbolic problems where “almost correct” is worthless and only rigorously verifiable solutions win. Most agent frameworks treat verification as a post-hoc check, leading to massive wasted compute on plausible-but-false solutions. Enigma’s DVRP (Decompose → Verify Contract → Recompose) architecture — with formal contracts, mandatory dry-run gate, contract-aware Synthesis enforcement, replay testing, and C3A/θ/EFS gating — creates a converging, self-hardening organism that eliminates drift early, maximizes every joule of compute, and turns verification itself into the primary evolutionary pressure. This hardened verification strategy is the main reason the system can now attack truly difficult challenges with confidence.
 
 ### Miner Actions
 
@@ -127,12 +130,12 @@ All other intelligence emerges from the Arbos loops and the evolving brain.
 
 1. Edit the Brain via the Streamlit Brain Dashboard.  
 2. Enter challenge + verification requirements/code.  
-3. Planning Arbos (all principles injected) → editable enhancement prompt.  
-4. Orchestrator Arbos → blueprint with task-specific validation criteria.  
-5. Launch Dynamic Swarm + parallel ToolHunter sub-swarms (Amdahl-aware).  
+3. Planning Arbos (all principles injected) → editable enhancement prompt + formal Verifiability Contract.  
+4. Orchestrator Arbos receives structured contract → runs **dry-run gate** → builds blueprint.  
+5. Launch Dynamic Swarm + parallel ToolHunter sub-swarms (Amdahl-aware) with dynamic roles, message bus, and evolutionary tournament.  
 6. Sub-Arbos workers execute with continuous self-checks, dynamic tool creation, and stigmergy wiki writes.  
-7. Synthesis → Symbiosis Arbos (cross-field patterns) → ValidationOracle (with C3A and MAU-aware scoring).  
-8. Low score → re_adapt (compressed deltas + bio heuristics).  
+7. Synthesis Arbos (multi-proposal + structured debate + **contract enforcement pass**) → Symbiosis Arbos (cross-field patterns) → ValidationOracle (with C3A and MAU-aware scoring).  
+8. Low score → intelligent replan via rich failure context + re_adapt (compressed deltas + bio heuristics).  
 9. High score → Grail RL reinforcement + outer-loop brain evolution (including Deep Replan if stale) + ByteRover MAU promotion.  
 10. End-of-run hook automatically runs MP4 archival, HistoryParseHunter retrospective, Meta-Tuning (if stalled), embodiment background threads, RPS/PPS pattern surfacing, and Pruning Advisor analysis — all replay-tested and EFS-scored.
 
@@ -142,3 +145,6 @@ All other intelligence emerges from the Arbos loops and the evolving brain.
 pip install -r requirements.txt
 # Follow AutoHarness setup instructions in requirements.txt
 streamlit run streamlit_app.py
+```
+
+---
