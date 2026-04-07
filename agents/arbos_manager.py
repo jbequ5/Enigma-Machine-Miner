@@ -315,55 +315,68 @@ class ArbosManager:
             return self.model_registry["models"][rules["planner_model"]]
         return self.model_registry["models"][rules["default"]]
 
-    # ====================== v5.1 C3A ======================
     def compute_c3a_multiplier(self, d: float, c: float) -> float:
         return math.exp(-self.c3a_k * d) * (c ** self.c3a_beta)
 
-        def _orchestrator_self_dialogue(self, task: str, goal_md: str) -> Dict[str, Any]:
-        """Explicit inner self-dialogue for Orchestrator Arbos."""
-        shared_core = load_brain_component("principles/shared_core")
-        heterogeneity = load_brain_component("principles/heterogeneity")
-
-        dialogue_prompt = f"""You are Orchestrator Arbos for SN63 Enigma Miner.
-
-TASK: {task}
-
-GOAL CONTEXT:
-{goal_md[:3000]}
-
-{shared_core}
-
-Heterogeneity Principle:
-{heterogeneity}
-
-VERIFIABILITY CONTRACT RULES (must obey):
-- Explicitly list every required artifact (x, y, z...) the subtasks must produce.
-- Define clear merge interfaces so recomposition is deterministic.
-- Ensure the merged candidate can pass the full verifier set (edge ≥ 0.75, c ≥ 0.78, EFS ≥ 0.65 in best case).
-
-Return ONLY valid JSON with these keys:
-{{
-  "artifacts_required": [list of dicts with name, schema, verifier_snippets, merge_interface],
-  "composability_rules": [list of strings],
-  "dry_run_success_criteria": {{...}},
-  "decomposition_strategy": "brief description",
-  "risks_and_mitigations": [list]
-}}"""
-
-        model_config = self.load_model_registry(role="planner")
-        raw_response = self.harness.call_llm(dialogue_prompt, temperature=0.35, max_tokens=1400, model_config=model_config)
-        spec = self._safe_parse_json(raw_response)
-
-        analyzer_spec = self.analyzer._generate_verifiability_spec(task, "")
-        if "artifacts_required" in spec:
-            analyzer_spec["artifacts_required"] = spec.get("artifacts_required", [])
-
-        return {
-            "self_dialogue_output": spec,
-            "final_verifiability_spec": analyzer_spec,
-            "decomposition_strategy": spec.get("decomposition_strategy", "Standard heterogeneous decomposition")
+    def generate_verifiability_contract(self, task: str, goal_md: str = "") -> Dict:
+        """Generates the formal Verifiability Contract — the single source of truth for DVRP."""
+        
+        base_contract = {
+            "version": "1.1",
+            "challenge_summary": task[:500],
+            "artifacts_required": [],
+            "composability_rules": [
+                "All artifacts must be independently verifiable",
+                "No internal contradictions between subtask outputs",
+                "Final merged candidate must be a single coherent executable solution"
+            ],
+            "dry_run_success_criteria": {
+                "edge_coverage": ">= 0.75",
+                "invariant_tightness": ">= 0.70",
+                "fidelity": ">= 0.78",
+                "c3a_confidence": ">= 0.78",
+                "EFS": ">= 0.65",
+                "minimum_artifacts_covered": ">= 90%"
+            },
+            "synthesis_guidance": "",
+            "learning_mandate": "Every run must produce full stigmergic trace, heterogeneity breakdown, decision journal entry, and ByteRover promotion decision."
         }
 
+        prompt = f"""You are Orchestrator Arbos — formal contract writer for the DVRP pipeline.
+
+CHALLENGE:
+{task}
+
+GOAL CONTEXT:
+{goal_md[:3500]}
+
+Create a precise verifiability contract.
+
+Return ONLY valid JSON using this exact structure. Do not add or remove top-level keys.
+
+Focus especially on:
+- artifacts_required: Be concrete and measurable
+- composability_rules: Add 3-5 specific rules for this challenge
+- synthesis_guidance: Clear instructions for Synthesis Arbos"""
+
+        model_config = self.load_model_registry(role="planner")
+        raw = self.harness.call_llm(prompt, temperature=0.32, max_tokens=1400, model_config=model_config)
+        
+        llm_output = self._safe_parse_json(raw)
+
+        # Enforce structure and minimum quality
+        final_contract = {**base_contract, **llm_output}
+        
+        if len(final_contract.get("artifacts_required", [])) < 2:
+            logger.warning("Weak contract generated — applying minimum viable artifacts")
+            final_contract["artifacts_required"] = ["core_solution", "verification_evidence", "edge_case_results"]
+
+        logger.info(f"✅ Verifiability Contract generated — {len(final_contract['artifacts_required'])} artifacts defined")
+
+        return {
+            "contract_generated": True,
+            "final_verifiability_contract": final_contract
+        }
     def _build_failure_context(self, failure_type: str, task: str, goal_md: str,
                                strategy: Dict, dry_run: Dict = None,
                                swarm_results: List = None, validation_result: Dict = None) -> Dict:
@@ -587,79 +600,35 @@ Return ONLY valid JSON:
     # ====================== PLANNING ======================
     
     def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu") -> Dict[str, Any]:
+        """SOTA Planning Arbos — generates context and hands off clean contract to Orchestrator."""
         self.set_compute_source(compute_mode)
         
         if not challenge or len(challenge.strip()) < 10:
             return {"error": "Challenge too short"}
 
-        logger.info("🚀 Planning Arbos starting — loading memory + enforcing human refinement")
+        logger.info("🚀 Planning Arbos starting")
 
-        # 1. Rich context loading
+        # Load rich context
         recent_history = self.get_run_history(n=5)
         grail_patterns = self._load_recent_grail_patterns()
         previous_failures = self._load_recent_failure_contexts()
         wiki_deltas = self._apply_wiki_strategy(goal_md + "\n" + challenge, challenge.replace(" ", "_").lower())
 
-        # 2. Orchestrator self-dialogue (already strong)
-        dialogue_result = self._orchestrator_self_dialogue(challenge, goal_md)
+        # Generate the formal contract
+        contract_result = self.generate_verifiability_contract(challenge, goal_md)
 
-        # 3. STRONG HUMAN-IN-THE-LOOP REFINEMENT (enforced)
+        # Strong Human-in-the-Loop
         if not enhancement_prompt or len(enhancement_prompt.strip()) < 30:
-            logger.warning("⚠️ Weak or missing human refinement prompt — this is a critical step")
-            st.warning("Please provide a meaningful human refinement / enhancement prompt before continuing.")
-            # In production this would pause or surface to the miner UI
-            enhancement_prompt = enhancement_prompt or "Default: Maximize verifier compliance, heterogeneity across all five axes, deterministic/symbolic paths first. Be brutally honest about feasibility."
+            logger.warning("⚠️ Weak human refinement prompt")
+            enhancement_prompt = enhancement_prompt or "Default: Maximize verifier compliance, heterogeneity across all five axes, deterministic paths first. Prioritize clean composability for Synthesis Arbos."
 
-        # Store human input for traceability
         self._current_enhancement = enhancement_prompt
 
-        shared_core = load_brain_component("principles/shared_core")
-        heterogeneity = load_brain_component("principles/heterogeneity")
-        english_evolution = load_brain_component("principles/english_evolution")
-
-        # 4. Phase 1 — Planning Arbos (rich context)
-        phase1_prompt = f"""You are Planning Arbos for SN63.
-
-{shared_core}
-
-Heterogeneity Principle:
-{heterogeneity}
-
-English Evolution Modules:
-{english_evolution}
-
-RECENT LESSONS LEARNED:
-{json.dumps(recent_history, indent=2)[:1000]}
-
-GRAIL HIGH-SIGNAL PATTERNS:
-{json.dumps(grail_patterns, indent=2)[:600]}
-
-PREVIOUS FAILURE CONTEXTS:
-{json.dumps(previous_failures, indent=2)[:600]}
-
-WIKI DELTAS:
-{json.dumps(wiki_deltas, indent=2)[:400]}
-
-Orchestrator Self-Dialogue:
-{json.dumps(dialogue_result["self_dialogue_output"], indent=2)[:800]}
-
-HUMAN REFINEMENT (must respect):
-{enhancement_prompt}
-
-Challenge: {challenge}
-
-Return ONLY valid JSON with: phase1_plan, key_insights, feasibility, recommended_approach, risks, estimated_difficulty, generated_post_planning_enhancement"""
-
-        model_config = self.load_model_registry(role="planner")
-        phase1_raw = self.harness.call_llm(phase1_prompt, temperature=0.55, max_tokens=1800, model_config=model_config)
-        phase1 = self._safe_parse_json(phase1_raw)
-
-        # 5. CLEAN STRUCTURED HANDOFF TO ORCHESTRATOR ARBOS
+        # Structured handoff package
         orchestrator_input = {
-            "phase1": phase1,
+            "phase1": {},  # can be expanded later
             "human_refinement": enhancement_prompt,
-            "verifiability_spec": dialogue_result["final_verifiability_spec"],
-            "dialogue": dialogue_result["self_dialogue_output"],
+            "verifiability_contract": contract_result["final_verifiability_contract"],
             "prior_lessons": {
                 "recent_history": recent_history,
                 "grail_patterns": grail_patterns,
@@ -667,26 +636,25 @@ Return ONLY valid JSON with: phase1_plan, key_insights, feasibility, recommended
             }
         }
 
-        # Call the actual Orchestrator execution step
-        blueprint = self.orchestrate_subarbos(
-    task=challenge,
-    goal_md=goal_md,
-    orchestrator_input=orchestrator_input
-)
+        # Hand off to Orchestrator
+        result = self.orchestrate_subarbos(
+            task=challenge,
+            goal_md=goal_md,
+            orchestrator_input=orchestrator_input
+        )
 
         self._current_strategy = self.analyzer.analyze("", challenge)
         self.validator.adapt_scoring(self._current_strategy)
 
         return {
-            "phase1": phase1,
-            "phase2": blueprint,
+            "phase1": contract_result,
+            "phase2": result,
             "adapted_strategy": self._current_strategy,
-            "dynamic_swarm_size": blueprint.get("swarm_config", {}).get("total_instances", 6),
-            "dialogue": dialogue_result,
+            "dynamic_swarm_size": result.get("dynamic_swarm_size", 6),
             "human_refinement": enhancement_prompt,
             "structured_handoff": True
         }
-
+        
     # Clean handoff helper
     def _orchestrator_execution_step(self, orchestrator_input: Dict, challenge: str) -> Dict:
         """Real structured handoff from Planning to Orchestrator Arbos."""
@@ -890,35 +858,31 @@ Return ONLY valid JSON with these keys:
     # ====================== ORCHESTRATE SUB-ARBOS (FULLY HARDENED & WIRED) ======================
     def orchestrate_subarbos(self, task: str, goal_md: str = "", previous_outputs: List[Any] = None, 
                              orchestrator_input: Dict = None) -> Dict[str, Any]:
-        """Main Orchestrator Arbos — receives rich structured input from Planning."""
+        """Main execution coordinator — receives formal Verifiability Contract from Planning Arbos."""
         
-        logger.info(f"Orchestrator Arbos starting for task: {task[:80]}...")
+        logger.info(f"Orchestrator Arbos executing: {task[:80]}...")
 
-        # === STRUCTURED HANDOFF FROM PLANNING ARBOS ===
+        # === 1. Receive structured handoff from Planning ===
         if orchestrator_input:
-            dialogue_result = orchestrator_input.get("dialogue", {})
-            verifiability_spec = orchestrator_input.get("verifiability_spec", {})
+            verifiability_contract = orchestrator_input.get("verifiability_contract", {})
             human_refinement = orchestrator_input.get("human_refinement", "")
-            logger.info("✅ Received rich structured handoff from Planning Arbos")
+            logger.info("✅ Received formal Verifiability Contract from Planning Arbos")
         else:
-            # Fallback for direct/recursive calls
-            dialogue_result = self._orchestrator_self_dialogue(task, goal_md)
-            verifiability_spec = dialogue_result.get("final_verifiability_spec", {})
+            # Fallback for direct calls or recursive replans
+            contract_result = self.generate_verifiability_contract(task, goal_md)
+            verifiability_contract = contract_result["final_verifiability_contract"]
             human_refinement = ""
 
-        # Build strategy with everything
-        decomp = self.dvr.decomp_template(task, goal_md)
+        # === 2. Build strategy ===
         strategy = self.analyzer.analyze("", task)
-        strategy.update(decomp)
-        strategy["verifiability_spec"] = verifiability_spec
-        strategy["orchestrator_dialogue"] = dialogue_result.get("self_dialogue_output", {})
+        strategy["verifiability_contract"] = verifiability_contract
         strategy["human_refinement"] = human_refinement
         strategy["hardening_dialogue"] = self.dvr.hardening_conversation_template()
 
-        # Dry-run gate
+        # === 3. Dry-run gate (cheap validation before swarm) ===
         full_verifier_snippets = strategy.get("verifier_code_snippets", [])
         dry_run = self.simulator.run_dry_run(
-            decomposed_subtasks=verifiability_spec.get("artifacts_required", []),
+            decomposed_subtasks=verifiability_contract.get("artifacts_required", []),
             full_verifier_snippets=full_verifier_snippets,
             goal_md=goal_md
         )
@@ -927,12 +891,16 @@ Return ONLY valid JSON with these keys:
         # Intelligent replan on dry-run failure
         if dry_run.get("recommendation") == "ITERATE_DECOMP":
             failure_context = self._build_failure_context(
-                failure_type="dry_run_failed", task=task, goal_md=goal_md,
-                strategy=strategy, dry_run=dry_run
+                failure_type="dry_run_failed", 
+                task=task, 
+                goal_md=goal_md,
+                strategy=strategy, 
+                dry_run=dry_run
             )
             replan_decision = self._intelligent_replan(failure_context)
             
             if replan_decision.get("decision") == "new_strategy_needed":
+                logger.info("Dry-run failed → triggering new strategy")
                 return self.orchestrate_subarbos(
                     task=f"{task} [NEW STRATEGY AFTER DRY-RUN FAILURE]",
                     goal_md=goal_md,
@@ -940,17 +908,19 @@ Return ONLY valid JSON with these keys:
                 )
             else:
                 if replan_decision.get("spec_fixes"):
-                    strategy["verifiability_spec"]["fixes_applied"] = replan_decision["spec_fixes"]
+                    strategy["verifiability_contract"]["fixes_applied"] = replan_decision["spec_fixes"]
 
-        # Launch swarm
+        # === 4. Launch real swarm ===
         subtask_outputs = self._launch_hyphal_workers(task, strategy)
 
-        # Synthesis + Symbiosis + Validation (as previously wired)
+        # === 5. Intelligent Synthesis + Symbiosis ===
         raw_merged = self._recompose(subtask_outputs, {})
+        
         synthesis_result = self.synthesis_arbos(
             subtask_outputs=subtask_outputs,
             recomposition_plan=strategy.get("recomposition_plan", {}),
-            verifiability_spec=verifiability_spec
+            verifiability_spec=verifiability_contract,   # pass the contract
+            failure_context=None
         )
 
         final_candidate = synthesis_result.get("final_candidate", raw_merged)
@@ -961,6 +931,7 @@ Return ONLY valid JSON with these keys:
             synthesis_result=synthesis_result
         )
 
+        # === 6. Final ValidationOracle ===
         validation_result = self.validator.run(
             candidate=final_candidate,
             verification_instructions="",
@@ -969,14 +940,83 @@ Return ONLY valid JSON with these keys:
             subtask_outputs=subtask_outputs
         )
 
-        # ... (rest of your scoring, stall detection, grail, _end_of_run etc. can stay as before)
+        score = validation_result.get("validation_score", 0.0)
+        efs = validation_result.get("efs", 0.0)
+
+        # === 7. Deterministic metrics (C3A, θ, EFS) ===
+        edge = self.validator._compute_edge_coverage(final_candidate, full_verifier_snippets)
+        invariant = self.validator._compute_invariant_tightness(final_candidate, full_verifier_snippets)
+        fidelity = self.validator._compute_fidelity(final_candidate, full_verifier_snippets)
+        hetero = self.validator._compute_heterogeneity_score(subtask_outputs)
+
+        c = self.validator._compute_c3a_confidence(edge, invariant, getattr(self, 'historical_reliability', 0.85))
+        theta = self.validator._compute_theta_dynamic(c, self.loop_count / 10.0)
+
+        passed = self.validator._subarbos_gate(final_candidate, strategy, subtask_outputs)
+
+        # === 8. Intelligent swarm stall detection & replan ===
+        dry_run_result = strategy.get("dry_run_result", {})
+        stall_analysis = self._analyze_swarm_stall(
+            subtask_outputs, validation_result, dry_run_result
+        )
+
+        if stall_analysis.get("is_severe_stall", False):
+            failure_context = self._build_failure_context(
+                failure_type="swarm_stall_on_passed_spec",
+                task=task,
+                goal_md=goal_md,
+                strategy=strategy,
+                dry_run=dry_run_result,
+                swarm_results=subtask_outputs,
+                validation_result=validation_result
+            )
+            replan_decision = self._intelligent_replan(failure_context)
+            
+            if replan_decision.get("decision") == "new_strategy_needed":
+                logger.info("Severe swarm stall → triggering full replan")
+                new_task = f"{task} [STALL RECOVERY]"
+                return self.orchestrate_subarbos(new_task, goal_md, orchestrator_input=orchestrator_input)
+
+        # === 9. Success path & outer loop ===
+        if score > 0.70:
+            self.memory_layers.promote_high_signal(str(final_candidate), {
+                "local_score": score,
+                "fidelity": fidelity,
+                "heterogeneity_score": hetero
+            })
+
+        if score > 0.85:
+            self.evolve_principles_post_run(str(final_candidate), score, validation_result)
+
+        if score > 0.92 and self.enable_grail:
+            self.consolidate_grail(str(final_candidate), score, validation_result)
+
+        # Stigmergic trace
+        self._write_stigmergic_trace({
+            "task": task,
+            "verifiability_contract": verifiability_contract,
+            "dry_run": dry_run,
+            "real": {"edge": edge, "invariant": invariant, "fidelity": fidelity, 
+                     "hetero": hetero, "c": c, "theta": theta, "EFS": efs, "passed": passed},
+            "loop": self.loop_count,
+            "timestamp": datetime.now().isoformat()
+        })
+
+        # End of run embodiment
+        self._end_of_run({
+            "final_score": score,
+            "efs": efs,
+            "best_solution": final_candidate,
+            "diagnostics": validation_result
+        })
 
         return {
             "merged_candidate": final_candidate,
             "validation_result": validation_result,
             "synthesis_result": synthesis_result,
+            "verifiability_contract": verifiability_contract,
             "human_refinement": human_refinement,
-            "verifiability_spec": verifiability_spec
+            "metrics": {"edge": edge, "c": c, "theta": theta, "EFS": efs, "score": score}
         }
         
     # ====================== SUB-ARBOS WORKER (FULLY HARDENED v5.2 - BUG FREE) ======================
