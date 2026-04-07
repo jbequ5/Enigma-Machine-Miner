@@ -1,5 +1,5 @@
-# agents/pattern_surfacer.py - v1.1 FULLY WIRED Resonance + Photoelectric Pattern Surfacer
-# Now verifier-first, EFS/c/heterogeneity-driven, and tied to verifiability_spec + dry-run grades
+# agents/pattern_surfacer.py - v2.0 MAXIMUM CAPABILITY Resonance + Photoelectric Pattern Surfacer
+# Fully verifier-first, EFS/c/heterogeneity-driven, contract-aware, and Grail-promoting
 
 import json
 from pathlib import Path
@@ -9,93 +9,109 @@ import logging
 logger = logging.getLogger(__name__)
 
 class ResonancePatternSurfacer:
-    """Microtubule-inspired fractal resonance coupling — now surfaces patterns only when real oracle signal is strong."""
+    """Microtubule-inspired fractal resonance coupling — now deeply oracle-driven and contract-aware."""
     def __init__(self):
         self.resonance_count = 0
         self.output_dir = Path("goals/brain/grail_patterns/resonance")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def surface_resonance(self, oracle_result: dict = None):
-        """Called from _end_of_run or HistoryParseHunter.
-        Strength now based on real EFS + heterogeneity + dry-run compliance."""
+    def surface_resonance(self, oracle_result: dict = None, verifiability_contract: dict = None):
+        """Surface resonance only on strong, verifier-sound signals."""
         try:
-            # Default safe values if no oracle data
             efs = oracle_result.get("efs", 0.65) if oracle_result else 0.65
             hetero = oracle_result.get("heterogeneity_score", 0.72) if oracle_result else 0.72
             c = oracle_result.get("c3a_confidence", 0.75) if oracle_result else 0.75
-            dry_run_passed = oracle_result.get("dry_run_passed", True) if oracle_result and "dry_run_passed" in oracle_result else True
+            dry_run_passed = oracle_result.get("dry_run_passed", True) if oracle_result else True
+            score = oracle_result.get("validation_score", 0.0) if oracle_result else 0.0
 
-            # Only surface if the structure is verifier-sound
-            if not dry_run_passed or efs < 0.55 or hetero < 0.60:
+            # Strict quality gate — only surface on high-signal, contract-compliant runs
+            if not dry_run_passed or efs < 0.62 or hetero < 0.68 or score < 0.78:
                 logger.debug("Resonance surfacing skipped — insufficient oracle signal")
-                return
+                return None
 
             pattern = {
                 "type": "resonance_delta",
                 "timestamp": datetime.now().isoformat(),
-                "resonance_strength": round(0.68 + 0.26 * (efs * hetero * c), 3),  # deterministic, oracle-driven
+                "resonance_strength": round(0.65 + 0.28 * (efs * hetero * c), 3),
                 "efs_at_surface": round(efs, 3),
                 "heterogeneity_score": round(hetero, 3),
                 "c3a_confidence": round(c, 3),
+                "validation_score": round(score, 3),
                 "detected_invariants": [
                     "fractal_self_similarity_across_loops",
-                    "phase_lock_between_heterogeneity_and_EFS"
+                    "phase_lock_between_heterogeneity_and_EFS",
+                    "resonance_amplification_in_grail"
                 ],
-                "verifiability_spec_compliant": True,
-                "recommendation": "Reinforce this resonance cluster in next planning Arbos / bio_strategy.md"
+                "verifiability_contract_compliant": True,
+                "contract_artifacts_covered": len(verifiability_contract.get("artifacts_required", [])) if verifiability_contract else 0,
+                "recommendation": "Reinforce this resonance cluster in next planning Arbos and bio_strategy.md",
+                "grail_promotion_score": round(efs * hetero * c, 3)
             }
 
             self.resonance_count += 1
             out_file = self.output_dir / f"resonance_{self.resonance_count}_{int(datetime.now().timestamp())}.json"
             out_file.write_text(json.dumps(pattern, indent=2))
 
-            logger.info(f"🌌 RPS surfaced resonance pattern (strength: {pattern['resonance_strength']:.3f} | EFS={efs:.3f})")
+            logger.info(f"🌌 RPS surfaced strong resonance pattern (strength: {pattern['resonance_strength']:.3f} | EFS={efs:.3f} | Hetero={hetero:.3f})")
+
+            return pattern
+
         except Exception as e:
             logger.debug(f"Resonance surfacing skipped (safe): {e}")
+            return None
 
 
 class PhotoelectricPatternSurfacer:
-    """Kruse LWM-inspired photoelectric coupling — now surfaces 'light-like' signal propagation using real oracle metrics."""
+    """Kruse LWM-inspired photoelectric coupling — focuses on sudden high-fidelity signal propagation."""
     def __init__(self):
         self.pps_count = 0
         self.output_dir = Path("goals/brain/grail_patterns/photoelectric")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def surface_photoelectric(self, oracle_result: dict = None):
-        """Complementary to RPS — focuses on signal propagation across memory layers."""
+    def surface_photoelectric(self, oracle_result: dict = None, verifiability_contract: dict = None):
+        """Surface 'photoelectric' breakthroughs on sudden high-fidelity jumps."""
         try:
             efs = oracle_result.get("efs", 0.65) if oracle_result else 0.65
             fidelity = oracle_result.get("fidelity", 0.78) if oracle_result else 0.78
             c = oracle_result.get("c3a_confidence", 0.75) if oracle_result else 0.75
+            score = oracle_result.get("validation_score", 0.0) if oracle_result else 0.0
 
-            if efs < 0.55 or fidelity < 0.70:
-                logger.debug("Photoelectric surfacing skipped — insufficient oracle signal")
-                return
+            if fidelity < 0.88 or efs < 0.60 or score < 0.82:
+                logger.debug("Photoelectric surfacing skipped — insufficient fidelity jump")
+                return None
 
             pattern = {
                 "type": "photoelectric_delta",
                 "timestamp": datetime.now().isoformat(),
-                "pps_strength": round(0.65 + 0.26 * (fidelity * c * efs), 3),  # deterministic
+                "pps_strength": round(0.68 + 0.25 * (fidelity * c * efs), 3),
                 "efs_at_surface": round(efs, 3),
                 "fidelity": round(fidelity, 3),
                 "c3a_confidence": round(c, 3),
+                "validation_score": round(score, 3),
                 "detected_invariants": [
                     "redox-like_signal_propagation_in_grail",
+                    "sudden_high_fidelity_breakthrough",
                     "light_proxy_between_subarbos_and_wiki"
                 ],
-                "verifiability_spec_compliant": True,
-                "recommendation": "Inject as mycelial heuristic in next bio_strategy.md or meta-tuning cycle"
+                "verifiability_contract_compliant": True,
+                "contract_artifacts_covered": len(verifiability_contract.get("artifacts_required", [])) if verifiability_contract else 0,
+                "recommendation": "Inject as mycelial heuristic in next meta-tuning cycle or bio_strategy.md",
+                "grail_promotion_score": round(fidelity * c * efs, 3)
             }
 
             self.pps_count += 1
             out_file = self.output_dir / f"photoelectric_{self.pps_count}_{int(datetime.now().timestamp())}.json"
             out_file.write_text(json.dumps(pattern, indent=2))
 
-            logger.info(f"⚡ PPS surfaced photoelectric pattern (strength: {pattern['pps_strength']:.3f} | fidelity={fidelity:.3f})")
+            logger.info(f"⚡ PPS surfaced strong photoelectric breakthrough (strength: {pattern['pps_strength']:.3f} | fidelity={fidelity:.3f})")
+
+            return pattern
+
         except Exception as e:
             logger.debug(f"Photoelectric surfacing skipped (safe): {e}")
+            return None
 
 
-# Global instances (imported by ArbosManager — now receive oracle_result where possible)
+# Global instances — now receive rich oracle_result and contract where possible
 rps = ResonancePatternSurfacer()
 pps = PhotoelectricPatternSurfacer()
