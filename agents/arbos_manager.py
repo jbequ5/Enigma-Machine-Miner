@@ -37,6 +37,8 @@ from trajectories.trajectory_vector_db import vector_db
 from tools.agent_reach_tool import AgentReachTool
 from verification_analyzer import VerificationAnalyzer
 from goals.brain_loader import load_brain_component, load_toggle
+from tools.pruning_advisor import generate_pruning_recommendations, update_module_toggle
+
 
 from autoharness import AutoHarness
 
@@ -134,6 +136,7 @@ class ArbosManager:
         # ====================== v0.6 FULLY WIRED: New feature instances ======================
         self.validator = ValidationOracle(goal_file, compute=self.compute, arbos=self)
         self.memory_layers.arbos = self   # wire for SOTA gating access
+        self.pruning_advisor = pruning_advisor  # or make it global
         self.dvr = DVRPipeline()
         self.simulator = DVRDryRunSimulator(self.validator)
         self.video_archiver = VideoArchiver()
@@ -2097,11 +2100,22 @@ Return ONLY JSON with key 'deltas': list of strings, each ready to append to a .
 
     # ====================== RUN METHOD ======================
     def run(self, challenge: str, verification_instructions: str = "", enhancement_prompt: str = ""):
+        """Main entry point — full DVRP pipeline with all advanced intelligence layers."""
         self.loop_count = 0
-        self._current_challenge_id = challenge.replace(" ", "_").lower()[:50]
-        plan = self.plan_challenge(self.extra_context, challenge, enhancement_prompt)
+        self._current_challenge_id = challenge.replace(" ", "_").lower()[:60]
+        self.recent_scores = []
+
+        logger.info(f"🚀 Starting full mission for challenge: {challenge[:80]}...")
+
+        # 1. Planning Arbos (rich context + contract generation)
+        plan = self.plan_challenge(
+            goal_md=self.extra_context,
+            challenge=challenge,
+            enhancement_prompt=enhancement_prompt or "Maximize verifier compliance, heterogeneity across five axes, and deterministic paths."
+        )
 
         if "error" in plan:
+            logger.error(plan["error"])
             return plan["error"]
 
         max_loops = self.config.get("max_loops", 5)
@@ -2110,15 +2124,13 @@ Return ONLY JSON with key 'deltas': list of strings, each ready to append to a .
         best_diagnostics = None
 
         for loop in range(max_loops):
-            logger.info(f"Starting outer loop {loop+1}/{max_loops}")
+            logger.info(f"Outer loop {loop+1}/{max_loops} starting")
+
+            # 2. Full execution with advanced swarm, synthesis, symbiosis
             result = self.execute_full_cycle(plan, challenge, verification_instructions)
-            
+
             score = result.get("validation_score", 0.0) if isinstance(result, dict) else 0.0
-            
-            if isinstance(result, dict) and "final_solution" in result:
-                current_solution = result["final_solution"]
-            else:
-                current_solution = str(result)
+            current_solution = result.get("merged_candidate", str(result)) if isinstance(result, dict) else str(result)
 
             diagnostics = self.run_diagnostics(current_solution, challenge, verification_instructions)
             best_diagnostics = diagnostics
@@ -2127,47 +2139,43 @@ Return ONLY JSON with key 'deltas': list of strings, each ready to append to a .
                 best_score = score
                 best_solution = current_solution
 
-            if score >= self.early_stop_threshold:
+            # Early stop on strong performance
+            if score >= 0.88:
                 logger.info(f"Early stop triggered at score {score:.3f}")
                 break
 
-            if score < self.early_stop_threshold and loop < max_loops - 1:
+            # Re-adapt on low performance or periodic
+            if score < 0.72 or loop < max_loops - 1:
                 logger.info(f"Low score ({score:.3f}) → triggering re_adapt")
                 self.re_adapt({"solution": current_solution, "challenge": challenge}, f"Validation score: {score:.3f}")
+
+            # Refine plan for next loop
+            if loop < max_loops - 1:
                 plan = self._refine_plan(plan, challenge, enhancement_prompt=enhancement_prompt)
 
-        if self.enable_grail and best_score > 0.92:
-            self.consolidate_grail(best_solution or "", best_score, best_diagnostics)
-            self.meta_reflect(best_solution or "", best_score, best_diagnostics)
-
-        if best_score > 0.85 and self.enable_grail:
-            self.evolve_compression_prompt(best_score, 0.92)
-
-        if self.loop_count % 10 == 0:
-            self.run_scientist_mode(num_synthetic=3)
-
-        if best_score > 0.85 or self.is_aha_detected(self.recent_scores):
+        # 3. Final high-signal processing
+        if best_score > 0.85:
             self.evolve_principles_post_run(best_solution or "", best_score, best_diagnostics)
 
-        # Final ByteRover cleanup
+        if best_score > 0.92 and self.enable_grail:
+            self.consolidate_grail(best_solution or "", best_score, best_diagnostics)
+
+        # 4. Final ByteRover cleanup
         self.memory_layers.compress_low_value(current_score=best_score)
 
         self.save_run_to_history(challenge, enhancement_prompt, best_solution or "", best_score, 0.5, best_score)
 
-        # ====================== v0.6: FULL END-OF-RUN HOOK (episodic, zero hot-path impact) ======================
+        # 5. Full end-of-run embodiment + meta layers
         run_data = {
-            "mau_pyramid": getattr(self.memory_layers, "get_mau_pyramid", lambda: {})(),
-            "wiki_snapshot": self._get_wiki_snapshot(),
-            "c3a_logs": self.diagnostic_history[-10:],
-            "grail": list(self.grail_reinforcement.keys()),
-            "trajectories": self.get_vector_db_stats(),
-            "efs": getattr(self, "last_efs", 0.0),
             "final_score": best_score,
-            "run_id": self.current_run_id
+            "efs": getattr(self, "last_efs", 0.0),
+            "best_solution": best_solution or "",
+            "diagnostics": best_diagnostics,
+            "loop": self.loop_count
         }
         self._end_of_run(run_data)
 
-        self.current_run_id += 1
+        logger.info(f"✅ Full mission completed — Best score: {best_score:.3f}")
         return best_solution or "No valid solution produced"
 
         # ====================== RE_ADAPT (FULLY WIRED WITH INTELLIGENT REPLANNING) ======================
