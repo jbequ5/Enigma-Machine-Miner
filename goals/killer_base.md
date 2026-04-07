@@ -1,5 +1,17 @@
 # Enigma-Machine-Miner — Canonical Entry Point (Thin Shim v5.0)
 
+## Verifiability Spec Template (v1.0 — passed to every layer)
+```yaml
+verifiability_spec:
+  artifacts_required: []  # orchestrator fills
+  composability_rules: ["no contradictions", "clear interfaces"]
+  dry_run_success_criteria:
+    edge_coverage: ">= 0.75"
+    invariant_tightness: ">= 0.70"
+    fidelity: ">= 0.78"
+    c3a_confidence: ">= 0.78"
+    EFS: ">= 0.65"
+  learning_mandate: "full trace to wiki"
 **Importance**: Single loader for ALL intelligence layers.  
 This is the thin canonical shim. All high-leverage logic lives in `brain/`.  
 Edit via **Streamlit Brain Dashboard** only.
@@ -20,6 +32,3 @@ See [[brain/toggles.md]] — brain_depth: "lean" (default)
 See [[brain/metrics.md]]
 
 ---
-
-**Note**: Legacy v4.9 GOAL + Core Strategy + Toggles + English modules have been migrated into the `brain/` hierarchy for better organization and co-evolution.  
-Backward compatibility is maintained via auto-loading.
