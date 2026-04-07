@@ -319,6 +319,38 @@ class ArbosManager:
     def compute_c3a_multiplier(self, d: float, c: float) -> float:
         return math.exp(-self.c3a_k * d) * (c ** self.c3a_beta)
 
+    def _analyze_swarm_stall(self, subtask_outputs: List[Dict], validation_result: Dict, 
+                             dry_run_result: Dict) -> Dict:
+        """Analyzes why a real swarm stalled despite a passed dry-run."""
+        real_efs = validation_result.get("efs", 0.0)
+        dry_run_efs = dry_run_result.get("best_case_efs", 0.0)
+        
+        stall_context = {
+            "real_efs": round(real_efs, 4),
+            "dry_run_efs": round(dry_run_efs, 4),
+            "delta": round(real_efs - dry_run_efs, 4),
+            "is_severe_stall": (real_efs < dry_run_efs - 0.15) or self._is_stale_regime(self.recent_scores),
+            "low_performing_subtasks": [
+                {
+                    "subtask": out.get("subtask", "unknown"),
+                    "local_score": out.get("local_score", 0.0)
+                }
+                for out in subtask_outputs 
+                if out.get("local_score", 0.0) < 0.65
+            ],
+            "heterogeneity_drop": self._compute_heterogeneity_score([out.get("solution", "") for out in subtask_outputs]) < 0.6,
+            "failure_modes": []
+        }
+
+        if stall_context["delta"] < -0.15:
+            stall_context["failure_modes"].append("large_efs_drop_from_dry_run")
+        if len(stall_context["low_performing_subtasks"]) > len(subtask_outputs) / 2:
+            stall_context["failure_modes"].append("majority_subtasks_underperformed")
+        if stall_context["heterogeneity_drop"]:
+            stall_context["failure_modes"].append("heterogeneity_collapse_in_real_execution")
+
+        return stall_context
+    
     
     def _build_failure_context(self, failure_type: str, task: str, goal_md: str,
                                strategy: Dict, dry_run: Dict = None,
@@ -899,36 +931,83 @@ Return ONLY valid JSON with these keys:
 
     def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = ""):
         dynamic_size = blueprint.get("dynamic_swarm_size", blueprint.get("swarm_config", {}).get("total_instances", 5))
+        
+        # Run the swarm
         results = self._execute_swarm(blueprint, dynamic_size)
         
-        # YOUR EXACT CALL SITE
-        oracle_result = self.validator.run(
-            candidate=results or {"solution": str(results)},
+        # Final validation
+        merged_candidate = self._recompose(results, {}) if results else {"solution": str(results)}
+        validation_result = self.validator.run(
+            candidate=merged_candidate,
             verification_instructions=verification_instructions,
             challenge=challenge,
-            goal_md=self.extra_context
+            goal_md=self.extra_context,
+            subtask_outputs=list(results.values()) if isinstance(results, dict) else []
         )
 
-        score = oracle_result.get("validation_score", 0.0)
+        score = validation_result.get("validation_score", 0.0)
+        efs = validation_result.get("efs", 0.0)
 
-        # ByteRover MAU promotion after validation
+        # ByteRover promotion
         if score > 0.70:
             self.memory_layers.promote_high_signal(
                 str(results),
-                {"local_score": score, "fidelity": oracle_result.get("fidelity", 0.8), "heterogeneity_score": self._compute_heterogeneity_score()["heterogeneity_score"]}
+                {
+                    "local_score": score,
+                    "fidelity": validation_result.get("fidelity", 0.8),
+                    "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.7)
+                }
             )
 
         self.memory_layers.compress_low_value(current_score=score)
 
+        # ====================== INTELLIGENT STALL DETECTION & REPLAN ======================
+        dry_run_result = blueprint.get("dry_run_result", {})  # passed down from orchestrate_subarbos
+        stall_analysis = self._analyze_swarm_stall(
+            list(results.values()) if isinstance(results, dict) else [],
+            validation_result,
+            dry_run_result
+        )
+
+        if stall_analysis["is_severe_stall"]:
+            logger.warning(f"Real swarm stall detected despite passed dry-run. Delta: {stall_analysis['delta']:.3f}")
+
+            # Build rich failure context
+            failure_context = self._build_failure_context(
+                failure_type="swarm_stall_on_passed_spec",
+                task=challenge,
+                goal_md=self.extra_context,
+                strategy=self._current_strategy or {},
+                dry_run=dry_run_result,
+                swarm_results=list(results.values()) if isinstance(results, dict) else [],
+                validation_result=validation_result
+            )
+
+            # Intelligent reflection + decision
+            replan_decision = self._intelligent_replan(failure_context)
+
+            if replan_decision.get("decision") == "new_strategy_needed":
+                logger.info("Stall reflection decided NEW STRATEGY needed — triggering full replan")
+                # Escalate with full context
+                new_task = f"{challenge} [STALL RECOVERY - previous spec failed in practice]"
+                return self.orchestrate_subarbos(new_task, self.extra_context)
+            else:
+                logger.info("Stall reflection decided fixable — applying targeted fixes")
+                # Apply spec fixes if provided
+                if replan_decision.get("spec_fixes"):
+                    if "verifiability_spec" in self._current_strategy:
+                        self._current_strategy["verifiability_spec"]["fixes_applied"] = replan_decision["spec_fixes"]
+
+        # Grail / meta updates (only on strong runs)
         if score > 0.92 and self.enable_grail:
-            self._run_grail_post_training(results)
+            self.consolidate_grail(str(results), score, validation_result)
 
-        proposals = self._generate_tool_proposals(results)
-        self.memory_layers.add_proposals(proposals)
-        
-        self.process_tool_proposals()
+        if score > 0.85:
+            self.evolve_principles_post_run(str(results), score, validation_result)
 
-        return oracle_result
+        self.save_run_to_history(challenge, "", str(results), score, 0.5, score)
+
+        return validation_result
 
     # ====================== ALL OTHER ORIGINAL METHODS (100% PRESERVED) ======================
 
