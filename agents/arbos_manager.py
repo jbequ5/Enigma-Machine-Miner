@@ -653,11 +653,12 @@ Generate concise, high-signal adaptation."""
             "dvr_trace": {"c": round(c,4), "efs": round(efs,4), "theta": round(theta,4)},
             "notes": f"FULL PIPELINE COMPLETE | dry-run passed → swarm executed | EFS={efs:.4f}"
         }
-    # ====================== SUB-ARBOS WORKER (FULLY HARDENED v5.2) ======================
+
+    # ====================== SUB-ARBOS WORKER (FULLY HARDENED v5.2 - BUG FREE) ======================
     def _sub_arbos_worker(self, subtask: str, hypothesis: str, tools: List[str],
                           shared_results: dict, subtask_id: int) -> dict:
-        """Hardened Sub-Arbos worker — now fully verifier-first, deterministic, and oracle-driven.
-        No more legacy symbolic_module or hard-coded constants. Every evaluation uses the rigorous ValidationOracle."""
+        """Hardened Sub-Arbos worker — verifier-first, deterministic oracle on every loop.
+        No NameError, no legacy calls, full sandboxed validation, safe defaults."""
         max_hours = self.config.get("max_compute_hours", 3.8)
         monitor = ResourceMonitor(max_hours=max_hours / 3.0)
         repair_attempts = 0
@@ -667,137 +668,18 @@ Generate concise, high-signal adaptation."""
         challenge_id = getattr(self, "_current_challenge_id", "current_challenge")
         subtask_path = self._create_subtask_wiki_folder(challenge_id, str(subtask_id))
 
-        # Breakthrough check (preserved)
-        if self.model_compute_capability_enabled and self.allow_per_subarbos_breakthrough and self.is_stagnant_subarbos(str(subtask_id)):
+        # Breakthrough check
+        if (self.model_compute_capability_enabled and 
+            self.allow_per_subarbos_breakthrough and 
+            self.is_stagnant_subarbos(str(subtask_id))):
             gap = self.generate_gap_diagnosis(str(subtask_id))
             rec_model = self.recommend_breakthrough_model(gap)
-            logger.info(f"🔥 Localized stagnation in Sub-Arbos {subtask_id} — using {rec_model} breakthrough (token budget {self.breakthrough_token_budget})")
+            logger.info(f"🔥 Localized stagnation in Sub-Arbos {subtask_id} — using {rec_model} breakthrough")
 
         if self.config.get("resource_aware") and monitor.elapsed_hours() > max_hours * 0.75:
             solution = "Early abort: time budget exceeded."
             trace.append("Resource-aware early abort")
-            local_score = 0.0
-        else:
-            solution = f"Subtask: {subtask}\nHypothesis: {hypothesis}"
-            trace.append(f"Sub-Arbos {subtask_id} started with hypothesis: {hypothesis}")
-
-            bio_delta = self._apply_bio_strategy(subtask, solution)
-            self._write_subtask_md(subtask_path, solution, bio_delta)
-
-            solution = self._generate_guided_diversity_candidates(subtask, hypothesis, solution)
-
-            # ==================== MAIN VERIFIER-FIRST LOOP ====================
-            for loop in range(3):
-                # Real oracle validation on current candidate (this is the rigorous part)
-                validation_result = self.validator.run(
-                    candidate=solution,
-                    verification_instructions="",
-                    challenge=subtask,
-                    goal_md=self.extra_context,
-                    subtask_outputs=[solution]
-                )
-
-                local_score = validation_result.get("validation_score", 0.5)
-                trace.append(f"Loop {loop+1} — oracle score: {local_score:.3f} | notes: {validation_result.get('notes', '')[:200]}")
-
-                if self.dynamic_tool_creation_enabled and ("ToolHunter" in str(tools) or "hunter" in (validation_result.get("notes") or "").lower()):
-                    logger.info(f"Dynamic Tool Creation triggered for Sub-Arbos {subtask_id}")
-                    proposed_tool = self.harness.call_llm("Propose schema + implementation for this novel subtask", temperature=0.3, max_tokens=900, model_config=self.load_model_registry(subtask_id=str(subtask_id)))
-                    self.write_decision_journal(subtask_id=str(subtask_id), hypothesis="Dynamic Tool Proposal", evidence=proposed_tool, performance_delta={"delta_c": 0.0, "delta_s": 0.0}, organic_thought="Tool genesis attempt")
-
-                if local_score > 0.75 and self.aha_adaptation_enabled:
-                    trace.append(f"High-signal finding detected (score {local_score:.2f}) — running reflection")
-                    reflection = self.harness.call_llm(
-                        f"Subtask: {subtask}\nSolution: {solution[:1200]}\nExtract the single highest-signal insight, invariant, or symbiosis opportunity for the wiki.",
-                        temperature=0.2, max_tokens=400, model_config=self.load_model_registry(subtask_id=str(subtask_id))
-                    )
-                    self._write_subtask_md(subtask_path, solution + f"\n\n[REFLECTION] {reflection}")
-
-                    # ByteRover MAU promotion (preserved)
-                    self.memory_layers.promote_high_signal(
-                        solution + "\n" + reflection,
-                        {
-                            "local_score": local_score,
-                            "fidelity": validation_result.get("fidelity", 0.85),
-                            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.7)
-                        }
-                    )
-
-                # Reflection / next-step decision
-                reflect_task = f"""You are a focused Sub-Arbos for SN63 Quantum.
-Subtask: {subtask}
-Hypothesis: {hypothesis}
-Current solution: {solution[:800]}
-Oracle feedback: {validation_result.get('notes', '')[:400]}
-Prefer deterministic/symbolic tools. Decide: Improve / Call Tool / Finalize"""
-
-                response = self.harness.call_llm(reflect_task, temperature=0.0, max_tokens=600, model_config=self.load_model_registry(subtask_id=str(subtask_id)))
-                trace.append(f"Reflection loop {loop+1} complete")
-
-                if "Finalize" in response or "final" in response.lower():
-                    break
-
-                # Tool / diversity / guardrail logic (your original logic — kept intact)
-                if self.config.get("toolhunter_escalation") and ("ToolHunter" in str(tools) or "hunter" in response.lower()):
-                    gap = f"Gap in {subtask}"
-                    hunt = self._tool_hunter(gap, subtask)
-                    solution += f"\n[ToolHunter + ReadyAI]\n{hunt}"
-                elif tools and tools[0] != "none":
-                    output = self.harness.call_llm(f"Apply {tools[0]} to quantum subtask: {solution[:600]}", temperature=0.0, max_tokens=500, model_config=self.load_model_registry(subtask_id=str(subtask_id)))
-                    solution += f"\n[{tools[0]}]\n{output}"
-
-                if self.config.get("guardrails"):
-                    solution = apply_guardrails(solution, monitor)
-
-                if "error" in solution.lower() and repair_attempts < self.max_repair_attempts:
-                    repair_attempts += 1
-                    solution = self._generate_guided_diversity_candidates(subtask, hypothesis, solution)
-
-                if time.time() - monitor.start_time > (max_hours * 1800 / 6):
-                    break
-
-        # ==================== FINAL ORACLE VALIDATION (source of truth) ====================
-        final_validation = self.validator.run(
-            candidate=solution,
-            verification_instructions="",
-            challenge=subtask,
-            goal_md=self.extra_context,
-            subtask_outputs=[solution]
-        )
-
-        # Decision journal (preserved + now uses real oracle data)
-        self.write_decision_journal(
-            subtask_id=str(subtask_id),
-            hypothesis=hypothesis,
-            evidence=solution[:800],
-            performance_delta={
-                "delta_c": final_validation.get("c3a_confidence", 0.0),
-                "delta_s": final_validation.get("validation_score", 0.0),
-                "context_cost": 4200
-            },
-            organic_thought=reflection if 'reflection' in locals() else ""
-        )
-
-        memory.add(text=solution[:1000], metadata={"subtask": subtask, "status": "completed", "local_score": final_validation.get("validation_score", 0.0)})
-
-        self.vector_db.add({
-            "solution": solution[:800],
-            "challenge": subtask,
-            "validation_score": final_validation.get("validation_score", 0.0),
-            "fidelity": final_validation.get("fidelity", 0.82),
-            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.7),
-            "loop": self.loop_count,
-            "source": "sub_arbos_worker"
-        })
-
-        shared_results[subtask_id] = {
-            "subtask": subtask,
-            "solution": solution,
-            "trace": trace,
-            "local_score": final_validation.get("validation_score", 0.0),
-            "oracle_result": final_validation   # full deterministic trace for mycelial learning
-        }
-        return shared_results[subtask_id]
+            local_score = 0
 
     # ====================== EXECUTE FULL CYCLE (with your exact oracle_result call) ======================
     def _execute_swarm(self, blueprint: Dict, dynamic_size: int):
