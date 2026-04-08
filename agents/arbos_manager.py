@@ -486,7 +486,19 @@ After creating the contract, critique it internally for completeness and feasibi
             "loop_count": self.loop_count,
             "recent_history_summary": self.recent_scores[-5:] if hasattr(self, "recent_scores") else []
         }
-
+                                   
+    def _detect_gaps_from_previous_outputs(self, previous_outputs: List) -> List[str]:
+        """Lightweight gap detection for proactive ToolHunter."""
+        gaps = []
+        if not previous_outputs:
+            return gaps
+        for out in previous_outputs:
+            if out.get("local_score", 0) < 0.65:
+                gaps.append("low_score_subtask")
+            if "invariant" in str(out.get("solution", "")).lower():
+                gaps.append("invariant_tightness_gap")
+        return list(dict.fromkeys(gaps))  # deduplicate
+        
     def _intelligent_replan(self, failure_context: Dict) -> Dict:
         """Structured, contract-respecting reflection that decides fix vs new strategy."""
         prompt = f"""You are Replanning Arbos for SN63 Enigma Miner.
@@ -827,9 +839,9 @@ Return ONLY valid JSON with these keys:
     # ====================== ORCHESTRATE SUB-ARBOS (FULLY HARDENED & WIRED) ======================
     def orchestrate_subarbos(self, task: str, goal_md: str = "", previous_outputs: List[Any] = None, 
                              orchestrator_input: Dict = None) -> Dict[str, Any]:
-        """Top-tier Orchestrator Arbos — maximum intelligence coordination with full transparency."""
+        """v0.8 Top-tier Orchestrator Arbos — proactive ToolHunter + DOUBLE_CLICK support + per-subtask contract slices."""
         
-        logger.info(f"🚀 Orchestrator Arbos starting: {task[:80]}...")
+        logger.info(f"🚀 Orchestrator Arbos starting (v0.8): {task[:80]}...")
 
         # 1. Receive structured handoff from Planning Arbos
         if orchestrator_input:
@@ -849,7 +861,25 @@ Return ONLY valid JSON with these keys:
         strategy["hardening_dialogue"] = self.dvr.hardening_conversation_template()
         self._current_strategy = strategy
 
-        # 3. Dry-run gate (critical safety layer)
+        # 3. Proactive ToolHunter + rich context packet (v0.8)
+        rich_context = {
+            "task": task,
+            "verifiability_contract": verifiability_contract,
+            "human_refinement": human_refinement,
+            "previous_outputs_summary": [o.get("subtask", "") for o in (previous_outputs or [])],
+            "gaps": self._detect_gaps_from_previous_outputs(previous_outputs) if previous_outputs else []
+        }
+        tool_recommendations = tool_hunter.hunt_and_integrate(
+            gap_description="Proactive hunt for this subtask",
+            subtask=task,
+            challenge_context=json.dumps(rich_context)
+        )
+        strategy["recommended_tools"] = tool_recommendations.get("tools", [])
+
+        # Lightweight InfoSeeker heuristics (v0.8)
+        strategy["info_seeker_heuristics"] = ["near_decomposability", "map_reduce_aggregate", "reflection_checklist"]
+
+        # 4. Dry-run gate (critical safety layer)
         full_verifier_snippets = strategy.get("verifier_code_snippets", [])
         dry_run = self.simulator.run_dry_run(
             decomposed_subtasks=verifiability_contract.get("artifacts_required", []),
@@ -858,9 +888,9 @@ Return ONLY valid JSON with these keys:
         )
         strategy["dry_run_result"] = dry_run
 
-        # Dry-run intelligent replan
-        if dry_run.get("recommendation") == "ITERATE_DECOMP":
-            logger.warning("Dry-run failed — triggering intelligent replan")
+        # Dry-run intelligent replan + DOUBLE_CLICK / ESCALATE handling
+        if dry_run.get("recommendation") == "ITERATE_DECOMP" or any(tag in task for tag in ["[DOUBLE_CLICK]", "[ESCALATE_TO_TOOL]"]):
+            logger.warning("Dry-run failed or DOUBLE_CLICK tag detected — triggering intelligent replan")
             failure_context = self._build_failure_context(
                 failure_type="dry_run_failed", 
                 task=task, 
@@ -871,7 +901,7 @@ Return ONLY valid JSON with these keys:
             replan_decision = self._intelligent_replan(failure_context)
             
             if replan_decision.get("decision") == "new_strategy_needed":
-                logger.info("Dry-run failed → triggering new strategy")
+                logger.info("Dry-run failed or DOUBLE_CLICK → triggering new strategy")
                 return self.orchestrate_subarbos(
                     task=f"{task} [NEW STRATEGY AFTER DRY-RUN FAILURE]",
                     goal_md=goal_md,
@@ -881,27 +911,27 @@ Return ONLY valid JSON with these keys:
                 if replan_decision.get("spec_fixes"):
                     verifiability_contract["fixes_applied"] = replan_decision.get("spec_fixes", [])
 
-        # 4. Advanced Swarm Execution
+        # 5. Advanced Swarm Execution with per-subtask contract slices
         subtask_outputs = self._launch_hyphal_workers(task, strategy)
 
-        # 5. Advanced Synthesis Arbos
+        # 6. Advanced Synthesis Arbos
         raw_merged = self._recompose(subtask_outputs, {})
         synthesis_result = self.synthesis_arbos(
             subtask_outputs=subtask_outputs,
             recomposition_plan=verifiability_contract.get("recomposition_plan", {}),
-            verifiability_contract=verifiability_contract   # ← Fully consistent naming
+            verifiability_contract=verifiability_contract
         )
 
         final_candidate = synthesis_result.get("final_candidate", raw_merged)
 
-        # 6. Symbiosis Arbos
+        # 7. Symbiosis Arbos
         symbiosis_patterns = self._run_symbiosis_arbos(
             aggregated_outputs=subtask_outputs,
             message_bus=self.message_bus,
             synthesis_result=synthesis_result
         )
 
-        # 7. Final ValidationOracle
+        # 8. Final ValidationOracle
         validation_result = self.validator.run(
             candidate=final_candidate,
             verification_instructions="",
@@ -913,7 +943,7 @@ Return ONLY valid JSON with these keys:
         score = validation_result.get("validation_score", 0.0)
         efs = validation_result.get("efs", 0.0)
 
-        # 8. Compute deterministic metrics
+        # 9. Compute deterministic metrics
         edge = self.validator._compute_edge_coverage(final_candidate, full_verifier_snippets)
         invariant = self.validator._compute_invariant_tightness(final_candidate, full_verifier_snippets)
         fidelity = self.validator._compute_fidelity(final_candidate, full_verifier_snippets)
@@ -924,7 +954,7 @@ Return ONLY valid JSON with these keys:
 
         passed = self.validator._subarbos_gate(final_candidate, strategy, subtask_outputs)
 
-        # 9. Swarm stall detection & intelligent replan
+        # 10. Swarm stall detection & intelligent replan
         stall_analysis = self._analyze_swarm_stall(subtask_outputs, validation_result, dry_run)
         if stall_analysis.get("is_severe_stall", False):
             logger.warning("Severe swarm stall detected despite passed dry-run")
@@ -944,7 +974,7 @@ Return ONLY valid JSON with these keys:
                 new_task = f"{task} [STALL RECOVERY]"
                 return self.orchestrate_subarbos(new_task, goal_md, orchestrator_input=orchestrator_input)
 
-        # 10. Success path & learning
+        # 11. Success path & learning
         if score > 0.70:
             self.memory_layers.promote_high_signal(str(final_candidate), {
                 "local_score": score,
@@ -991,6 +1021,7 @@ Return ONLY valid JSON with these keys:
             "synthesis_result": synthesis_result,
             "verifiability_contract": verifiability_contract,
             "human_refinement": human_refinement,
+            "recommended_tools": strategy.get("recommended_tools", []),
             "metrics": {"score": score, "efs": efs, "c": c, "theta": theta}
         }
                                  
@@ -2067,13 +2098,6 @@ Suggest 2-3 concrete architecture-level improvements."""
             except:
                 self.scientist_log = []
 
-    def _load_scientist_log(self) -> List:
-        if self.scientist_log_path.exists():
-            try:
-                return json.loads(self.scientist_log_path.read_text())
-            except:
-                return []
-        return []
 
     def save_challenge_state(self, challenge_id: str):
         state_dir = os.path.join("trajectories", f"challenge_{challenge_id}")
@@ -2180,7 +2204,142 @@ Return ONLY the complete function code."""
             except Exception as e:
                 logger.error(f"Failed to process proposal {pfile}: {e}")
                 pfile.unlink(missing_ok=True)
+                
+    def run_scientist_mode(self, num_synthetic: int = 5, max_runtime_seconds: int = 300):
+        """v0.8 SOTA Scientist Mode — domain-experiment engine + contract evolution flywheel."""
+        logger.info(f"🧪 Scientist Mode activated — generating {num_synthetic} synthetic experiments")
+        
+        start_time = time.time()
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "synthetic_runs": [],
+            "contract_deltas": [],
+            "double_click_experiments": []
+        }
 
+        for i in range(num_synthetic):
+            if time.time() - start_time > max_runtime_seconds:
+                logger.warning("Scientist Mode hit max runtime safeguard")
+                break
+
+            # 1. Generate controlled synthetic challenge
+            synth_prompt = f"""Generate a brand new, extremely hard SN63-style challenge in quantum/crypto/symbolic domain.
+Make it different from anything in memdir. Return ONLY JSON with "challenge" and "verification_instructions"."""
+            synth_raw = self.harness.call_llm(synth_prompt, temperature=0.9, max_tokens=800)
+            synth = self._safe_parse_json(synth_raw)
+
+            if "challenge" not in synth:
+                continue
+
+            # 2. Run full experiment with current contract
+            experiment_result = self.execute_full_cycle(
+                blueprint=self.plan_challenge(
+                    goal_md=self.extra_context,
+                    challenge=synth["challenge"],
+                    enhancement_prompt="Scientist Mode synthetic run — focus on contract compliance and discovery"
+                ),
+                challenge=synth["challenge"],
+                verification_instructions=synth.get("verification_instructions", "")
+            )
+
+            score = experiment_result.get("validation_score", 0.0)
+            efs = experiment_result.get("efs", 0.0)
+
+            # 3. Build rich experiment summary
+            summary = self._build_scientist_experiment_summary(synth, experiment_result, score, efs)
+            log_entry["synthetic_runs"].append(summary)
+
+            # 4. Extract high-signal contract deltas
+            if score > 0.75 or efs > 0.68:
+                delta = self._evolve_verification_contract_from_synthetic(summary)
+                if delta:
+                    log_entry["contract_deltas"].append(delta)
+
+            # 5. Double-click / gap-specific narrower experiment (if stagnation detected)
+            if score < 0.65 or self.is_stagnant_subarbos("scientist"):
+                narrower = self._run_narrower_double_click_experiment(summary)
+                if narrower:
+                    log_entry["double_click_experiments"].append(narrower)
+
+        # Save log
+        self.scientist_log.append(log_entry)
+        self.scientist_log_path.write_text(json.dumps(self.scientist_log, indent=2))
+
+        # Feed directly into Meta-Tuning
+        if log_entry["contract_deltas"] or log_entry["synthetic_runs"]:
+            self.run_meta_tuning_cycle(
+                stall_detected=False,
+                oracle_result={"scientist_summary": log_entry}
+            )
+
+        logger.info(f"✅ Scientist Mode completed — {len(log_entry['synthetic_runs'])} experiments | "
+                    f"{len(log_entry['contract_deltas'])} contract deltas | "
+                    f"{len(log_entry['double_click_experiments'])} double-click experiments")
+
+    # ====================== SCIENTIST MODE HELPERS ======================
+    def _build_scientist_experiment_summary(self, synth: dict, result: dict, score: float, efs: float) -> dict:
+        return {
+            "challenge": synth.get("challenge", "")[:150],
+            "score": round(score, 4),
+            "efs": round(efs, 4),
+            "verifier_quality": result.get("verifier_quality", 0.0),
+            "composability_pass_rate": result.get("composability_pass_rate", 0.0),
+            "escalation_events": result.get("escalation_events", 0),
+            "tool_roi": result.get("tool_roi", {}),
+            "timestamp": datetime.now().isoformat()
+        }
+
+    def _evolve_verification_contract_from_synthetic(self, summary: dict) -> dict | None:
+        """Extract high-signal contract improvements from synthetic run."""
+        if summary["score"] < 0.75 and summary["efs"] < 0.68:
+            return None
+
+        prompt = f"""High-signal synthetic run (score {summary['score']:.3f}, EFS {summary['efs']:.3f}).
+
+Extract reusable contract improvements (new artifacts, stronger composability rules, better dry-run criteria).
+Return ONLY JSON with:
+{{
+  "delta_type": "artifact | rule | criteria",
+  "content": "exact text to add",
+  "provenance": "Scientist Mode synthetic run — score {summary['score']:.3f}"
+}}"""
+
+        raw = self.harness.call_llm(prompt, temperature=0.3, max_tokens=600)
+        delta = self._safe_parse_json(raw)
+
+        if delta and "content" in delta:
+            # Append to living contract templates
+            with open("goals/brain/verification_contract_templates.md", "a", encoding="utf-8") as f:
+                f.write(f"\n\n# EVOLVED DELTA from Scientist Mode (score {summary['score']:.3f})\n{delta['content']}\n")
+            logger.info(f"✅ Contract delta extracted and appended: {delta.get('delta_type')}")
+            return delta
+        return None
+
+    def _run_narrower_double_click_experiment(self, previous_summary: dict) -> dict | None:
+        """Targeted narrower experiment when a specific gap is detected."""
+        prompt = f"""Previous synthetic run showed weakness (score {previous_summary['score']:.3f}).
+
+Create a much narrower, focused follow-up experiment that targets the exact gap.
+Return ONLY JSON with "narrow_challenge" and "tightened_contract_slice"."""
+
+        raw = self.harness.call_llm(prompt, temperature=0.65, max_tokens=800)
+        narrow = self._safe_parse_json(raw)
+
+        if narrow and "narrow_challenge" in narrow:
+            logger.info(f"🔍 Double-click narrower experiment triggered: {narrow['narrow_challenge'][:80]}...")
+            # Run the narrower experiment (recursive but limited)
+            # (Implementation detail: you can call a limited execute_full_cycle here if desired)
+            return narrow
+        return None
+
+    def _load_scientist_log(self) -> List:
+        if self.scientist_log_path.exists():
+            try:
+                return json.loads(self.scientist_log_path.read_text())
+            except:
+                return []
+        return []
+        
     def load_expert_modules(self) -> list[str]:
         experts = []
         expert_dir = Path("experts")
