@@ -134,6 +134,36 @@ with tab1:
     else:
         verification_instructions = str(verification_response) if verification_response else default_verification
 
+    # ====================== v0.8 ONE-CLICK TOOL ADDITION UI ======================
+    st.subheader("🛠️ ToolHunter Recommendations (v0.8)")
+    st.caption("Proactive tools detected for this mission. Add with one click.")
+
+    recommended = st.session_state.get("high_level_plan", {}).get("recommended_tools", []) if "high_level_plan" in st.session_state else []
+
+    if recommended:
+        for tool in recommended:
+            tool_name = tool if isinstance(tool, str) else tool.get("name", "Unnamed Tool")
+            col1, col2, col3 = st.columns([3, 2, 2])
+            with col1:
+                st.write(f"**{tool_name}**")
+            with col2:
+                persistent = st.checkbox("Persistent venv", value=True, key=f"persist_{tool_name}")
+            with col3:
+                if st.button("✅ Add & Install", key=f"add_{tool_name}"):
+                    result = manager.tool_env_manager.create_or_get_env(
+                        tool_name=tool_name,
+                        install_cmd=tool.get("install_cmd", "") if isinstance(tool, dict) else "",
+                        persistent=persistent
+                    )
+                    if result.get("status") == "success":
+                        st.success(f"✅ {tool_name} installed successfully!")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed: {result.get('error', 'unknown error')}")
+    else:
+        st.caption("No new tools recommended for this task yet.")
+
+    # ====================== LAUNCH BUTTON ======================
     if st.button("🚀 LAUNCH FULL MISSION", type="primary", use_container_width=True):
         with st.spinner("Planning Arbos → Contract Generation → Dry-Run Gate → Advanced Swarm → Synthesis..."):
             plan = manager.plan_challenge(
@@ -141,6 +171,7 @@ with tab1:
                 challenge=challenge,
                 enhancement_prompt="Maximize verifier compliance, heterogeneity, and deterministic paths."
             )
+            st.session_state.high_level_plan = plan
             if "error" not in plan:
                 final_solution = manager.execute_full_cycle(plan, challenge, verification_instructions)
                 st.session_state.last_result = final_solution
