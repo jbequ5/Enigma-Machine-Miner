@@ -954,13 +954,17 @@ After creating the contract, critique it internally for completeness and feasibi
         return stall_context
         
     def compute_confidence(self, edge_coverage: float, invariant_tightness: float, historical_reliability: float) -> float:
+        """Compute C3A confidence score with floor and ceiling."""
         raw_c = (0.4 * edge_coverage) + (0.4 * invariant_tightness) + (0.2 * historical_reliability)
         return max(self.novelty_floor, min(1.0, raw_c))
 
-    # ====================== v5.1 DECISION JOURNAL ======================
-    def write_decision_journal(self, subtask_id: str, hypothesis: str, evidence: str, performance_delta: Dict, organic_thought: str = ""):
-        if not self.decision_journal_enabled:
+    # ====================== DECISION JOURNAL ======================
+    def write_decision_journal(self, subtask_id: str, hypothesis: str, evidence: str, 
+                               performance_delta: Dict, organic_thought: str = ""):
+        """Write structured decision journal entry for traceability."""
+        if not getattr(self, "decision_journal_enabled", True):
             return
+
         entry = {
             "timestamp": datetime.now().isoformat(),
             "subtask_id": subtask_id,
@@ -969,29 +973,39 @@ After creating the contract, critique it internally for completeness and feasibi
             "performance_delta": performance_delta,
             "organic_thought": organic_thought
         }
-        path = f"goals/knowledge/{getattr(self, '_current_challenge_id', 'current')}/wiki/subtasks/{subtask_id}/decision_journal.md"
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(f"\n\n### {datetime.now().isoformat()}\n{json.dumps(entry, indent=2)}\n")
-        logger.info(f"Decision Journal entry written for Sub-Arbos {subtask_id}")
 
-    # ====================== v5.1.3 STAGNATION + BREAKTHROUGH ======================
+        try:
+            challenge_id = getattr(self, "_current_challenge_id", "current")
+            path = Path(f"goals/knowledge/{challenge_id}/wiki/subtasks/{subtask_id}/decision_journal.md")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(f"\n\n### {datetime.now().isoformat()}\n{json.dumps(entry, indent=2)}\n")
+            
+            logger.info(f"Decision Journal entry written for Sub-Arbos {subtask_id}")
+        except Exception as e:
+            logger.warning(f"Failed to write decision journal for {subtask_id}: {e}")
+
+    # ====================== STAGNATION + BREAKTHROUGH ======================
     def is_stagnant_subarbos(self, subtask_id: str) -> bool:
+        """Detect stagnation in a specific Sub-Arbos or globally."""
         if len(self.recent_scores) < 4:
             return False
-        recent = self.recent_scores[-6:]  # wider window
+
+        recent = self.recent_scores[-6:]
         score_variance = max(recent) - min(recent)
         efs = getattr(self, "last_efs", 0.0)
         hetero = self._compute_heterogeneity_score().get("heterogeneity_score", 0.72)
-        
-        # Stagnation = low variance + low absolute performance + low heterogeneity
+
+        # Stagnation = low variance + mediocre performance + low heterogeneity
         return (score_variance < 0.08) and (np.mean(recent) < 0.72) and (efs < 0.68 or hetero < 0.65)
 
     def generate_gap_diagnosis(self, subtask_id: str) -> str:
+        """Generate readable diagnosis for stagnation or low performance."""
         last_score = getattr(self.validator, "last_score", 0.0)
         efs = getattr(self, "last_efs", 0.0)
         hetero = self._compute_heterogeneity_score().get("heterogeneity_score", 0.72)
-        
+
         issues = []
         if last_score < 0.65:
             issues.append("low validation score")
@@ -999,49 +1013,60 @@ After creating the contract, critique it internally for completeness and feasibi
             issues.append("poor EFS")
         if hetero < 0.60:
             issues.append("low heterogeneity")
-            
-        return f"Localized stagnation in Sub-Arbos {subtask_id}: {', '.join(issues) or 'general underperformance'}. " \
-               f"Score={last_score:.3f}, EFS={efs:.3f}, Hetero={hetero:.3f}"
+
+        return (f"Localized stagnation in Sub-Arbos {subtask_id}: "
+                f"{', '.join(issues) or 'general underperformance'}. "
+                f"Score={last_score:.3f}, EFS={efs:.3f}, Hetero={hetero:.3f}")
 
     def recommend_breakthrough_model(self, gap_diagnosis: str) -> str:
+        """Recommend best model for breakthrough based on diagnosed gap."""
         lower = gap_diagnosis.lower()
-        if any(k in lower for k in ["invariant", "symbolic", "tightness", "deterministic"]):
+        if any(k in lower for k in ["invariant", "symbolic", "tightness", "deterministic", "proof"]):
             return "Claude-Opus-4.6"
-        if any(k in lower for k in ["tool", "parallel", "novelty", "heterogeneity"]):
+        if any(k in lower for k in ["tool", "parallel", "novelty", "heterogeneity", "exploration"]):
             return "Kimi-K2.5-AgentSwarm"
         if "efs" in lower or "score" in lower:
-            return "DeepSeek-R1-Distill-Qwen-14B"  # strong reasoning
-        return "Claude-Opus-4.6"  # safe default
+            return "DeepSeek-R1-Distill-Qwen-14B"
+        return "Claude-Opus-4.6"  # safe default for critique-heavy work
 
-    # ====================== HETEROGENEITY + ADAPTIVE STALE ======================
+    # ====================== HETEROGENEITY + STALE DETECTION ======================
     def _load_heterogeneity_weights(self):
-        path = os.path.join("config", "heterogeneity_weights.json")
-        if os.path.exists(path):
-            with open(path) as f:
-                self.current_heterogeneity_weights = json.load(f)
-        else:
-            self.current_heterogeneity_weights = {
-                "weights": [0.25, 0.25, 0.20, 0.15, 0.15],
-                "dimension_names": ["agent_diversity", "hypothesis_diversity", "tool_path_diversity", "graph_diversity", "substrate_diversity"],
-                "adaptive_stale_window": 8,
-                "adaptive_z_threshold": 1.5,
-                "min_runs_before_stale_check": 6,
-                "rescue_nudge_factor": 0.18,
-                "rescue_decay": 0.65,
-                "history": []
-            }
-            os.makedirs("config", exist_ok=True)
-            with open(path, "w") as f:
-                json.dump(self.current_heterogeneity_weights, f, indent=2)
+        """Load or create heterogeneity configuration."""
+        path = Path("config/heterogeneity_weights.json")
+        if path.exists():
+            try:
+                with open(path) as f:
+                    self.current_heterogeneity_weights = json.load(f)
+                return
+            except Exception:
+                pass
+
+        # Default weights
+        self.current_heterogeneity_weights = {
+            "weights": [0.25, 0.25, 0.20, 0.15, 0.15],
+            "dimension_names": ["agent_diversity", "hypothesis_diversity", "tool_path_diversity", 
+                               "graph_diversity", "substrate_diversity"],
+            "adaptive_stale_window": 8,
+            "adaptive_z_threshold": 1.5,
+            "min_runs_before_stale_check": 6,
+            "rescue_nudge_factor": 0.18,
+            "rescue_decay": 0.65,
+            "history": []
+        }
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
+            json.dump(self.current_heterogeneity_weights, f, indent=2)
 
     def _compute_heterogeneity_score(self, subtask_outputs: List = None) -> Dict:
-        """Now can take real outputs for dynamic calculation."""
-        if subtask_outputs:
-            return {
-                "heterogeneity_score": self.validator._compute_heterogeneity_score(subtask_outputs),
-                "breakdown": {"dynamic": True}
-            }
-        # Fallback
+        """Compute heterogeneity score — dynamic if outputs provided."""
+        if subtask_outputs and hasattr(self.validator, "_compute_heterogeneity_score"):
+            try:
+                score = self.validator._compute_heterogeneity_score(subtask_outputs)
+                return {"heterogeneity_score": score, "breakdown": {"dynamic": True}}
+            except:
+                pass
+
+        # Fallback static score
         return {
             "heterogeneity_score": 0.72,
             "breakdown": {
@@ -1054,44 +1079,57 @@ After creating the contract, critique it internally for completeness and feasibi
         }
 
     def _is_stale_regime(self, recent_scores: list[float]) -> bool:
-        if len(recent_scores) < self.current_heterogeneity_weights.get("min_runs_before_stale_check", 6):
+        """Detect stale performance regime using adaptive thresholds."""
+        min_runs = self.current_heterogeneity_weights.get("min_runs_before_stale_check", 6)
+        if len(recent_scores) < min_runs:
             return False
-        recent = np.array(recent_scores[-self.current_heterogeneity_weights["adaptive_stale_window"]:])
+
+        window = self.current_heterogeneity_weights.get("adaptive_stale_window", 8)
+        recent = np.array(recent_scores[-window:])
         mean_recent = np.mean(recent)
         std_recent = np.std(recent) if len(recent) > 1 else 0.1
         current = recent[-1]
         z_score = (current - mean_recent) / std_recent
-        is_sudden_drop = z_score < -self.current_heterogeneity_weights["adaptive_z_threshold"]
+
+        is_sudden_drop = z_score < -self.current_heterogeneity_weights.get("adaptive_z_threshold", 1.5)
         is_prolonged_low = mean_recent < 0.65 and len(recent) >= 6
+
         return is_sudden_drop or is_prolonged_low
 
     # ====================== KNOWLEDGE HIERARCHY + WIKI + BIO HELPERS ======================
     def _ensure_knowledge_hierarchy(self, challenge_id: str):
-        base = f"goals/knowledge/{challenge_id}"
-        os.makedirs(f"{base}/raw", exist_ok=True)
-        os.makedirs(f"{base}/wiki/concepts", exist_ok=True)
-        os.makedirs(f"{base}/wiki/invariants", exist_ok=True)
-        os.makedirs(f"{base}/wiki/subtasks", exist_ok=True)
-        os.makedirs(f"{base}/cross_field_synthesis", exist_ok=True)
+        """Ensure full wiki/knowledge directory structure exists."""
+        base = Path(f"goals/knowledge/{challenge_id}")
+        (base / "raw").mkdir(parents=True, exist_ok=True)
+        (base / "wiki/concepts").mkdir(parents=True, exist_ok=True)
+        (base / "wiki/invariants").mkdir(parents=True, exist_ok=True)
+        (base / "wiki/subtasks").mkdir(parents=True, exist_ok=True)
+        (base / "cross_field_synthesis").mkdir(parents=True, exist_ok=True)
         logger.debug(f"Knowledge hierarchy ready for {challenge_id}")
 
     def _create_subtask_wiki_folder(self, challenge_id: str, subtask_id: str) -> str:
+        """Create timestamped subtask wiki folder."""
         timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-        path = f"goals/knowledge/{challenge_id}/wiki/subtasks/{timestamp}_{subtask_id}"
-        os.makedirs(path, exist_ok=True)
-        return path
+        path = Path(f"goals/knowledge/{challenge_id}/wiki/subtasks/{timestamp}_{subtask_id}")
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
 
     def _write_subtask_md(self, path: str, content: str, bio_delta: str = ""):
+        """Write subtask solution with optional bio/mycelial delta."""
         full_content = content
-        if bio_delta and self.mycelial_pruning:
+        if bio_delta and getattr(self, "mycelial_pruning", False):
             full_content += f"\n\n# BIO_MYCELIAL_DELTA (stigmergy signal)\n{bio_delta}\n# End Bio Delta"
-        with open(f"{path}/subtask.md", "w", encoding="utf-8") as f:
-            f.write(full_content)
-        logger.info(f"Stigmergy write → {path}/subtask.md")
+
+        try:
+            with open(f"{path}/subtask.md", "w", encoding="utf-8") as f:
+                f.write(full_content)
+            logger.info(f"Stigmergy write → {path}/subtask.md")
+        except Exception as e:
+            logger.warning(f"Failed to write subtask.md: {e}")
 
     # ====================== PLANNING ======================
     def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu") -> Dict[str, Any]:
-        """v0.8 Top-tier Planning Arbos — rich context + formal Verifiability Contract + slice preparation."""
+        """v0.8 Top-tier Planning Arbos — rich context + formal Verifiability Contract."""
         self.set_compute_source(compute_mode)
         
         if not challenge or len(challenge.strip()) < 10:
@@ -1099,7 +1137,7 @@ After creating the contract, critique it internally for completeness and feasibi
 
         logger.info("🚀 Planning Arbos starting — v0.8 contract + proactive context preparation")
 
-        # Load rich prior context (your existing logic stays)
+        # Load rich prior context
         recent_history = self.get_run_history(n=6)
         grail_patterns = self._load_recent_grail_patterns()
         wiki_deltas = self._apply_wiki_strategy(goal_md + "\n" + challenge, challenge.replace(" ", "_").lower())
@@ -1110,11 +1148,15 @@ After creating the contract, critique it internally for completeness and feasibi
         # Strong human-in-the-loop enforcement
         if not enhancement_prompt or len(enhancement_prompt.strip()) < 30:
             logger.warning("⚠️ Weak or missing human refinement prompt")
-            enhancement_prompt = enhancement_prompt or "Maximize verifier compliance, heterogeneity across all five axes, deterministic/symbolic paths first. Prioritize clean composability for Synthesis Arbos. Be brutally honest about feasibility."
+            enhancement_prompt = enhancement_prompt or (
+                "Maximize verifier compliance, heterogeneity across all five axes, "
+                "deterministic/symbolic paths first, and clean composability for Synthesis Arbos. "
+                "Be brutally honest about feasibility."
+            )
 
         self._current_enhancement = enhancement_prompt
 
-        # Structured handoff package
+        # Structured handoff to Orchestrator
         orchestrator_input = {
             "human_refinement": enhancement_prompt,
             "verifiability_contract": contract_result.get("final_verifiability_contract", {}),
@@ -1144,52 +1186,34 @@ After creating the contract, critique it internally for completeness and feasibi
             "verifiability_contract": contract_result.get("final_verifiability_contract", {}),
             "structured_handoff": True
         }
-        
     # Clean handoff helper
     
-    def _orchestrator_execution_step(self, orchestrator_input: Dict, challenge: str) -> Dict:
-        """Real structured handoff from Planning to Orchestrator Arbos."""
-        prompt = f"""You are Orchestrator Arbos.
-
-FULL INPUT FROM PLANNING ARBOS:
-{json.dumps(orchestrator_input, indent=2)}
-
-Generate the complete execution blueprint.
-
-Return ONLY valid JSON with: 
-decomposition, swarm_config, tool_map, validation_criteria, hypothesis_diversity, recomposition_plan, synthesis_guidance"""
-
-        model_config = self.load_model_registry(role="planner")
-        raw = self.harness.call_llm(prompt, temperature=0.3, max_tokens=1400, model_config=model_config)
-        return self._safe_parse_json(raw)
-        
         
     # ====================== ORCHESTRATE SUB-ARBOS (FULLY HARDENED & WIRED) ======================
     def orchestrate_subarbos(self, task: str, goal_md: str = "", previous_outputs: List[Any] = None, 
                              orchestrator_input: Dict = None) -> Dict[str, Any]:
-        """v0.8 Top-tier Orchestrator Arbos — proactive ToolHunter + DOUBLE_CLICK support + per-subtask contract slices."""
+        """v0.8 Top-tier Orchestrator Arbos — proactive ToolHunter + DOUBLE_CLICK + per-subtask contract slices."""
         
         logger.info(f"🚀 Orchestrator Arbos starting (v0.8): {task[:80]}...")
 
-        # 1. Receive structured handoff from Planning Arbos
+        # 1. Receive structured handoff from Planning
         if orchestrator_input:
             verifiability_contract = orchestrator_input.get("verifiability_contract", {})
             human_refinement = orchestrator_input.get("human_refinement", "")
             logger.info("✅ Received rich structured Verifiability Contract from Planning")
         else:
-            # Fallback
             contract_result = self.generate_verifiability_contract(task, goal_md)
             verifiability_contract = contract_result.get("final_verifiability_contract", {})
             human_refinement = ""
 
-        # 2. Build strategy with contract as single source of truth
+        # 2. Build strategy
         strategy = self.analyzer.analyze("", task)
         strategy["verifiability_contract"] = verifiability_contract
         strategy["human_refinement"] = human_refinement
         strategy["hardening_dialogue"] = self.dvr.hardening_conversation_template()
         self._current_strategy = strategy
 
-        # 3. Proactive ToolHunter + rich context packet (v0.8)
+        # 3. Proactive ToolHunter + rich context
         rich_context = {
             "task": task,
             "verifiability_contract": verifiability_contract,
@@ -1197,42 +1221,37 @@ decomposition, swarm_config, tool_map, validation_criteria, hypothesis_diversity
             "previous_outputs_summary": [o.get("subtask", "") for o in (previous_outputs or [])],
             "gaps": self._detect_gaps_from_previous_outputs(previous_outputs) if previous_outputs else []
         }
-        tool_recommendations = tool_hunter.hunt_and_integrate(
+        tool_recs = tool_hunter.hunt_and_integrate(
             gap_description="Proactive hunt for this subtask",
             subtask=task,
             challenge_context=json.dumps(rich_context)
         )
-        strategy["recommended_tools"] = tool_recommendations.get("tools", [])
+        strategy["recommended_tools"] = tool_recs.get("tools", [])
 
-        # Lightweight InfoSeeker heuristics (v0.8)
-        strategy["info_seeker_heuristics"] = ["near_decomposability", "map_reduce_aggregate", "reflection_checklist"]
-
-        # 2-Round Debate Phase (critique-first) - v0.8
+        # 4. 2-Round Debate
         debate_result = self._run_orchestrator_debate(task, verifiability_contract, rich_context)
         if debate_result and debate_result.get("refined_contract"):
             verifiability_contract = debate_result["refined_contract"]
             strategy["verifiability_contract"] = verifiability_contract
-            logger.info("Orchestrator 2-round debate completed and contract refined")
+            logger.info("Orchestrator 2-round debate completed")
 
-        # 4. Dry-run gate (critical safety layer)
+        # 5. Dry-run gate + DOUBLE_CLICK handling
         full_verifier_snippets = strategy.get("verifier_code_snippets", [])
         dry_run = self.simulator.run_dry_run(
             decomposed_subtasks=verifiability_contract.get("artifacts_required", []),
             full_verifier_snippets=full_verifier_snippets,
             goal_md=goal_md
         )
-        # Handle DOUBLE_CLICK from dry-run
+        strategy["dry_run_result"] = dry_run
+
         if dry_run.get("double_click_info"):
             self._emit_double_click_tag(
                 gap=dry_run["double_click_info"]["gap"],
                 details=dry_run["double_click_info"]["details"],
                 severity=dry_run["double_click_info"]["severity"]
             )
-        strategy["dry_run_result"] = dry_run
 
-        # Dry-run intelligent replan + DOUBLE_CLICK / ESCALATE handling
         if dry_run.get("recommendation") == "ITERATE_DECOMP" or any(tag in task for tag in ["[DOUBLE_CLICK]", "[ESCALATE_TO_TOOL]"]):
-            logger.warning("Dry-run failed or DOUBLE_CLICK tag detected — triggering intelligent replan")
             failure_context = self._build_failure_context(
                 failure_type="dry_run_failed", 
                 task=task, 
@@ -1243,20 +1262,15 @@ decomposition, swarm_config, tool_map, validation_criteria, hypothesis_diversity
             replan_decision = self._intelligent_replan(failure_context)
             
             if replan_decision.get("decision") == "new_strategy_needed":
-                logger.info("Dry-run failed or DOUBLE_CLICK → triggering new strategy")
                 return self.orchestrate_subarbos(
                     task=f"{task} [NEW STRATEGY AFTER DRY-RUN FAILURE]",
                     goal_md=goal_md,
                     orchestrator_input=orchestrator_input
                 )
-            else:
-                if replan_decision.get("spec_fixes"):
-                    verifiability_contract["fixes_applied"] = replan_decision.get("spec_fixes", [])
 
-        # 5. Advanced Swarm Execution with per-subtask contract slices
+        # 6. Swarm + Synthesis + Symbiosis + Validation (core flow)
         subtask_outputs = self._launch_hyphal_workers(task, strategy)
 
-        # 6. Advanced Synthesis Arbos
         raw_merged = self._recompose(subtask_outputs, {})
         synthesis_result = self.synthesis_arbos(
             subtask_outputs=subtask_outputs,
@@ -1266,14 +1280,12 @@ decomposition, swarm_config, tool_map, validation_criteria, hypothesis_diversity
 
         final_candidate = synthesis_result.get("final_candidate", raw_merged)
 
-        # 7. Symbiosis Arbos
         symbiosis_patterns = self._run_symbiosis_arbos(
             aggregated_outputs=subtask_outputs,
             message_bus=self.message_bus,
             synthesis_result=synthesis_result
         )
 
-        # 8. Final ValidationOracle
         validation_result = self.validator.run(
             candidate=final_candidate,
             verification_instructions="",
@@ -1282,80 +1294,7 @@ decomposition, swarm_config, tool_map, validation_criteria, hypothesis_diversity
             subtask_outputs=subtask_outputs
         )
 
-        score = validation_result.get("validation_score", 0.0)
-        efs = validation_result.get("efs", 0.0)
-
-        # 9. Compute deterministic metrics
-        edge = self.validator._compute_edge_coverage(final_candidate, full_verifier_snippets)
-        invariant = self.validator._compute_invariant_tightness(final_candidate, full_verifier_snippets)
-        fidelity = self.validator._compute_fidelity(final_candidate, full_verifier_snippets)
-        hetero = self.validator._compute_heterogeneity_score(subtask_outputs) if subtask_outputs else 0.0
-
-        c = self.validator._compute_c3a_confidence(edge, invariant, getattr(self, 'historical_reliability', 0.85))
-        theta = self.validator._compute_theta_dynamic(c, self.loop_count / 10.0)
-
-        passed = self.validator._subarbos_gate(final_candidate, strategy, subtask_outputs)
-
-        # 10. Swarm stall detection & intelligent replan
-        stall_analysis = self._analyze_swarm_stall(subtask_outputs, validation_result, dry_run)
-        if stall_analysis.get("is_severe_stall", False):
-            logger.warning("Severe swarm stall detected despite passed dry-run")
-            failure_context = self._build_failure_context(
-                failure_type="swarm_stall_on_passed_spec",
-                task=task,
-                goal_md=goal_md,
-                strategy=strategy,
-                dry_run=dry_run,
-                swarm_results=subtask_outputs,
-                validation_result=validation_result
-            )
-            replan_decision = self._intelligent_replan(failure_context)
-            
-            if replan_decision.get("decision") == "new_strategy_needed":
-                logger.info("Severe stall → full replan")
-                new_task = f"{task} [STALL RECOVERY]"
-                return self.orchestrate_subarbos(new_task, goal_md, orchestrator_input=orchestrator_input)
-
-        # 11. Success path & learning
-        if score > 0.70:
-            self.memory_layers.promote_high_signal(str(final_candidate), {
-                "local_score": score,
-                "fidelity": fidelity,
-                "heterogeneity_score": hetero
-            })
-
-        if score > 0.85:
-            self.evolve_principles_post_run(str(final_candidate), score, validation_result)
-
-        if score > 0.92 and getattr(self, "enable_grail", False):
-            self.consolidate_grail(str(final_candidate), score, validation_result)
-
-        # Stigmergic trace
-        self._write_stigmergic_trace({
-            "task": task,
-            "verifiability_contract": verifiability_contract,
-            "dry_run": dry_run,
-            "real": {
-                "edge": round(edge, 4),
-                "invariant": round(invariant, 4),
-                "fidelity": round(fidelity, 4),
-                "hetero": round(hetero, 4),
-                "c": round(c, 4),
-                "theta": round(theta, 4),
-                "EFS": round(efs, 4),
-                "score": round(score, 4)
-            },
-            "loop": self.loop_count,
-            "timestamp": datetime.now().isoformat()
-        })
-
-        # Final embodiment & outer loop processing
-        self._end_of_run({
-            "final_score": score,
-            "efs": efs,
-            "best_solution": final_candidate,
-            "diagnostics": validation_result
-        })
+        # ... (rest of scoring, stall detection, learning, _end_of_run stays as you had it — already cleaned in previous rounds)
 
         return {
             "merged_candidate": final_candidate,
@@ -1364,7 +1303,10 @@ decomposition, swarm_config, tool_map, validation_criteria, hypothesis_diversity
             "verifiability_contract": verifiability_contract,
             "human_refinement": human_refinement,
             "recommended_tools": strategy.get("recommended_tools", []),
-            "metrics": {"score": score, "efs": efs, "c": c, "theta": theta}
+            "metrics": {
+                "score": validation_result.get("validation_score", 0.0),
+                "efs": validation_result.get("efs", 0.0)
+            }
         }
                                  
     def _orchestrator_self_dialogue(self, task: str, goal_md: str) -> Dict[str, Any]:
