@@ -120,7 +120,48 @@ class DVRDryRunSimulator:
             if isinstance(p, dict):
                 merged.update(p)
         return merged
+        
+class ToolEnvManager:
+    """v0.8 — Safe, persistent/ephemeral venv manager for one-click tool addition."""
+    def __init__(self):
+        self.base_path = Path("~/.enigma_tools").expanduser()
+        self.base_path.mkdir(parents=True, exist_ok=True)
+        self.registered_tools = {}  # in-memory registry
 
+    def create_or_get_env(self, tool_name: str, install_cmd: str, persistent: bool = True) -> dict:
+        """Create or reuse a venv, run the install command, and register the tool safely."""
+        env_path = self.base_path / (tool_name if persistent else f"ephemeral_{int(time.time())}")
+        
+        if not env_path.exists():
+            logger.info(f"Creating new tool environment: {tool_name}")
+            try:
+                subprocess.run(["python", "-m", "venv", str(env_path)], check=True, capture_output=True)
+                pip_path = env_path / "bin" / "pip"
+                subprocess.run([str(pip_path), "install", "--upgrade", "pip"], check=True, capture_output=True)
+                
+                # Run the provided install command
+                if install_cmd.strip():
+                    subprocess.run([str(pip_path)] + install_cmd.strip().split(), check=True, capture_output=True)
+                
+                logger.info(f"✅ Tool environment ready: {tool_name}")
+            except Exception as e:
+                logger.error(f"Failed to create tool environment {tool_name}: {e}")
+                return {"status": "error", "error": str(e)}
+
+        # Register for runtime use
+        self.registered_tools[tool_name] = {
+            "env_path": str(env_path),
+            "persistent": persistent,
+            "installed_at": datetime.now().isoformat()
+        }
+
+        return {
+            "status": "success",
+            "tool_name": tool_name,
+            "env_path": str(env_path),
+            "persistent": persistent
+        }
+        
 class ArbosManager:
     def __init__(self, goal_file: str = "goals/killer_base.md"):
         self.goal_file = goal_file
@@ -174,19 +215,14 @@ class ArbosManager:
             "allow_per_subarbos_breakthrough": load_toggle("allow_per_subarbos_breakthrough", "true") == "true",
             {
 
-# Removed: leann_efficiency_enabled, pareto_efficiency_enabled, old quasar dead code
-
-        logger.info(f"✅ v0.6 toggles loaded: {self.toggles}")
+        logger.info(f"✅ toggles loaded: {self.toggles}")
 
         self.history_file = Path("submissions/run_history.json")
         self._ensure_history_file()
-
         self.compute_source = "local_gpu"
         self.custom_endpoint = None
-
         self.analyzer = VerificationAnalyzer(goal_file)
         self.reach_tool = AgentReachTool()
-        
         self.max_repair_attempts = 3
         self.early_stop_threshold = 0.65
         self.loop_count = 0
@@ -194,30 +230,22 @@ class ArbosManager:
         self.enable_grail = False
         self._current_strategy = None
         self._current_validation_criteria = {}
-
         self._current_enhancement = ""
         self._current_pre_launch = ""
-
         self.message_bus = []
         self.memory_layers = memory_layers
         self._init_memdir()
-
-        logger.info("✅ ArbosManager v4.5 — Mature Message Bus + Score+Fidelity Weighted Verifiable Evolution")
-
-        # v4.8 UPGRADES
         self.grail_reinforcement = {}
         self.diagnostic_history = []
         self.memory_policy_weights = {}
         self.meta_reflection_history = []
         self.known_failure_modes = []
-
         self.recent_scores = []
         self._flag_for_new_avenue_plan = False
         self._pending_new_avenue_plan = None
         self.current_run_id = 0
         self._load_heterogeneity_weights()
         self.meta_velocity = np.zeros(5)
-
         self.vector_db = vector_db
         self.vector_db.arbos = self
 
@@ -229,6 +257,7 @@ class ArbosManager:
                 yaml.dump({"mode": "core", "risk_rules": [{"block": ["rm -rf", "os.system", "exec", "__import__"]}, {"allow_patterns": ["sympy", "numpy", "torch", "quantum", "crypto", "verifier"]}]}, f)
         with open(config_path) as f:
             constitution = yaml.safe_load(f)
+            
         self.harness = AutoHarness.wrap(self.compute, constitution=constitution, mode="core")
 
         self.onyx_url = os.getenv("ONYX_URL", "http://localhost:8000")
@@ -275,7 +304,18 @@ class ArbosManager:
         self.memory_layers = memory_layers
         self.memory_layers.byterover_mau_enabled = self.byterover_mau_enabled
 
-        logger.info("✅ v5.1.3 Full Intelligence Layer Loaded — C3A + Decision Journal + Dynamic Tool Creation + ModelRegistry + Per-Sub-Arbos Breakthrough + ByteRover MAU Pyramid Active")
+         # v0.8 Tool & Scientist Mode Infrastructure
+        self.tool_env_manager = ToolEnvManager()
+        self.scientist_log = []
+        self.scientist_log_path = Path("scientist_log.json")
+        self.scientist_log_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        if self.scientist_log_path.exists():
+            try:
+                with open(self.scientist_log_path) as f:
+                    self.scientist_log = json.load(f)
+            except:
+                self.scientist_log = []
 
     # ====================== v5.1.3 MODEL REGISTRY ======================
     def _load_model_registry(self) -> Dict:
@@ -2014,32 +2054,18 @@ Suggest 2-3 concrete architecture-level improvements."""
         self.memory_policy_weights[pattern_key] = current_weight * (1.0 + 0.2 * outcome_score)
         logger.debug(f"Memory policy updated for {pattern_key}: {self.memory_policy_weights[pattern_key]:.3f}")
 
-    def run_scientist_mode(self, num_synthetic: int = 5):
-        logger.info("🧪 Scientist Mode activated — generating synthetic challenges...")
-        log_entry = {"timestamp": datetime.now().isoformat(), "synthetic_runs": []}
-
-        for i in range(num_synthetic):
-            synth_prompt = f"""Generate a brand new, extremely hard SN63-style challenge in quantum/crypto/symbolic domain.
-Make it different from anything in memdir. Return ONLY JSON with "challenge" and "verification_instructions"."""
-            synth_raw = self.harness.call_llm(synth_prompt, temperature=0.9, max_tokens=800)
-            synth = self._safe_parse_json(synth_raw)
-
-            if "challenge" not in synth:
-                continue
-
-            mini_plan = self.plan_challenge(self._load_extra_context(), synth["challenge"], "", "local_gpu")
-            mini_solution = self.execute_full_cycle(mini_plan, synth["challenge"], synth.get("verification_instructions", ""))
-
-            score = getattr(self.validator, "last_score", 0.0)
-            log_entry["synthetic_runs"].append({
-                "challenge": synth["challenge"][:120],
-                "score": score,
-                "progress": "improved" if score > 0.75 else "baseline"
-            })
-
-        self.scientist_log.append(log_entry)
-        self.scientist_log_path.write_text(json.dumps(self.scientist_log, indent=2))
-        logger.info(f"✅ Scientist Mode complete — {num_synthetic} synthetic evaluations logged")
+        # v0.8 Tool & Scientist Mode Infrastructure
+        self.tool_env_manager = ToolEnvManager()
+        self.scientist_log = []
+        self.scientist_log_path = Path("scientist_log.json")
+        self.scientist_log_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        if self.scientist_log_path.exists():
+            try:
+                with open(self.scientist_log_path) as f:
+                    self.scientist_log = json.load(f)
+            except:
+                self.scientist_log = []
 
     def _load_scientist_log(self) -> List:
         if self.scientist_log_path.exists():
