@@ -23,7 +23,7 @@ multiprocessing.set_start_method('spawn', force=True)
 
 from agents.memory import memory, memory_layers
 from agents.tools.tool_hunter import tool_hunter, load_registry, save_registry
-from agents.tools.compute import ComputeRouter, compute_router
+from agents.tools.compute import ComputeRouter, compute_router, ResourceMonitor
 from agents.tools.resource_aware import ResourceMonitor
 from agents.tools.guardrails import apply_guardrails
 from agents.video_archiver import VideoArchiver
@@ -340,6 +340,8 @@ class ArbosManager:
         self.pruning_advisor = PruningAdvisor(arbos=self)
         self.constants = self._load_constants_tuning()
         self.tool_env_manager = ToolEnvManager()
+        self.compute = compute_router
+        self.compute.set_model_registry(self.model_registry)  # if you have one
 
         # Safe execution (RestrictedPython)
         self.safe_exec = self.validator.safe_exec
