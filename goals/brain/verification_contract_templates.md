@@ -8,6 +8,16 @@
   "synthesis_guidance": "Critique-first reassembly that explicitly enforces the full contract and reassembly plan"
 }
 
+### Novelty & Approximation Handling (New in v0.8+)
+- approximation_mode: "enabled" | "disabled" | "auto"          # default: "auto"
+- approximation_method_preference: ["sympy", "storm", "monte_carlo", "general_reasoning"]   # ordered list
+
+### Notes
+When no real backend/tool exists for a required artifact or verifier, the system will:
+- Use the highest-preference available approximation method
+- Log the approximation clearly in decision journal and dry-run result
+- Still aim for maximum verifier quality under approximation constraints
+  
 ## Evolution Rules (Enforced by Scientist Mode + Pruning Advisor)
 - Promotion: Replay pass rate ≥ 0.90 AND EFS contribution ≥ +1.5% AND miner approval
 - Every evolved delta must include provenance (e.g., "EVOLVED FROM SCIENTIST MODE – quantum domain – Loop 47" or "DOUBLE_CLICK gap on entropy invariants")
