@@ -44,25 +44,40 @@ class ValidationOracle:
     }
 
     def _safe_exec(self, code: str, local_vars: Dict = None, approximation_mode: str = "auto") -> bool:
-        """Single RestrictedPython sandbox with no-backend approximation fallback."""
+        """Single RestrictedPython sandbox with no-backend approximation fallback.
+        This is the ONE source of truth for all code execution in the system."""
         if local_vars is None:
             local_vars = {}
 
         try:
-            # Existing AST safety check (keep your current dangerous node blocking)
+            # AST-based safety validation
             tree = ast.parse(code)
             for node in ast.walk(tree):
                 if isinstance(node, (ast.Import, ast.ImportFrom)) or \
-                   (isinstance(node, ast.Call) and getattr(node.func, 'id', None) in {"exec", "eval", "__import__", "open", "system"}):
+                   (isinstance(node, ast.Call) and getattr(node.func, 'id', None) in {
+                       "exec", "eval", "__import__", "open", "system", "subprocess"
+                   }):
                     if approximation_mode in ["enabled", "auto"]:
-                        local_vars["passed"] = False
                         local_vars["approximation_used"] = True
+                        local_vars["passed"] = False
                         local_vars["approximation_method"] = "general_reasoning"
+                        logger.info("Blocked dangerous operation — entered approximation mode")
                         return True
+                    logger.warning("Blocked dangerous operation in strict mode")
                     return False
 
+            # Safe execution
             exec(code, {"__builtins__": self.SAFE_BUILTINS}, local_vars)
             return True
+
+        except Exception as e:
+            logger.warning(f"safe_exec failed: {e}")
+            if approximation_mode in ["enabled", "auto"]:
+                local_vars["approximation_used"] = True
+                local_vars["passed"] = False
+                local_vars["approximation_method"] = "general_reasoning"
+                return True
+            return False
 
         except Exception as e:
             logger.warning(f"Execution failed, entering approximation mode: {e}")
