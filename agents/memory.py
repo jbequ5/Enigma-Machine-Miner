@@ -51,9 +51,31 @@ class MemoryLayers:
         self.mau_reinforcement_weight = 1.0
         self.arbos = None  # will be wired from ArbosManager
         
-    def compress_low_value_fragment(self, frag_path: str, decayed_score: float):
-        prompt = """Distill to 1–3 key sentences + provenance tags only – no poetic/bio fluff."""
-        # ... call LLM and overwrite the fragment file
+    def compress_low_value_fragment(self, node: str, decayed_score: float):
+        """v0.8+ Streamlined per-fragment compression — no poetic/bio fluff.
+        Runs only on low-score fragments and produces 1–3 key sentences + provenance."""
+        if decayed_score >= 0.42:
+            return  # still valuable
+
+        # Simplified prompt — exact as specified in the design
+        compress_prompt = f"""Distill this low-signal fragment to 1–3 key sentences + provenance tags only.
+Fragment content:
+{node[:2000]}
+
+Return ONLY the distilled summary. No extra text."""
+
+        try:
+            distilled = self.arbos.harness.call_llm(compress_prompt, temperature=0.2, max_tokens=300)
+            # Write back as compressed fragment
+            self.arbos._write_fragment(
+                challenge_id=self.arbos._current_challenge_id,
+                subtask_id="compressed",
+                fragment={"id": "compressed", "content": distilled, "type": "compressed"},
+                metadata={"original_score": round(decayed_score, 4), "compressed": True}
+            )
+            logger.info(f"✅ Per-fragment compression applied (score {decayed_score:.3f})")
+        except Exception as e:
+            logger.debug(f"Compression skipped (safe): {e}")
 
     def add(self, text: str, metadata: dict = None):
         if metadata is None:
