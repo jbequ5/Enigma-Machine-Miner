@@ -330,7 +330,6 @@ class ArbosManager:
         self.vagus = VagusFeedbackLoop()
         self.rps = ResonancePatternSurfacer()
         self.pps = PhotoelectricPatternSurfacer()
-        self.pruning_advisor = pruning_advisor
         self.analyzer = VerificationAnalyzer(goal_file)
         self.reach_tool = AgentReachTool()
         self.vector_db = vector_db
@@ -338,8 +337,7 @@ class ArbosManager:
         self.memory_layers = memory_layers
         self.memory_layers.arbos = self  # important for SOTA gating
         self.fragment_tracker = FragmentTracker()
-        self.pruning_advisor = PruningAdvisor()
-        self.pruning_advisor.arbos = self  # give it access to fragment_tracker
+        self.pruning_advisor = PruningAdvisor(arbos=self)
         self.constants = self._load_constants_tuning()
         self.tool_env_manager = ToolEnvManager()
 
