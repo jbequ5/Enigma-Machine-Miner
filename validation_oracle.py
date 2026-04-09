@@ -43,26 +43,35 @@ class ValidationOracle:
         "sorted": sorted,
     }
 
-    def _safe_exec(self, snippet: str, local: dict, approximation_mode: str = "auto") -> bool:
-        """Extended safe exec with no-backend approximation fallback."""
-        try:
-            # Existing AST safety check...
-            tree = ast.parse(snippet)
-            # ... your existing dangerous node blocking ...
+    def _safe_exec(self, code: str, local_vars: Dict = None, approximation_mode: str = "auto") -> bool:
+        """Single RestrictedPython sandbox with no-backend approximation fallback."""
+        if local_vars is None:
+            local_vars = {}
 
-            exec(snippet, {"__builtins__": self.SAFE_BUILTINS}, local)
+        try:
+            # Existing AST safety check (keep your current dangerous node blocking)
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.Import, ast.ImportFrom)) or \
+                   (isinstance(node, ast.Call) and getattr(node.func, 'id', None) in {"exec", "eval", "__import__", "open", "system"}):
+                    if approximation_mode in ["enabled", "auto"]:
+                        local_vars["passed"] = False
+                        local_vars["approximation_used"] = True
+                        local_vars["approximation_method"] = "general_reasoning"
+                        return True
+                    return False
+
+            exec(code, {"__builtins__": self.SAFE_BUILTINS}, local_vars)
             return True
 
         except Exception as e:
+            logger.warning(f"Execution failed, entering approximation mode: {e}")
             if approximation_mode in ["enabled", "auto"]:
-                logger.warning(f"Backend execution failed — falling back to approximation mode: {e}")
-                # Light approximation: run a safe symbolic/general check
-                local["passed"] = self._run_approximation_check(snippet, local.get("candidate"))
-                local["approximation_used"] = True
-                local["approximation_method"] = "general_reasoning"
+                local_vars["passed"] = self._run_approximation_check(code, local_vars.get("candidate"))
+                local_vars["approximation_used"] = True
+                local_vars["approximation_method"] = "general_reasoning"
                 return True
             return False
-
 
     # ===================================================================
     # FULL 5-DIMENSIONAL VERIFIER SELF-CHECK LAYER (v0.8)
@@ -80,9 +89,10 @@ class ValidationOracle:
         except:
             return False
             
-    def _compute_verifier_quality(self, candidate: Any, verifier_snippets: List[str], 
-                                approximation_mode: str = "auto") -> Dict:
-        """5D verifier quality with no-backend approximation support."""
+       def _compute_verifier_quality(self, candidate: Any, verifier_snippets: List[str], 
+                                contract: Dict = None) -> Dict:
+            approximation_mode = contract.get("approximation_mode", "auto") if contract else "auto"
+        
         if not verifier_snippets:
             return {"verifier_quality": 0.5, "dimensions": {}, "approximation_used": False}
 
