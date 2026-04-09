@@ -40,6 +40,7 @@ from verification_analyzer import VerificationAnalyzer
 from goals.brain_loader import load_brain_component, load_toggle
 from tools.pruning_advisor import generate_pruning_recommendations, update_module_toggle
 from tools.pruning_advisor import pruning_advisor  # if it's a global instance
+from agents.fragment_tracker import FragmentTracker
 
 
 from autoharness import AutoHarness
@@ -308,20 +309,49 @@ class DVRDryRunSimulator:
         }
 
     def _apply_contract_delta(self, delta: dict):
-        """Apply a contract evolution delta to the living template file — already good, minor safety upgrade."""
+        """Apply a contract evolution delta to the living template file + fragment tracking."""
+        
+        if not delta or not isinstance(delta, dict):
+            logger.warning("Invalid contract delta received")
+            return
+
+        content = delta.get("content", str(delta))
+        fragments = self._fragment_output(content)
+
+        for frag in fragments:
+            frag_id = f"contract_delta_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{frag.get('id', 0)}"
+            
+            # Record as new fragment
+            self.fragment_tracker.record_fragment(
+                frag_id=frag_id,
+                initial_mau=0.0,           # contract deltas start neutral
+                challenge_id="global",
+                subtask_id="contract",
+                content_preview=frag["content"][:250]
+            )
+            
+            # Mark it as contract-related (boosts future impact_score)
+            self.fragment_tracker.record_reuse(
+                frag_id=frag_id, 
+                efs=0.85,                  # contract deltas are high-value by nature
+                is_contract_delta=True
+            )
+
         try:
-            path = "goals/brain/verification_contract_templates.md"
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            path = Path("goals/brain/verification_contract_templates.md")
+            path.parent.mkdir(parents=True, exist_ok=True)
             
             with open(path, "a", encoding="utf-8") as f:
                 f.write(f"\n\n# EVOLVED DELTA — {delta.get('provenance', 'unknown')} | {datetime.now().isoformat()}\n")
                 f.write(f"Type: {delta.get('delta_type', 'general')}\n")
-                f.write(f"{delta.get('content', str(delta))}\n")
-                f.write(f"Source: {delta.get('source', 'Meta-Tuning/Scientist Mode')}\n---\n")
+                f.write(f"Source: {delta.get('source', 'Meta-Tuning/Scientist Mode')}\n")
+                f.write(f"{content}\n")
+                f.write("---\n")
             
-            logger.info(f"✅ Contract delta applied: {delta.get('delta_type', 'general')}")
+            logger.info(f"✅ Contract delta applied and fragmented: {delta.get('delta_type', 'general')}")
+            
         except Exception as e:
-            logger.warning(f"Failed to apply contract delta: {e}")
+            logger.warning(f"Failed to write contract delta to file: {e}")
 
     def _simple_merge(self, placeholders: List[Any]) -> Any:
         """Improved simple merge that respects scores, structure, and contract context.
@@ -1150,12 +1180,7 @@ After creating the contract, critique it internally for completeness and feasibi
             frag_id = f"{subtask_id}_frag_{frag['id']}"
             
             # Record in tracker
-            self.fragment_tracker.record_fragment(
-                frag_id=frag_id,
-                initial_mau=initial_mau,
-                challenge_id=challenge_id,
-                subtask_id=subtask_id
-            )
+            self.fragment_tracker.record_fragment(frag_id, initial_mau, challenge_id, subtask_id, frag["content"])
 
             # Write file
             self._write_fragment(challenge_id, subtask_id, frag, {
@@ -1368,7 +1393,7 @@ After creating the contract, critique it internally for completeness and feasibi
         }
 
         # Query high-signal fragments
-        relevant_fragments = self.query_relevant_fragments(task, top_k=6)
+        relevant_fragments = self.fragment_tracker.query_relevant_fragments(task, top_k=6)
         rich_context["high_signal_fragments"] = relevant_fragments
 
         if relevant_fragments:
@@ -1696,7 +1721,7 @@ Return ONLY valid JSON with these keys:
             rich_context = {}
 
         # === QUERY HIGH-SIGNAL FRAGMENTS FROM MEMORY GRAPH ===
-        relevant_fragments = self.query_relevant_fragments(task, top_k=5)
+        relevant_fragments = self.fragment_tracker.query_relevant_fragments(task, top_k=6)
         rich_context["high_signal_fragments"] = relevant_fragments
 
         if relevant_fragments:
@@ -2304,7 +2329,7 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
         }
 
         # === QUERY HIGH-SIGNAL FRAGMENTS FROM MEMORY GRAPH ===
-        relevant_fragments = self.query_relevant_fragments(
+        relevant_fragments = self.fragment_tracker.query_relevant_fragments(
             query="synthesis recomposition merge composability artifacts", 
             top_k=6
         )
