@@ -39,12 +39,13 @@ class FragmentTracker:
         self._save()
 
     def record_reuse(self, frag_id: str, efs: float, is_contract_delta: bool = False):
+        """Record reuse and optionally mark as contract-related."""
         if self.graph.has_node(frag_id):
             data = self.graph.nodes[frag_id]
             if efs > 0.75:
-                data["reuse_in_high_efs"] += 1
+                data["reuse_in_high_efs"] = data.get("reuse_in_high_efs", 0) + 1
             if is_contract_delta:
-                data["contract_delta_contrib"] += 1
+                data["contract_delta_contrib"] = data.get("contract_delta_contrib", 0) + 1
             data["last_use"] = date.today().isoformat()
             self.graph.add_edge("current_run", frag_id, weight=efs)
             self._save()
