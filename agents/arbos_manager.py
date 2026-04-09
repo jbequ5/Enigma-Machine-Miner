@@ -119,30 +119,34 @@ class DVRDryRunSimulator:
         # Ensure we have access to the single safe_exec
         self.safe_exec = validator.safe_exec
 
-    def run_dry_run(self, decomposed_subtasks: List[str], full_verifier_snippets: List[str], 
+    def run_dry_run(self, decomposed_subtasks: List[str], full_verifier_snippets: List[str],
                     goal_md: str = "") -> Dict:
-        """v0.8+ Hardened Dry-Run Gate — intelligent mocks, adversarial variants, 
-        5D verifier self-check, composability checker, approximation fallback, and DOUBLE_CLICK emission.
-        NOW INCLUDES snippet self-validation before full gate."""
-        
+        """v0.8+ Hardened Dry-Run Gate — intelligent mocks, adversarial variants,
+        5D verifier self-check, composability checker, approximation fallback,
+        snippet self-validation, and DOUBLE_CLICK emission."""
+
         logger.info("🚀 Starting v0.8+ hardened dry-run gate")
 
         # Safety guard
         contract = getattr(self, '_current_strategy', {}).get("verifiability_contract", {})
         approximation_mode = contract.get("approximation_mode", "auto")
 
-        # NEW: Snippet self-validation (catches bad LLM-generated code early)
+        # 1. NEW: Snippet self-validation (catches bad LLM-generated code early)
         snippet_validation = self._self_validate_snippets(full_verifier_snippets)
-        if not snippet_validation["all_valid"]:
-            logger.warning(f"Snippet self-validation failed: {snippet_validation['errors']}")
+        if not snippet_validation.get("all_valid", False):
+            logger.warning(f"Snippet self-validation failed: {snippet_validation.get('errors', [])}")
+            self._append_trace("dry_run_snippet_failure",
+                              f"Snippet validation failed: {snippet_validation.get('errors', [])}",
+                              metrics={"all_valid": False})
             return {
                 "dry_run_passed": False,
                 "recommendation": "ITERATE_DECOMP",
-                "notes": f"Snippet validation failed: {snippet_validation['errors']}",
-                "double_click_info": {"gap": "snippet_validation_failure", "severity": "high"}
+                "notes": f"Snippet validation failed: {snippet_validation.get('errors', [])}",
+                "double_click_info": {"gap": "snippet_validation_failure", "severity": "high"},
+                "snippet_validation": snippet_validation
             }
 
-        # 1. Generate intelligent mock data + adversarial variants
+        # 2. Generate intelligent mock data + adversarial variants
         placeholders = []
         for st in decomposed_subtasks:
             placeholder = self._generate_intelligent_mock(st, full_verifier_snippets)
@@ -152,14 +156,14 @@ class DVRDryRunSimulator:
 
         merged = self._simple_merge(placeholders)
 
-        # 2. 5D Verifier Self-Check Layer (real exec-based)
+        # 3. 5D Verifier Self-Check Layer (real exec-based)
         self_check = self._verifier_self_check_layer(
             candidate=str(merged),
             verifier_snippets=full_verifier_snippets,
             approximation_mode=approximation_mode
         )
 
-        # 3. Full ValidationOracle run
+        # 4. Full ValidationOracle run
         validation_result = self.validator.run(
             candidate=merged,
             verification_instructions="",
@@ -169,31 +173,32 @@ class DVRDryRunSimulator:
             subtask_contract=contract
         )
 
-        # 4. Deterministic metrics
+        # 5. Deterministic metrics
         edge = self.validator._compute_edge_coverage(merged, full_verifier_snippets)
         invariant = self.validator._compute_invariant_tightness(merged, full_verifier_snippets)
         fidelity = self.validator._compute_fidelity(merged, full_verifier_snippets)
         hetero = self.validator._compute_heterogeneity_score(placeholders)
-
         c = self.validator._compute_c3a_confidence(edge, invariant, getattr(self, 'historical_reliability', 0.85))
         theta = self.validator._compute_theta_dynamic(c, max(1, getattr(self, 'loop_count', 1)) / 10.0)
         efs = self.validator._compute_efs(fidelity, 0.8, hetero, 0.75, 0.85)
 
-        # 5. Composability checker
+        self.last_efs = round(efs, 4)
+
+        # 6. Composability checker
         composability_result = self._check_composability(merged, decomposed_subtasks, full_verifier_snippets)
 
-        # 6. Gate decision
+        # 7. Gate decision
         passed_gate = (
-            validation_result.get("validation_score", 0) >= theta and 
-            efs >= 0.65 and 
-            c >= 0.78 and 
-            composability_result.get("passed", False) and 
+            validation_result.get("validation_score", 0) >= theta and
+            efs >= 0.65 and
+            c >= 0.78 and
+            composability_result.get("passed", False) and
             self_check.get("verifier_quality", 0) >= 0.65
         )
 
         recommendation = "PROCEED_TO_SWARM" if passed_gate else "ITERATE_DECOMP"
 
-        # 7. DOUBLE_CLICK detection
+        # 8. DOUBLE_CLICK detection
         double_click_info = None
         if not passed_gate:
             verifier_q = self_check.get("verifier_quality", 0)
@@ -209,6 +214,21 @@ class DVRDryRunSimulator:
                     "severity": "high" if verifier_q < 0.50 else "medium"
                 }
 
+        # 9. Final trace + return
+        self._append_trace(
+            "dry_run_complete",
+            f"Dry-run passed: {passed_gate} | EFS: {self.last_efs:.3f}",
+            metrics={
+                "passed_gate": passed_gate,
+                "best_case_c": round(c, 4),
+                "best_case_efs": round(efs, 4),
+                "theta_dynamic": round(theta, 4),
+                "verifier_quality": round(self_check.get("verifier_quality", 0), 4),
+                "composability_pass_rate": composability_result.get("score", 0.0)
+            },
+            verifier_5d=self_check.get("dimensions", {})
+        )
+
         return {
             "dry_run_passed": passed_gate,
             "best_case_c": round(c, 4),
@@ -220,7 +240,7 @@ class DVRDryRunSimulator:
             "notes": f"Dry-run complete. Structure {'sound' if passed_gate else 'needs iteration'}. "
                      f"Verifier quality: {self_check.get('verifier_quality', 0):.3f} | "
                      f"Approx used: {self_check.get('approximation_used', False)} | "
-                     f"Snippet validation: {snippet_validation['all_valid']}",
+                     f"Snippet validation: {snippet_validation.get('all_valid', False)}",
             "self_check_details": self_check.get("dimensions", {}),
             "composability_details": composability_result,
             "double_click_info": double_click_info,
@@ -228,7 +248,6 @@ class DVRDryRunSimulator:
             "approximation_method": self_check.get("approximation_method"),
             "snippet_validation": snippet_validation
         }
-
     def _self_validate_snippets(self, verifier_snippets: List[str]) -> Dict:
         """NEW: Self-validation for LLM-generated verifier snippets before dry-run."""
         errors = []
@@ -373,6 +392,7 @@ class ArbosManager:
         self.constants = self._load_constants_tuning()
         self.compute = compute_router
         self.compute.set_model_registry(self.model_registry)  # if you have one
+        self.trace_log: List[Dict] = []
 
         # Safe execution (RestrictedPython)
         self.safe_exec = self.validator.safe_exec
@@ -580,7 +600,28 @@ class ArbosManager:
 
     def compute_c3a_multiplier(self, d: float, c: float) -> float:
         return math.exp(-self.c3a_k * d) * (c ** self.c3a_beta)
-
+        
+    def _append_trace(self, step: str, details: str = "", metrics: Optional[Dict] = None,
+                      subtasks: Optional[List] = None, double_click: bool = False,
+                      gap: str = None, verifier_5d: Optional[Dict] = None):
+        """Structured observability logging for Streamlit Mission Trace tab"""
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "step": step,
+            "details": details,
+            "efs": getattr(self, 'last_efs', 0.0),
+            "metrics": metrics or {},
+            "subtasks": subtasks or [],
+            "double_click": double_click,
+            "gap": gap,
+            "verifier_5d": verifier_5d or {},
+            "loop": self.loop_count
+        }
+        self.trace_log.append(entry)
+        if len(self.trace_log) > 150:
+            self.trace_log = self.trace_log[-150:]
+        logger.info(f"TRACE [{step}] EFS:{getattr(self, 'last_efs', 0):.3f} | {details[:150]}...")
+                          
     def generate_verifiability_contract(self, task: str, goal_md: str = "") -> Dict:
         """Top-tier Verifiability Contract generator — strict structure, high quality, 
         and strong self-critique to ensure the DVRP pipeline has a solid foundation."""
@@ -2101,26 +2142,33 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
         """Lightweight fallback evolutionary selection (used by older paths)."""
         return self._swarm_evolutionary_tournament(outputs, [], contract)  # reuse the better version
         
-    def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = ""):
-        """v0.8 Full inner loop execution with the exact flow you requested:
-        Swarm → Raw Recompose → Symbiosis Arbos (pattern discovery) → 
-        Synthesis Arbos (enriched debate + contract enforcement) → Final Validation."""
+    def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = "") -> Dict:
+        """v0.8+ Full inner loop execution with exact flow:
+        Swarm → Raw Recompose → Symbiosis Arbos (pattern discovery) →
+        Synthesis Arbos (enriched debate + contract enforcement) → Final Validation.
+        Fully wired with observability trace_log."""
 
-        dynamic_size = blueprint.get("dynamic_swarm_size", 
+        self._append_trace("execute_full_cycle_start", f"Starting cycle for challenge: {challenge[:100]}...")
+
+        dynamic_size = blueprint.get("dynamic_swarm_size",
                                     blueprint.get("swarm_config", {}).get("total_instances", 6))
-        
+
         # 1. Advanced Swarm Execution (with per-subtask contract slices)
+        self._append_trace("swarm_execution_start", f"Launching swarm with size {dynamic_size}")
         results = self._execute_swarm(blueprint, dynamic_size)
-        
+
         # 2. Raw merge (simple fidelity-ordered merge)
         raw_merged = self._recompose(results, {}) if results else {"solution": str(results)}
+        self._append_trace("raw_recompose_complete", "Raw merge completed", 
+                          metrics={"raw_merged_size": len(str(raw_merged))})
 
         # 3. Symbiosis Arbos — runs on FULL raw swarm outputs (including partial ones)
         symbiosis_patterns = self._run_symbiosis_arbos(
             aggregated_outputs=results,
-            message_bus=self.message_bus,
+            message_bus=getattr(self, 'message_bus', None),
             synthesis_result=None  # not yet synthesized
         )
+        self._append_trace("symbiosis_complete", f"Discovered {len(symbiosis_patterns) if isinstance(symbiosis_patterns, (list, dict)) else 0} patterns")
 
         # 4. Synthesis Arbos — receives symbiosis findings as enriched context
         synthesis_result = self.synthesis_arbos(
@@ -2128,28 +2176,25 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
             recomposition_plan=blueprint.get("recomposition_plan", {}),
             verifiability_contract=blueprint.get("verifiability_contract", blueprint.get("verifiability_spec", {})),
             failure_context=None,
-            symbiosis_patterns=symbiosis_patterns   # ← enriched input
+            symbiosis_patterns=symbiosis_patterns  # ← enriched input
         )
-
         final_candidate = synthesis_result.get("final_candidate", raw_merged)
 
         # ====================== FINAL SUBMISSION GUARDRAILS ======================
         guardrail_result = apply_guardrails(
             solution=str(final_candidate),
             context={
-                "efs": validation_result.get("efs", 0.0) if 'validation_result' in locals() else 0.0,
+                "efs": 0.0,  # will be updated after validation
                 "sota_gate_passed": True,
                 "approximation_used": False,
-                "validation_score": score if 'score' in locals() else 0.0
+                "validation_score": 0.0
             }
         )
+        if not guardrail_result.get("passed", True):
+            logger.error(f"Final guardrails rejected the merged solution: {guardrail_result.get('reason')}")
+            final_candidate = f"[FINAL GUARDRAIL REJECTED] {guardrail_result.get('reason', 'Unknown')}"
 
-        if not guardrail_result["passed"]:
-            logger.error(f"Final guardrails rejected the merged solution: {guardrail_result['reason']}")
-            # You can decide to trigger replan or return rejection here
-            final_candidate = f"[FINAL GUARDRAIL REJECTED] {guardrail_result['reason']}"
-            
-        # 5. Final ValidationOracle (source of truth)
+        # 5. Final ValidationOracle (source of truth) — moved here so we have real scores for guardrails & end-of-run
         validation_result = self.validator.run(
             candidate=final_candidate,
             verification_instructions=verification_instructions,
@@ -2157,9 +2202,21 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
             goal_md=self.extra_context,
             subtask_outputs=list(results.values()) if isinstance(results, dict) else []
         )
-
         score = validation_result.get("validation_score", 0.0)
         efs = validation_result.get("efs", 0.0)
+        self.last_efs = efs
+
+        # Update guardrail context with real scores (if guardrails run again)
+        if not guardrail_result.get("passed", True):
+            guardrail_result = apply_guardrails(
+                solution=str(final_candidate),
+                context={
+                    "efs": efs,
+                    "sota_gate_passed": True,
+                    "approximation_used": False,
+                    "validation_score": score
+                }
+            )
 
         # ByteRover promotion
         if score > 0.70:
@@ -2184,24 +2241,22 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
 
         if stall_analysis.get("is_severe_stall", False):
             logger.warning(f"Real swarm stall detected. Delta: {stall_analysis.get('delta', 0):.3f}")
-
             failure_context = self._build_failure_context(
                 failure_type="swarm_stall_on_passed_spec",
                 task=challenge,
                 goal_md=self.extra_context,
-                strategy=self._current_strategy or {},
+                strategy=getattr(self, '_current_strategy', {}),
                 dry_run=dry_run_result,
                 swarm_results=list(results.values()) if isinstance(results, dict) else [],
                 validation_result=validation_result
             )
-
             replan_decision = self._intelligent_replan(failure_context)
-            
-            logger.info(f"Replan decision: {replan_decision.get('decision')} | Reason: {replan_decision.get('reasoning', 'none')}")
 
+            logger.info(f"Replan decision: {replan_decision.get('decision')} | Reason: {replan_decision.get('reasoning', 'none')}")
             if replan_decision.get("decision") == "new_strategy_needed":
                 logger.info("Stall reflection decided NEW STRATEGY needed — triggering full replan")
                 new_task = f"{challenge} [STALL RECOVERY - previous spec failed in practice]"
+                self._append_trace("stall_replan_triggered", "Severe stall → replan")
                 return self.orchestrate_subarbos(new_task, self.extra_context)
 
         # v0.8: Experiment summary capture for Scientist Mode / Meta-Tuning
@@ -2220,11 +2275,14 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
 
         if score > 0.85:
             self.evolve_principles_post_run(str(final_candidate), score, validation_result)
-            
+
         self.save_run_to_history(challenge, "", str(final_candidate), score, 0.5, score)
 
         # Final outer-loop processing
         self._end_of_run(run_data_for_end)
+
+        self._append_trace("execute_full_cycle_complete", 
+                          f"Cycle finished — Final score: {score:.3f} | EFS: {efs:.3f}")
 
         return validation_result
         
@@ -4345,16 +4403,17 @@ Return ONLY valid JSON:
             
     # ====================== v0.6 FULLY WIRED: _end_of_run (all 8 features integrated) ======================
     def _end_of_run(self, run_data: dict):
-        """v0.8+ Final high-signal processing — embodiment, pattern surfacing, 
-        MP4 archival (with Scientist Mode summary), retrospectives, 
+        """v0.8+ Final high-signal processing — embodiment, pattern surfacing,
+        MP4 archival (with Scientist Mode summary), retrospectives,
         fragmented memory re-scoring, and outer-loop evolution."""
-        
+
         score = run_data.get("final_score", 0.0)
         efs = run_data.get("efs", 0.0)
         best_solution = run_data.get("best_solution", "")
         diagnostics = run_data.get("diagnostics", {})
-
+        
         logger.info(f"🔄 _end_of_run — Score: {score:.3f} | EFS: {efs:.3f} | Loop: {self.loop_count}")
+        self._append_trace("end_of_run_start", f"Processing high-signal run — Score: {score:.3f} | EFS: {efs:.3f}")
 
         # Build oracle result for downstream modules
         oracle_result = {
@@ -4364,8 +4423,7 @@ Return ONLY valid JSON:
             "c3a_confidence": diagnostics.get("c3a_confidence", 0.75),
             "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.72),
             "dry_run_passed": diagnostics.get("dry_run_passed", True),
-            "verifiability_contract": self._current_strategy.get("verifiability_contract", {}) 
-                if hasattr(self, "_current_strategy") else {},
+            "verifiability_contract": getattr(self, '_current_strategy', {}).get("verifiability_contract", {}),
             "scientist_summary": run_data.get("scientist_summary", {})
         }
 
@@ -4373,7 +4431,7 @@ Return ONLY valid JSON:
         try:
             archive_data = {
                 "mau_pyramid": getattr(self.memory_layers, 'get_mau_summary', lambda: {})(),
-                "wiki_snapshot": self._get_wiki_snapshot(),
+                "wiki_snapshot": self._get_wiki_snapshot() if hasattr(self, '_get_wiki_snapshot') else {},
                 "c3a_logs": diagnostics,
                 "grail": run_data,
                 "trajectories": self.recent_scores[-10:],
@@ -4383,15 +4441,19 @@ Return ONLY valid JSON:
             }
             mp4_path = self.video_archiver.archive_run_to_mp4(archive_data, f"run_{self.loop_count}")
             logger.info(f"✅ MP4 archived: {mp4_path}")
+            self._append_trace("mp4_archival_complete", f"MP4 saved to {mp4_path}")
         except Exception as e:
             logger.debug(f"Video archival skipped (safe): {e}")
+            self._append_trace("mp4_archival_skipped", str(e))
 
         # 2. Fragmented Memory Re-scoring + Dynamic Impact Update (v0.8+ Core)
         try:
-            self._re_score_fragments(run_data)  # New fragmented utilization system
+            self._re_score_fragments(run_data)
             logger.info("✅ Fragmented memory re-scoring completed")
+            self._append_trace("fragment_re_scoring_complete", "Utilization scores updated")
         except Exception as e:
             logger.debug(f"Fragment re-scoring skipped (safe): {e}")
+            self._append_trace("fragment_re_scoring_skipped", str(e))
 
         # 3. Retrospective + Audit (gated)
         if self.toggles.get("retrospective_enabled", True) and score > 0.75:
@@ -4400,23 +4462,23 @@ Return ONLY valid JSON:
                     run_id=f"run_{self.loop_count}",
                     oracle_result=oracle_result
                 )
+                self._append_trace("retrospective_triggered", "High-signal retrospective executed")
             except Exception as e:
                 logger.debug(f"Retrospective skipped (safe): {e}")
 
         # 4. Automatic Outer-Loop Evolution on high-signal runs
         if score > 0.82 or efs > 0.75:
             logger.info("High-signal run detected — triggering automatic outer-loop evolution")
-            
+            self._append_trace("outer_loop_evolution_start", "High-signal trigger activated")
+
             if hasattr(self, 'evolve_principles_post_run'):
                 self.evolve_principles_post_run(
                     best_solution=best_solution,
                     best_score=score,
                     best_diagnostics=diagnostics
                 )
-
             if hasattr(self, 'evolve_compression_prompt'):
                 self.evolve_compression_prompt(score, 0.92)
-
             if hasattr(self, 'meta_reflect'):
                 self.meta_reflect(best_solution, score, diagnostics)
 
@@ -4429,16 +4491,18 @@ Return ONLY valid JSON:
                     "source": "End-of-Run + Meta-Tuning"
                 }
                 self._apply_contract_delta(delta)
+                self._append_trace("contract_delta_applied", "High-signal contract strengthening")
 
         # 5. Advanced Embodiment + Pattern Surfacers
         if self.toggles.get("embodiment_enabled", True):
             try:
-                threading.Thread(target=self.neurogenesis.spawn_if_high_delta, 
+                threading.Thread(target=self.neurogenesis.spawn_if_high_delta,
                                args=(oracle_result,), daemon=True).start()
-                threading.Thread(target=self.microbiome.ferment_novelty, 
+                threading.Thread(target=self.microbiome.ferment_novelty,
                                args=(best_solution[:2000], oracle_result), daemon=True).start()
-                threading.Thread(target=self.vagus.monitor_hardware_state, 
+                threading.Thread(target=self.vagus.monitor_hardware_state,
                                args=(oracle_result,), daemon=True).start()
+                self._append_trace("embodiment_threads_launched", "Neurogenesis, Microbiome, Vagus activated")
             except Exception as e:
                 logger.debug(f"Embodiment threads skipped (safe): {e}")
 
@@ -4446,6 +4510,7 @@ Return ONLY valid JSON:
             try:
                 self.rps.surface_resonance(oracle_result=oracle_result)
                 self.pps.surface_photoelectric(oracle_result=oracle_result)
+                self._append_trace("pattern_surfacer_complete", "Resonance + Photoelectric patterns surfaced")
             except Exception as e:
                 logger.debug(f"Pattern surfacers skipped (safe): {e}")
 
@@ -4457,6 +4522,7 @@ Return ONLY valid JSON:
                     oracle_result=oracle_result
                 )
                 logger.info("Meta-tuning cycle completed in _end_of_run")
+                self._append_trace("meta_tuning_complete", "Outer-loop tuning executed")
             except Exception as e:
                 logger.debug(f"Meta-tuning skipped (safe): {e}")
 
@@ -4464,18 +4530,24 @@ Return ONLY valid JSON:
         if hasattr(self, 'pruning_advisor') and score > 0.75:
             try:
                 self.pruning_advisor.analyze_run(oracle_result, run_data)
+                self._append_trace("pruning_advisor_analyzed", "Run analyzed for toggle recommendations")
             except Exception as e:
                 logger.debug(f"Pruning Advisor skipped (safe): {e}")
-                
-        # 8. Contract Evolution
+
+        # 8. Contract Evolution (final high-signal check)
         if score > 0.88 and hasattr(self, '_evolve_verification_contract_from_synthetic'):
-            delta = self._evolve_verification_contract_from_synthetic({
-                "score": score,
-                "efs": efs,
-                "contract_recommendation": "High-signal real run"
-            })
-            
-        # 9. Stigmergic Trace + Memory Cleanup
+            try:
+                delta = self._evolve_verification_contract_from_synthetic({
+                    "score": score,
+                    "efs": efs,
+                    "contract_recommendation": "High-signal real run"
+                })
+                if delta:
+                    self._append_trace("contract_evolution_applied", "Verification contract strengthened")
+            except Exception as e:
+                logger.debug(f"Contract evolution skipped: {e}")
+
+        # 9. Stigmergic Trace + Memory Cleanup + Provenance Audit
         trace = {
             "loop": self.loop_count,
             "final_score": round(score, 4),
@@ -4486,21 +4558,25 @@ Return ONLY valid JSON:
             "oracle_result": oracle_result
         }
 
-        # Final safety check before archival
+        # Final safety guardrails
         guardrail_result = apply_guardrails(str(best_solution), context={"efs": efs})
-        if not guardrail_result["passed"]:
-            logger.critical(f"End-of-run guardrails failed: {guardrail_result['reason']}")
-            
-        self._write_stigmergic_trace(trace)
+        if not guardrail_result.get("passed", True):
+            logger.critical(f"End-of-run guardrails failed: {guardrail_result.get('reason')}")
+            self._append_trace("end_of_run_guardrail_failure", guardrail_result.get("reason", ""))
 
+        self._write_stigmergic_trace(trace)
         self.memory_layers.compress_low_value(current_score=score)
-        
-        # NEW: Automatic provenance audit for notebook
+
+        # NEW: Automatic provenance audit for notebook export
         try:
             self._export_provenance_audit_log(run_data)
+            self._append_trace("provenance_audit_exported", "Notebook-ready audit log created")
         except Exception as e:
             logger.debug(f"Provenance audit export skipped (safe): {e}")
-            
+
+        self._append_trace("end_of_run_complete", 
+                          f"Outer-loop evolution + fragmented memory update finished | Final EFS: {efs:.3f}")
+
         logger.info("✅ _end_of_run complete — outer-loop evolution + fragmented memory update executed")
             
     # ====================== v0.6 helper for wiki snapshot (used in run_data) ======================
