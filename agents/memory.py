@@ -50,6 +50,10 @@ class MemoryLayers:
         self.byterover_mau_enabled = False
         self.mau_reinforcement_weight = 1.0
         self.arbos = None  # will be wired from ArbosManager
+        
+    def compress_low_value_fragment(self, frag_path: str, decayed_score: float):
+        prompt = """Distill to 1–3 key sentences + provenance tags only – no poetic/bio fluff."""
+        # ... call LLM and overwrite the fragment file
 
     def add(self, text: str, metadata: dict = None):
         if metadata is None:
