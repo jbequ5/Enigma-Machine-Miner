@@ -1215,6 +1215,10 @@ After creating the contract, critique it internally for completeness and feasibi
         # Simple TOC for now — can be expanded with graph later
         with open(index_path, "a", encoding="utf-8") as f:
             f.write(f"\n# Index updated {datetime.now().isoformat()}\n")
+            
+    def query_relevant_fragments(self, query: str, top_k: int = 5):
+        """Orchestrator / ToolHunter can call this."""
+        return self.fragment_tracker.query_relevant_fragments(query, top_k)        
         
     def _re_score_fragments(self, run_data: dict):
         """Exact v0.8+ dynamic re-evaluation with decay, reuse tracking, and promotion."""
@@ -1224,7 +1228,7 @@ After creating the contract, critique it internally for completeness and feasibi
         challenge_id = getattr(self, "_current_challenge_id", "current")
 
         for node in list(self.fragment_tracker.graph.nodes):
-            if not node.startswith(challenge_id):
+            if "current_run" in node:
                 continue
 
             # Re-evaluate using exact spec formula
@@ -1330,9 +1334,10 @@ After creating the contract, critique it internally for completeness and feasibi
     # ====================== ORCHESTRATE SUB-ARBOS (FULLY HARDENED & WIRED) ======================
     def orchestrate_subarbos(self, task: str, goal_md: str = "", previous_outputs: List[Any] = None, 
                              orchestrator_input: Dict = None) -> Dict[str, Any]:
-        """v0.8 Top-tier Orchestrator Arbos — proactive ToolHunter + DOUBLE_CLICK + per-subtask contract slices."""
+        """v0.8+ Top-tier Orchestrator Arbos — proactive ToolHunter + DOUBLE_CLICK + 
+        per-subtask contract slices + memory graph integration."""
         
-        logger.info(f"🚀 Orchestrator Arbos starting (v0.8): {task[:80]}...")
+        logger.info(f"🚀 Orchestrator Arbos starting (v0.8+): {task[:80]}...")
 
         # 1. Receive structured handoff from Planning
         if orchestrator_input:
@@ -1351,7 +1356,7 @@ After creating the contract, critique it internally for completeness and feasibi
         strategy["hardening_dialogue"] = self.dvr.hardening_conversation_template()
         self._current_strategy = strategy
 
-        # 3. Proactive ToolHunter + rich context
+        # 3. Proactive ToolHunter + rich context + memory graph query
         rich_context = {
             "task": task,
             "verifiability_contract": verifiability_contract,
@@ -1359,6 +1364,15 @@ After creating the contract, critique it internally for completeness and feasibi
             "previous_outputs_summary": [o.get("subtask", "") for o in (previous_outputs or [])],
             "gaps": self._detect_gaps_from_previous_outputs(previous_outputs) if previous_outputs else []
         }
+
+        # Query high-signal fragments
+        relevant_fragments = self.query_relevant_fragments(task, top_k=6)
+        rich_context["high_signal_fragments"] = relevant_fragments
+
+        if relevant_fragments:
+            logger.info(f"Retrieved {len(relevant_fragments)} high-signal fragments from graph for this task")
+
+        # Call ToolHunter with enriched context
         tool_recs = tool_hunter.hunt_and_integrate(
             gap_description="Proactive hunt for this subtask",
             subtask=task,
@@ -1366,7 +1380,7 @@ After creating the contract, critique it internally for completeness and feasibi
         )
         strategy["recommended_tools"] = tool_recs.get("tools", [])
 
-        # 4. 2-Round Debate
+        # 4. 2-Round Debate (with graph fragments)
         debate_result = self._run_orchestrator_debate(task, verifiability_contract, rich_context)
         if debate_result and debate_result.get("refined_contract"):
             verifiability_contract = debate_result["refined_contract"]
@@ -1419,11 +1433,16 @@ After creating the contract, critique it internally for completeness and feasibi
 
         # 6. Swarm Execution
         subtask_outputs = self._launch_hyphal_workers(task, strategy)
-    
+
+        # Write fragmented outputs to wiki memory
+        hetero = self.validator._compute_heterogeneity_score(subtask_outputs) if subtask_outputs else 0.0
         for output in subtask_outputs:
             if isinstance(output, dict):
                 self._write_subtask_md(
-                    path=self._create_subtask_wiki_folder(...),
+                    path=self._create_subtask_wiki_folder(
+                        getattr(self, "_current_challenge_id", "current"), 
+                        str(output.get("subtask_id", "unknown"))
+                    ),
                     content=output.get("solution", ""),
                     metadata={
                         "local_score": output.get("local_score", 0.0),
@@ -1431,17 +1450,16 @@ After creating the contract, critique it internally for completeness and feasibi
                         "hetero_bonus": hetero
                     }
                 )
-                
+
         # === EARLY SWARM STALL DETECTION (SOTA safety net) ===
         stall_analysis = self._analyze_swarm_stall(
             subtask_outputs=subtask_outputs,
-            validation_result=None,   # not yet validated
+            validation_result=None,
             dry_run=dry_run
         )
 
         if stall_analysis.get("is_severe_stall", False):
-            logger.warning(f"🚨 Early severe swarm stall detected in Orchestrator | Reason: {stall_analysis.get('reason')}")
-            
+            logger.warning(f"🚨 Early severe swarm stall detected | Reason: {stall_analysis.get('reason')}")
             failure_context = self._build_failure_context(
                 failure_type="early_swarm_stall",
                 task=task,
@@ -1451,22 +1469,19 @@ After creating the contract, critique it internally for completeness and feasibi
                 swarm_results=subtask_outputs
             )
             replan_decision = self._intelligent_replan(failure_context)
-            
-            logger.info(f"Replan decision: {replan_decision.get('decision')} | Reason: {replan_decision.get('reasoning', 'none')}")
 
             if replan_decision.get("decision") == "new_strategy_needed":
-                logger.info("Early severe stall → triggering full replan")
+                logger.info("Early severe stall → full replan")
                 new_task = f"{task} [EARLY SEVERE STALL RECOVERY]"
                 return self.orchestrate_subarbos(new_task, goal_md, orchestrator_input=orchestrator_input)
             else:
-                logger.info("Early stall deemed fixable — continuing with targeted fixes")
+                logger.info("Early stall fixable — applying spec fixes")
                 if replan_decision.get("spec_fixes"):
                     verifiability_contract.setdefault("fixes_applied", []).extend(replan_decision["spec_fixes"])
 
         elif stall_analysis.get("recommendation") == "local_repair_or_diversity_boost":
-            logger.info(f"⚠️ Moderate early stall detected — applying local repair. Reason: {stall_analysis.get('reason')}")
+            logger.info(f"⚠️ Moderate early stall — applying local repair. Reason: {stall_analysis.get('reason')}")
             self._apply_local_repair(subtask_outputs, strategy)
-            # Continue normally after local repair
 
         # 7. Advanced Synthesis Arbos
         raw_merged = self._recompose(subtask_outputs, {})
@@ -1506,7 +1521,7 @@ After creating the contract, critique it internally for completeness and feasibi
         c = self.validator._compute_c3a_confidence(edge, invariant, getattr(self, 'historical_reliability', 0.85))
         theta = self.validator._compute_theta_dynamic(c, self.loop_count / 10.0)
 
-        # Late swarm stall detection (after full validation)
+        # Late swarm stall detection
         stall_analysis = self._analyze_swarm_stall(subtask_outputs, validation_result, dry_run)
         if stall_analysis.get("is_severe_stall", False):
             logger.warning("Severe swarm stall detected despite passed dry-run")
@@ -1520,8 +1535,6 @@ After creating the contract, critique it internally for completeness and feasibi
                 validation_result=validation_result
             )
             replan_decision = self._intelligent_replan(failure_context)
-            
-            logger.info(f"Replan decision: {replan_decision.get('decision')} | Reason: {replan_decision.get('reasoning', 'none')}")
 
             if replan_decision.get("decision") == "new_strategy_needed":
                 logger.info("Severe stall → full replan")
@@ -1561,7 +1574,7 @@ After creating the contract, critique it internally for completeness and feasibi
             "timestamp": datetime.now().isoformat()
         })
 
-        # Final embodiment & outer loop processing
+        # Final embodiment & outer loop
         self._end_of_run({
             "final_score": score,
             "efs": efs,
@@ -1576,10 +1589,7 @@ After creating the contract, critique it internally for completeness and feasibi
             "verifiability_contract": verifiability_contract,
             "human_refinement": human_refinement,
             "recommended_tools": strategy.get("recommended_tools", []),
-            "metrics": {
-                "score": score,
-                "efs": efs
-            }
+            "metrics": {"score": score, "efs": efs}
         }
                                  
        def _apply_local_repair(self, subtask_outputs: List[Dict], strategy: Dict) -> None:
@@ -1676,12 +1686,19 @@ Return ONLY valid JSON with these keys:
         
     def _run_orchestrator_debate(self, task: str, contract: Dict, rich_context: Dict) -> Dict:
         """v0.8 2-Round Critique-First Debate for Orchestrator Phase 2.
-        Forces structured output and includes safety guards."""
+        Now includes high-signal fragment injection from the memory graph."""
         
         if not contract:
             contract = {}
         if not rich_context:
             rich_context = {}
+
+        # === QUERY HIGH-SIGNAL FRAGMENTS FROM MEMORY GRAPH ===
+        relevant_fragments = self.query_relevant_fragments(task, top_k=5)
+        rich_context["high_signal_fragments"] = relevant_fragments
+
+        if relevant_fragments:
+            logger.info(f"Injected {len(relevant_fragments)} high-signal fragments into Orchestrator debate")
 
         debate_prompt = f"""You are Orchestrator Arbos running a strict 2-round critique-first debate.
 
@@ -1690,12 +1707,15 @@ TASK: {task}
 VERIFIABILITY CONTRACT:
 {json.dumps(contract, indent=2)[:900]}
 
+HIGH-SIGNAL FRAGMENTS FROM LONG-TERM MEMORY GRAPH (use these where relevant for better decomposition and composability):
+{json.dumps(relevant_fragments, indent=2)}
+
 RICH CONTEXT:
 {json.dumps(rich_context, indent=2)[:700]}
 
 INSTRUCTIONS:
-Round 1: Harshly critique weaknesses in decomposition, composability rules, verifier coverage, and missing artifacts.
-Round 2: Propose concrete refinements and converge on an improved contract with better slices.
+Round 1: Harshly critique weaknesses in decomposition, composability rules, verifier coverage, missing artifacts, and gaps that high-signal fragments might help close.
+Round 2: Propose concrete refinements, improved contract slices, stronger verifier snippets, and better artifact interfaces.
 
 Return ONLY valid JSON with this exact structure:
 {{
@@ -1710,7 +1730,7 @@ Return ONLY valid JSON with this exact structure:
             raw = self.harness.call_llm(
                 debate_prompt, 
                 temperature=0.38, 
-                max_tokens=1600, 
+                max_tokens=1700, 
                 model_config=model_config
             )
             
@@ -1726,7 +1746,7 @@ Return ONLY valid JSON with this exact structure:
                     "confidence": 0.45
                 }
 
-            logger.info(f"Orchestrator 2-round debate completed | Confidence: {result.get('confidence', 0.0):.2f}")
+            logger.info(f"Orchestrator 2-round debate completed with {len(relevant_fragments)} memory fragments | Confidence: {result.get('confidence', 0.0):.2f}")
             return result
 
         except Exception as e:
@@ -2262,7 +2282,7 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
     def synthesis_arbos(self, subtask_outputs: List[Dict], recomposition_plan: Dict, 
                         verifiability_contract: Dict, failure_context: Dict = None) -> Dict:
         """Maximum capability Synthesis Arbos — multi-proposal generation, structured debate, 
-        iterative refinement, and strict contract enforcement."""
+        iterative refinement, strict contract enforcement, and memory graph injection."""
         
         if not subtask_outputs or len(subtask_outputs) == 0:
             return {
@@ -2281,11 +2301,23 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
             "recomposition_plan": recomposition_plan
         }
 
+        # === QUERY HIGH-SIGNAL FRAGMENTS FROM MEMORY GRAPH ===
+        relevant_fragments = self.query_relevant_fragments(
+            query="synthesis recomposition merge composability artifacts", 
+            top_k=6
+        )
+
+        if relevant_fragments:
+            logger.info(f"Injected {len(relevant_fragments)} high-signal fragments into Synthesis Arbos")
+
         # Stage 1: Generate multiple diverse proposals
         proposal_prompt = f"""You are Synthesis Arbos. Generate 4 fundamentally different high-quality merging strategies.
 
 VERIFIABILITY CONTRACT (must be strictly satisfied):
 {json.dumps(contract, indent=2)}
+
+HIGH-SIGNAL FRAGMENTS FROM LONG-TERM MEMORY GRAPH (use relevant insights where they strengthen the merge):
+{json.dumps(relevant_fragments, indent=2)}
 
 SUBTASK OUTPUTS:
 {json.dumps([{
@@ -2311,6 +2343,9 @@ Return ONLY a valid JSON array containing 4 proposals. Each proposal must have:
 
 Contract (non-negotiable):
 {json.dumps(contract, indent=2)}
+
+HIGH-SIGNAL FRAGMENTS FROM MEMORY GRAPH:
+{json.dumps(relevant_fragments, indent=2)}
 
 Proposals to debate:
 {json.dumps(proposals, indent=2)}
@@ -2350,7 +2385,7 @@ Return only the improved final_candidate."""
             result["final_candidate"] = fixed_candidate
             result.setdefault("refinement_steps", []).append("Final contract enforcement pass")
 
-        logger.info(f"Synthesis Arbos completed | Compliance: {result.get('spec_compliance', 'medium')} | Confidence: {result.get('confidence', 0.0):.3f}")
+        logger.info(f"Synthesis Arbos completed with {len(relevant_fragments)} memory fragments | Compliance: {result.get('spec_compliance', 'medium')} | Confidence: {result.get('confidence', 0.0):.3f}")
 
         return result
                             
@@ -3391,8 +3426,7 @@ Do not include explanations or extra text."""
                              synthesis_result: Dict = None) -> List[Dict]:
         """Top-tier Symbiosis Arbos — discovers emergent cross-field mutualisms, 
         patterns, and high-signal insights for grail feeding and meta-learning.
-        
-        Runs between raw swarm outputs and final synthesis to find hidden connections."""
+        Now enhanced with high-signal fragment injection from the memory graph."""
         
         if not aggregated_outputs or len(aggregated_outputs) < 2:
             logger.debug("Symbiosis Arbos skipped — fewer than 2 outputs")
@@ -3408,6 +3442,15 @@ Do not include explanations or extra text."""
         if len(viable_outputs) < 2:
             logger.debug("Symbiosis Arbos skipped — insufficient viable outputs after filtering")
             return []
+
+        # === QUERY HIGH-SIGNAL FRAGMENTS FROM MEMORY GRAPH ===
+        relevant_fragments = self.query_relevant_fragments(
+            query="emergent patterns mutualisms symbiosis cross-field insights", 
+            top_k=5
+        )
+
+        if relevant_fragments:
+            logger.info(f"Injected {len(relevant_fragments)} high-signal fragments into Symbiosis Arbos")
 
         # Safe contract access
         contract_context = ""
@@ -3434,13 +3477,16 @@ SUBTASK OUTPUTS (viable only):
 RECENT MESSAGE BUS SIGNALS:
 {json.dumps(message_bus[-10:], indent=2) if message_bus else "None"}
 
+HIGH-SIGNAL FRAGMENTS FROM LONG-TERM MEMORY GRAPH (use these to inspire new connections):
+{json.dumps(relevant_fragments, indent=2)}
+
 VERIFIABILITY CONTRACT CONTEXT:
 {contract_context}
 
 Your job:
 1. Identify non-obvious connections, mutualisms, and emergent patterns across subtasks.
 2. Find "entanglement-like" opportunities where one subtask dramatically improves another.
-3. Extract high-signal insights worthy of the Grail.
+3. Extract high-signal insights worthy of the Grail, especially those that align with or extend past successful fragments.
 4. Suggest concrete, actionable improvements or new hypotheses.
 
 Return ONLY a valid JSON array (max 6 patterns). Each pattern must follow this exact schema:
@@ -3458,7 +3504,7 @@ Return ONLY a valid JSON array (max 6 patterns). Each pattern must follow this e
             raw = self.harness.call_llm(
                 symbiosis_prompt, 
                 temperature=0.42, 
-                max_tokens=2200, 
+                max_tokens=2300, 
                 model_config=model_config
             )
             
@@ -3485,7 +3531,7 @@ Return ONLY a valid JSON array (max 6 patterns). Each pattern must follow this e
                 except Exception as e:
                     logger.debug(f"Failed to append symbiosis patterns to grail: {e}")
 
-                logger.info(f"Symbiosis Arbos discovered {len(high_value_patterns)} high-value patterns")
+                logger.info(f"Symbiosis Arbos discovered {len(high_value_patterns)} high-value patterns (with {len(relevant_fragments)} memory fragments)")
             else:
                 logger.debug("Symbiosis Arbos found no high-value patterns this run")
 
