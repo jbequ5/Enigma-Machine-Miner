@@ -1,77 +1,104 @@
 # tools/tool_env_manager.py - v0.8+ ToolEnvManager
-# Safe ephemeral/persistent venvs + dynamic registration (one-click add)
+# Safe ephemeral/persistent venvs + dynamic registration (one-click add from Streamlit)
 
 import subprocess
 import venv
 import json
 import os
+import shutil
+import time
 from pathlib import Path
-import logging
 from datetime import datetime
+import logging
+from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 class ToolEnvManager:
     def __init__(self):
+        self.base_path = Path("~/.enigma_tools").expanduser()
+        self.base_path.mkdir(parents=True, exist_ok=True)
+        
         self.envs_dir = Path("tools/envs")
         self.envs_dir.mkdir(parents=True, exist_ok=True)
+        
         self.registry_path = Path("tools/env_registry.json")
-        self._load_registry()
+        self.registry = self._load_registry()
 
-    def _load_registry(self):
+    def _load_registry(self) -> Dict:
         if self.registry_path.exists():
             try:
-                self.registry = json.loads(self.registry_path.read_text(encoding="utf-8"))
-            except:
-                self.registry = {}
-        else:
-            self.registry = {}
+                return json.loads(self.registry_path.read_text(encoding="utf-8"))
+            except Exception as e:
+                logger.warning(f"Failed to load env registry: {e}")
+        return {}
 
     def _save_registry(self):
+        self.registry_path.parent.mkdir(parents=True, exist_ok=True)
         self.registry_path.write_text(json.dumps(self.registry, indent=2), encoding="utf-8")
 
-    def create_or_get_env(self, tool_name: str, persistent: bool = True, requirements: List[str] = None) -> str:
-        """Create or retrieve a venv for the tool. Returns path to python executable."""
+    def create_or_get_env(self, tool_name: str, persistent: bool = True, 
+                         requirements: List[str] = None, install_cmd: str = None) -> Dict[str, Any]:
+        """Create or reuse a virtual environment for a tool.
+        Returns dict with status and python executable path."""
         key = f"{tool_name}_{'persistent' if persistent else 'ephemeral'}"
         
-        if key in self.registry and Path(self.registry[key]).exists():
-            logger.info(f"Reusing existing env for {tool_name}")
-            return self.registry[key]
+        # Reuse if exists
+        if key in self.registry:
+            python_exe = Path(self.registry[key])
+            if python_exe.exists():
+                logger.info(f"Reusing existing environment for {tool_name}")
+                return {"status": "success", "python_exe": str(python_exe), "reused": True}
 
+        # Create new environment
         env_path = self.envs_dir / key
-        logger.info(f"Creating new {'persistent' if persistent else 'ephemeral'} env for {tool_name} → {env_path}")
+        logger.info(f"Creating new {'persistent' if persistent else 'ephemeral'} environment for {tool_name}")
 
-        # Create venv
-        venv.create(env_path, with_pip=True, clear=True)
+        try:
+            # Create venv
+            venv.create(env_path, with_pip=True, clear=True)
 
-        python_exe = env_path / "bin/python" if os.name != "nt" else env_path / "Scripts/python.exe"
+            python_exe = env_path / ("bin/python" if os.name != "nt" else "Scripts/python.exe")
 
-        # Install requirements if provided
-        if requirements:
-            try:
-                cmd = [str(python_exe), "-m", "pip", "install", "--upgrade"] + requirements
-                subprocess.run(cmd, check=True, capture_output=True, text=True)
+            # Install requirements
+            if requirements:
+                pip_cmd = [str(python_exe), "-m", "pip", "install", "--upgrade"] + requirements
+                subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
                 logger.info(f"Installed requirements for {tool_name}: {requirements}")
-            except Exception as e:
-                logger.warning(f"Failed to install requirements for {tool_name}: {e}")
 
-        # Register
-        self.registry[key] = str(python_exe)
-        self._save_registry()
+            # Run custom install command if provided
+            if install_cmd and install_cmd.strip():
+                install_cmd_list = [str(python_exe), "-m", "pip", "install"] + install_cmd.strip().split()
+                subprocess.run(install_cmd_list, check=True, capture_output=True, text=True)
 
-        return str(python_exe)
+            # Register
+            self.registry[key] = str(python_exe)
+            self._save_registry()
 
-    def get_env_python(self, tool_name: str, persistent: bool = True) -> str:
-        """Get python executable path for a tool (creates if missing)."""
-        return self.create_or_get_env(tool_name, persistent=persistent)
+            return {
+                "status": "success",
+                "python_exe": str(python_exe),
+                "reused": False,
+                "env_path": str(env_path)
+            }
 
-    def cleanup_ephemeral(self):
-        """Optional: clean old ephemeral envs"""
+        except Exception as e:
+            logger.error(f"Failed to create environment for {tool_name}: {e}")
+            return {"status": "error", "error": str(e), "tool_name": tool_name}
+
+    def get_env_python(self, tool_name: str, persistent: bool = True) -> Optional[str]:
+        """Convenience method: return python executable path or None on failure."""
+        result = self.create_or_get_env(tool_name, persistent=persistent)
+        return result.get("python_exe") if result.get("status") == "success" else None
+
+    def cleanup_ephemeral(self, days_old: int = 2):
+        """Clean old ephemeral environments."""
         for p in self.envs_dir.glob("*_ephemeral"):
             if p.is_dir():
                 try:
-                    # Simple age-based cleanup
-                    if (datetime.now() - datetime.fromtimestamp(p.stat().st_mtime)).days > 2:
+                    age_days = (datetime.now() - datetime.fromtimestamp(p.stat().st_mtime)).days
+                    if age_days > days_old:
                         shutil.rmtree(p, ignore_errors=True)
-                except:
-                    pass
+                        logger.info(f"Cleaned old ephemeral env: {p}")
+                except Exception as e:
+                    logger.debug(f"Failed to clean {p}: {e}")
