@@ -1990,7 +1990,35 @@ Return ONLY valid JSON with this exact structure:
                 "local_score": local_score,
                 "subtask_contract_used": bool(subtask_contract)
             })
+            
+        # ====================== FINAL GUARDRAILS CHECK ======================
+        guardrail_result = apply_guardrails(
+            solution=solution,
+            monitor=monitor,
+            context={
+                "efs": local_score,
+                "sota_gate_passed": True,           # you can make this dynamic later
+                "approximation_used": False,
+                "validation_score": local_score,
+                "subtask": subtask
+            }
+        )
 
+        if not guardrail_result["passed"]:
+            logger.warning(f"Guardrails rejected Sub-Arbos {subtask_id}: {guardrail_result['reason']}")
+            # Optional: Give one repair attempt
+            if repair_attempts < 2:
+                repair_attempts += 1
+                solution = self._generate_guided_diversity_candidates(subtask, hypothesis, solution)
+                # Re-run guardrails if desired
+            else:
+                solution = f"[GUARDRAIL REJECTED] {guardrail_result['reason']}"
+        
+        # Now proceed with final validation
+        final_validation = self.validator.run(
+            candidate=solution,
+            ...
+        )
         # Store result
         shared_results[subtask_id] = {
             "subtask": subtask,
@@ -2162,6 +2190,22 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
 
         final_candidate = synthesis_result.get("final_candidate", raw_merged)
 
+        # ====================== FINAL SUBMISSION GUARDRAILS ======================
+        guardrail_result = apply_guardrails(
+            solution=str(final_candidate),
+            context={
+                "efs": validation_result.get("efs", 0.0) if 'validation_result' in locals() else 0.0,
+                "sota_gate_passed": True,
+                "approximation_used": False,
+                "validation_score": score if 'score' in locals() else 0.0
+            }
+        )
+
+        if not guardrail_result["passed"]:
+            logger.error(f"Final guardrails rejected the merged solution: {guardrail_result['reason']}")
+            # You can decide to trigger replan or return rejection here
+            final_candidate = f"[FINAL GUARDRAIL REJECTED] {guardrail_result['reason']}"
+            
         # 5. Final ValidationOracle (source of truth)
         validation_result = self.validator.run(
             candidate=final_candidate,
@@ -4380,6 +4424,12 @@ Return ONLY valid JSON:
             "timestamp": datetime.now().isoformat(),
             "oracle_result": oracle_result
         }
+
+        # Final safety check before archival
+        guardrail_result = apply_guardrails(str(best_solution), context={"efs": efs})
+        if not guardrail_result["passed"]:
+            logger.critical(f"End-of-run guardrails failed: {guardrail_result['reason']}")
+            
         self._write_stigmergic_trace(trace)
 
         self.memory_layers.compress_low_value(current_score=score)
