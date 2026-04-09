@@ -81,21 +81,6 @@ def create_restricted_globals():
 
 SAFE_GLOBALS = create_restricted_globals()
 
-def safe_exec(code: str, local_vars: Dict = None) -> bool:
-    """Highly secure exec using RestrictedPython."""
-    if local_vars is None:
-        local_vars = {}
-    try:
-        tree = ast.parse(code)
-        if len(ast.dump(tree).split()) > 1200:
-            logger.warning("Code too large for safe_exec")
-            return False
-        exec(code, SAFE_GLOBALS.copy(), local_vars)
-        return True
-    except Exception as e:
-        logger.debug(f"RestrictedPython blocked: {type(e).__name__}: {e}")
-        return False
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -104,10 +89,6 @@ class DVRPipeline:
     """Realistic DVR contract — no guarantees, only measurable paths."""
 
     @staticmethod
-
-    def _safe_exec(self, snippet: str, local: Dict) -> bool:
-        """Use RestrictedPython for maximum safety."""
-        return safe_exec(snippet, local)    
         
     def decomp_template(task: str, goal_md: str) -> Dict[str, Any]:
         return {
@@ -133,15 +114,12 @@ class DVRDryRunSimulator:
     def __init__(self, validator: ValidationOracle):
         self.validator = validator
 
-    def _safe_exec(self, snippet: str, local: Dict) -> bool:
-        return safe_exec(snippet, local)
-
     def generate_placeholder(self, artifact_spec: Dict) -> Any:
         snippets = artifact_spec.get("verifier_code_snippets", [])
         placeholder = {"artifact": "plausible_best_case", "metadata": {}}
         for snippet in snippets[:3]:
             local = {"candidate": placeholder, "passed": False, "tightness": 0.0, "score": 0.0}
-            if self._safe_exec(snippet, local):
+            if self.safe_exec(snippet, local_vars=local, approximation_mode=approximation_mode):
                 if local.get("passed", False):
                     break
         return placeholder
@@ -159,7 +137,8 @@ class DVRDryRunSimulator:
 
         contract = self._current_strategy.get("verifiability_contract", {})
         approximation_mode = contract.get("approximation_mode", "auto")
-
+                    
+            
         # 1. Generate intelligent + adversarial mock data
         placeholders = []
         for st in decomposed_subtasks:
@@ -209,7 +188,15 @@ class DVRDryRunSimulator:
             composability_result.get("passed", False) and 
             self_check.get("verifier_quality", 0) >= 0.65
         )
-
+                        
+        # Approximation handling
+        approximation_used = validation_result.get("approximation_used", False)
+        if approximation_used:
+            logger.info(f"Dry-run used approximation mode: {validation_result.get('approximation_method')}")
+            dry_run["approximation_used"] = True
+            dry_run["approximation_method"] = validation_result.get("approximation_method")
+            dry_run["recommendation"] = "PROCEED_WITH_APPROXIMATION" if validation_result.get("verifier_quality", 0) > 0.52 else "ITERATE_DECOMP"
+            
         recommendation = "PROCEED_TO_SWARM" if passed_gate else "ITERATE_DECOMP"
 
         # 7. DOUBLE_CLICK / Escalation detection
@@ -228,7 +215,8 @@ class DVRDryRunSimulator:
                     },
                     "severity": "high" if verifier_q < 0.50 else "medium"
                 }
-
+                
+            
         return {
             "dry_run_passed": passed_gate,
             "best_case_c": round(c, 4),
@@ -258,7 +246,7 @@ class DVRDryRunSimulator:
         for snippet in verifier_snippets[:6]:
             try:
                 local = {"candidate": candidate, "result": None, "passed": False}
-                if self._safe_exec(snippet, local):   # Use safe version
+                if self.safe_exec(snippet, local_vars=local, approximation_mode=approximation_mode)
                     passed = bool(local.get("result") or local.get("passed", False))
                     scores.append(1.0 if passed else 0.25)
                 else:
@@ -446,10 +434,7 @@ class ToolEnvManager:
         self.base_path = Path("~/.enigma_tools").expanduser()
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.registered_tools = {}  # in-memory registry
-        
-    def _safe_exec(self, snippet: str, local: Dict) -> bool:
-        """Use RestrictedPython for maximum safety."""
-        return safe_exec(snippet, local)
+
         
     def create_or_get_env(self, tool_name: str, install_cmd: str, persistent: bool = True) -> dict:
         """Create or reuse a venv, run the install command, and register the tool safely."""
@@ -518,7 +503,7 @@ class ArbosManager:
         self.pruning_advisor.arbos = self  # give it access to fragment_tracker
 
         # Safe execution (RestrictedPython)
-        self._safe_exec = safe_exec
+        self.safe_exec = self.validator.safe_exec
 
         # Toggles - cleaned and complete
         self.toggles = {
@@ -636,9 +621,6 @@ class ArbosManager:
                     self.scientist_log = json.load(f)
             except:
                 self.scientist_log = []
-                
-    def _safe_exec(self, code: str, local_vars: Dict = None) -> bool:
-        return safe_exec(code, local_vars)
         
     # ====================== MODEL REGISTRY (v5.1.3 - Cleaned) ======================
     def _load_model_registry(self) -> Dict:
@@ -1041,7 +1023,8 @@ After creating the contract, critique it internally for completeness and feasibi
             "hypothesis": hypothesis,
             "evidence_vs_instinct": evidence,
             "performance_delta": performance_delta,
-            "organic_thought": organic_thought
+            "organic_thought": organic_thought,
+            "approximation_used": approximation_used
         }
 
         try:
@@ -2976,7 +2959,7 @@ Return ONLY the new full prompt block starting with ## COMPRESSION_PROMPT v{vers
         for snippet in verifier_snippets[:5]:
             local = {"candidate": candidate, "passed": False, "tightness": 0.0, "score": 0.0}
             try:
-                self.validator._safe_exec(snippet, local)
+                self.safe_exec(snippet, local_vars=local, approximation_mode=approximation_mode)
                 passed = local.get("passed", False)
                 tightness = local.get("tightness", 0.0)
                 quality_scores.append(0.8 if passed else 0.3 + 0.4 * tightness)
@@ -3281,9 +3264,10 @@ Return ONLY the complete function code."""
                     contract_deltas.append(delta)
                 # Novelty probe intent handling
             
-            if focus_gap or "novelty" in synthetic_task.lower():
+            if focus_gap or "novelty" in synthetic_task.lower() or "edge case" in synthetic_task.lower():
                 summary["novelty_probe"] = True
-                summary["contract_recommendation"] += " | Novelty probe: emphasize unexplored edge cases and approximation fallbacks."
+                summary["contract_recommendation"] = summary.get("contract_recommendation", "") + \
+                    " | Novelty probe active: emphasize approximation fallbacks and unexplored edge cases."
 
             # DOUBLE_CLICK narrow follow-up experiment
             if summary.get("double_click_triggered", False) and focus_gap is None:
