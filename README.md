@@ -1,54 +1,58 @@
-### THE ENIGMA MACHINE — Arbos-Led Intelligent Solver for Frontier Challenges
+### THE ENIGMA MACHINE — Arbos-Led Intelligent Solver for Frontier Challenges on SN 63.
 
-**English-first • Verifier-first • Biologically-evolving • Maximum Heterogeneity • Self-Hardening**
+**English-first • Verifier-first • Biologically-evolving • Maximum Heterogeneity • Self-Hardening • Real Compute Backends**
 
-The Enigma Machine is a closed-loop, self-improving cognitive organism designed to solve the hardest sponsor challenges in quantum, cryptography, symbolic mathematics, stochastic systems, and beyond — while permanently upgrading its own intelligence with every single run.
+The Enigma Machine is a closed-loop, self-improving **cognitive organism** engineered to solve the hardest sponsor challenges in quantum, cryptography, symbolic mathematics, stochastic systems, optimization, and beyond — while permanently upgrading its own intelligence with every single run.
 
-Unlike brittle prompt-chaining agents, Enigma treats **every execution** as both a solution attempt **and** a permanent evolutionary step. High-signal outcomes are distilled through ByteRover MAU scoring and folded into a living second brain of readable Markdown files. This creates true compounding capability that grows measurably stronger, more reliable, and more creative over time.
+Unlike brittle prompt-chaining agents that hallucinate and forget, Enigma treats **every execution** as both a solution attempt **and** a permanent evolutionary step. High-signal outcomes are distilled through ByteRover MAU scoring (now per-fragment) and folded into a living second brain of readable Markdown files. This creates true compounding capability that grows measurably stronger, more reliable, and more creative over time.
 
-### Core Differentiators
+This is not just another agent.  
+This is a **self-hardening, embodied intelligence engine** that learns from its own verification failures and turns every stall into targeted evolution.
+
+### Core Differentiators — What Makes Enigma Truly SOTA
 
 **1. Verifier-First Discipline + Full DVRP Pipeline**  
-Every challenge starts with a formal **Verifiability Contract** — the single source of truth containing required artifacts, composability rules, dry-run success criteria, and synthesis guidance.  
+Every challenge begins with a formal **Verifiability Contract** — the single source of truth defining required artifacts, composability rules, dry-run success criteria, and synthesis guidance.  
 
-The complete **DVRP Pipeline** (Decompose → Verify → Recompose) enforces this contract rigorously at every layer:
-- Planning Arbos generates and self-critiques the contract.
-- Orchestrator Arbos runs 2-round critique-first debate to produce per-subtask contract slices and executable verifier snippets.
-- Hardened Dry-Run Gate tests the full plan on intelligent winning + adversarial mock data before any swarm compute is spent.
+The complete **DVRP Pipeline** (Decompose → Verify → Recompose) enforces this contract at every layer with ruthless determinism:
+- Planning Arbos generates and self-critiques the contract with deep graph search for high-signal fragments.
+- Orchestrator Arbos runs 2-round critique-first debate to produce per-subtask contract slices and executable verifier snippets, with **strict heterogeneity veto**.
+- Hardened Dry-Run Gate tests the full plan on intelligent winning + adversarial mocks before any swarm compute is spent.
 - Swarm workers validate locally against their contract slice.
-- Symbiosis Arbos (new intermediate layer) discovers emergent mutualisms across raw swarm outputs.
-- Synthesis Arbos performs multi-proposal debate and final contract enforcement.
-- ValidationOracle is the sole source of truth using real deterministic metrics: edge coverage, invariant tightness, fidelity, heterogeneity, C3A confidence, θ_dynamic, and composite EFS.
+- Symbiosis Arbos (intermediate layer) discovers emergent mutualisms across raw outputs using graph-searched patterns.
+- Synthesis Arbos performs multi-proposal debate, enriched with borrowed fragments, and final contract enforcement.
+- ValidationOracle is the sole source of truth, computing real deterministic metrics: edge coverage, invariant tightness, fidelity, heterogeneity, C3A confidence, θ_dynamic, and composite EFS.
 
-**2. Intelligent Stall & Gap Handling**  
-When dry-runs fail or swarms underperform, rich failure context packets are built automatically. The system distinguishes **severe stalls** (full replan) from **moderate stalls** (local repair with extra diversity, model override, or guided repair attempts).  
+**2. Real Compute Backends + Graceful Approximation**  
+ComputeRouter intelligently routes to real deterministic backends (**SymPy, Cirq, Z3, PuLP** for linear/mixed-integer optimization, and more) before falling back to approximation mode. ValidationOracle’s single safe_exec sandbox is the hardened gate for all execution. No more fake metrics — everything is real where possible.
 
-**DOUBLE_CLICK** and **ESCALATE** tags identify specific gaps (e.g., low invariant tightness on entropy) and automatically queue narrower, targeted experiments in Scientist Mode. Failure is turned into precise, surgical learning rather than blind retries.
+**3. Intelligent Stall & Gap Handling with Self-Healing**  
+Rich failure context packets are built automatically. The system distinguishes **severe stalls** (full replan or Scientist Mode escalation) from **moderate stalls** (targeted repair). **DOUBLE_CLICK** and **ESCALATE** tags identify precise gaps and automatically queue narrower experiments. Failure becomes surgical learning.
 
-**3. Proactive ToolHunter + Living Capability Layer**  
-Orchestrator feeds ToolHunter the full rich context packet (contract, gaps, dependency graph, reassembly plan). It proactively recommends tools. Miner adds them via **one-click ToolEnvManager** (safe persistent or ephemeral venvs). Tools are replay-tested in dry-run. A living Tool Recommendation Log tracks real ROI (EFS contribution, replay pass rate). Capability builds intelligently run after run.
+**4. Proactive ToolHunter + Living Capability Layer**  
+Orchestrator feeds ToolHunter the full rich context (contract, gaps, graph fragments, reassembly plan). Miner adds tools via **one-click ToolEnvManager** (safe persistent or ephemeral venvs). A living Tool Recommendation Log tracks real ROI via EFS contribution and replay pass rate. Capability compounds run after run.
 
-**4. Scientist Mode — Autonomous Domain Building Engine**  
-Scientist Mode generates synthetic challenges, runs the full DVRP pipeline, extracts contract improvements, new invariants, and heuristics. DOUBLE_CLICK gaps trigger focused follow-up experiments. All summaries feed directly into Meta-Tuning. This is how the organism builds genuine domain expertise over time.
+**5. Scientist Mode — Autonomous Domain Expertise Engine**  
+Scientist Mode generates synthetic challenges, runs the full DVRP pipeline, extracts contract improvements, new invariants, and heuristics. DOUBLE_CLICK gaps trigger focused follow-ups. All summaries feed directly into Meta-Tuning.
 
-**5. Self-Hardening Intelligence Flywheel (The Outer Loop)**  
-- Scientist Mode + Meta-Tuning (with real TPE/Parzen selection) evolve contracts, principles, and memory constants (decay_k, thresholds, etc.).
-- Pruning Advisor tracks per-fragment and module ROI.
-- Embodiment layers (NeurogenesisArbos, MicrobiomeLayer, VagusFeedbackLoop) + pattern surfacers (Resonance + Photoelectric) add biological plasticity.
-- ByteRover MAU Pyramid (now per-fragment) + Grail reinforcement remember what matters.
-- Symbiosis Arbos discovers emergent cross-field insights.
-- Fragmented stigmergic wiki + MP4 smart-frame archives make every insight rewindable and auditable.
+**6. Self-Hardening Intelligence Flywheel (The Outer Loop)**  
+- Scientist Mode + **true TPE-guided Meta-Tuning** evolve contracts, principles, and memory constants (decay_k, thresholds, EFS weights).
+- Pruning Advisor tracks per-fragment and module ROI with real data.
+- Embodiment layers (Neurogenesis, Microbiome, Vagus) + pattern surfacers (Resonance + Photoelectric) add biological plasticity.
+- ByteRover MAU Pyramid (per-fragment) + Grail reinforcement remember what matters.
+- Symbiosis Arbos discovers emergent cross-field insights using deep graph search.
+- Fragmented stigmergic wiki + MP4 smart-frame archives + full provenance audit logs make every insight rewindable and auditable.
 
 High-signal runs automatically evolve the brain. The organism literally improves its own verification rules, decomposition strategies, synthesis logic, and memory system.
 
-**6. Fragmented Long-Term Memory System**  
-All outputs are automatically fragmented into self-contained units (≤50KB). Each fragment receives deterministic scoring (initial MAU + dynamic impact_score = 0.4×current_mau + 0.3×reuse_in_high_EFS + 0.2×contract_delta_contribution + 0.1×replay_pass_rate), Ebbinghaus-style exponential decay, and promotion to concepts/invariants/Grail. A lightweight NetworkX graph layer enables intelligent reuse queries across Orchestrator, Synthesis, Symbiosis, and ToolHunter.
+**7. Fragmented Long-Term Memory System with Deep Graph Search**  
+All outputs are automatically fragmented (≤50KB self-contained units). Each receives deterministic scoring, Ebbinghaus-style exponential decay, and promotion. A lightweight **NetworkX graph layer** enables intelligent reuse queries across Orchestrator, Synthesis, Symbiosis, and ToolHunter. Fragments are borrowed at planning and synthesis time for maximum leverage.
 
-### Miner Workflow
-1. Edit brain files or use the enhanced Streamlit **Command Dashboard**.
+### Miner Workflow — Command-Post Experience
+1. Open the enhanced **Streamlit Command Dashboard** with live metrics, sparklines, fragment heatmap, and real-time trace log.
 2. Enter challenge + verification instructions/code.
-3. Review/edit Planning-generated enhancement prompt (human-in-the-loop).
-4. Launch → watch real-time metrics, live stigmergic signals, and ToolHunter recommendations.
+3. Review/edit Planning-generated enhancement prompt (strong human-in-the-loop).
+4. Launch → watch real-time metrics, live stigmergic signals, ToolHunter recommendations, and trace log.
 5. Review MP4 archives, Grail patterns, contract deltas, fragment health, and pruning recommendations.
 
 The system continuously evolves its own brain for future runs.
@@ -56,10 +60,10 @@ The system continuously evolves its own brain for future runs.
 ### Quick Start
 ```bash
 pip install -r requirements.txt
-# Follow AutoHarness / model setup if needed
+# Follow AutoHarness / model setup instructions
 streamlit run streamlit_app.py
 ```
 
-Open the dashboard, enter a frontier challenge, and watch the organism solve it while permanently upgrading itself.
+Open the dashboard, enter a frontier challenge, and watch a living cognitive organism solve it while permanently upgrading itself — with real backends, TPE meta-tuning, deep graph memory, and full observability.
 
 ---
