@@ -180,7 +180,7 @@ with tab1:
 with tab2:
     st.subheader("🎯 MISSION TARGET")
     challenge = st.text_area(
-        "SN63 Challenge Description (Quantum Innovate task)",
+        "Enigma Challenge Description",
         height=160,
         placeholder="Describe the full problem in detail...",
         key="challenge_input"
@@ -206,7 +206,7 @@ with tab2:
         verification_instructions = str(verification_response) if verification_response else default_verification
 
     # ToolHunter Recommendations
-    st.subheader("🛠️ ToolHunter Recommendations (v0.8+)")
+    st.subheader("🛠️ ToolHunter Recommendations")
     st.caption("Proactive tools detected from contract, memory graph, and gap analysis. Add with one click.")
 
     plan = st.session_state.get("high_level_plan", {}) or {}
@@ -332,8 +332,34 @@ with tab6:
     else:
         st.info("Run a mission to see live contract data")
 
-# ====================== TAB 7: MISSION TRACE LOG ======================
-with tab7:
+# ====================== TAB 7: LIVE METRICS ======================
+with tab7:  # LIVE METRICS
+    st.header("📈 LIVE SYSTEM METRICS")
+    
+    # EFS Trend Sparkline
+    if hasattr(manager, 'recent_scores') and len(manager.recent_scores) > 3:
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(y=manager.recent_scores, mode='lines+markers', name='Score', line=dict(color='#00ff9d')))
+        fig.update_layout(title="EFS / Validation Score Trend", height=280, template="plotly_dark")
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Fragment Utilization Heatmap
+    if hasattr(manager, 'fragment_tracker') and hasattr(manager.fragment_tracker, 'graph'):
+        nodes = list(manager.fragment_tracker.graph.nodes)
+        if nodes:
+            scores = [manager.fragment_tracker.get_impact_score(n) for n in nodes]
+            fig2 = px.histogram(x=scores, nbins=20, title="Fragment Utilization Distribution", color_discrete_sequence=['#00ff9d'])
+            st.plotly_chart(fig2, use_container_width=True)
+
+    st.subheader("System Health")
+    st.json({
+        "loop": getattr(manager, 'loop_count', 0),
+        "last_efs": efs,
+        "heterogeneity": hetero,
+        "approximation_mode": "active" if getattr(manager.validator, 'last_approximation_used', False) else "real_backends"
+    })
+# ====================== TAB 8: MISSION TRACE LOG ======================
+with tab8:
     st.header("🔍 MISSION TRACE LOG — Full System Observability")
     st.caption("Real-time chronological execution trace of every major phase")
 
@@ -361,15 +387,15 @@ with tab7:
 # ====================== PACKAGE & EXPORT ======================
 st.divider()
 if st.session_state.last_result:
-    if st.button("📦 Package & Download Full Submission", use_container_width=True):
+    if st.button("📦 Package & Download Submission"):
         _package_submission(
             solution=st.session_state.last_result.get("merged_candidate", ""),
             blueprint=st.session_state.get("high_level_plan", {}),
             trace=st.session_state.get("trace_log", []),
-            notes="Full DVRP run with advanced synthesis, meta-tuning, and fragmented memory",
-            challenge=challenge if 'challenge' in locals() else "Unknown Challenge",
-            verification=verification_instructions if 'verification_instructions' in locals() else "",
-            deterministic_tooling="SymPy + verifier snippets"
+            notes="Full run with PuLP, real backends, TPE meta-tuning, and deep graph memory",
+            challenge=challenge,
+            verification=verification_instructions,
+            deterministic_tooling="SymPy + Cirq + Z3 + PuLP"
         )
 
 def _package_submission(solution: str, blueprint: dict, trace: list, notes: str, 
