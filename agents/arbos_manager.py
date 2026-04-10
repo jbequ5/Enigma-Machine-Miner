@@ -6177,15 +6177,16 @@ Return ONLY valid JSON:
             logger.debug(f"Real compute validation skipped (safe): {e}")
             self._append_trace("real_compute_skipped", str(e))
 
-        # 9. Pruning Advisor synergy
+        # v0.9 Pruning Advisor Analysis
         try:
-            recs = self.analyze_run(oracle_result, run_data)
-            self._append_trace("pruning_advisor_analyzed", 
-                              f"Generated {len(recs)} recommendations",
-                              metrics={"recommendations_count": len(recs)})
+            analysis = self._analyze_run(
+                current_results=run_data.get("subtask_outputs", {}),
+                blueprint=getattr(self, '_current_strategy', {})
+            )
+            self._append_trace("pruning_advisor_complete", 
+                              f"Pruning Advisor run — Health score: {analysis.get('health_score', 0):.3f}")
         except Exception as e:
             logger.debug(f"Pruning Advisor skipped: {e}")
-            self._append_trace("pruning_advisor_skipped", str(e))
 
         # 10. Stigmergic Trace + Memory Cleanup + Provenance Audit
         trace = {
