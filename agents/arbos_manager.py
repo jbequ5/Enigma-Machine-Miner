@@ -940,88 +940,104 @@ After creating the contract, critique it internally for completeness and feasibi
         return tag
         
     def _build_failure_context(self, failure_type: str, task: str, goal_md: str,
-                                   strategy: Dict, dry_run: Dict = None,
-                                   swarm_results: List = None, validation_result: Dict = None) -> Dict:
-            """Rich failure context packet for intelligent replanning — v0.8 hardened version."""
-    
-            # === TRACE: Failure context building start ===
-            self._append_trace("build_failure_context_start", 
-                              f"Building rich failure context — Type: {failure_type}",
-                              metrics={"failure_type": failure_type})
-    
-            # Safe metric extraction
-            oracle_metrics = {
-                "edge_coverage": getattr(self.validator, "_compute_edge_coverage", lambda *a: 0.0)(
-                    validation_result.get("candidate", "") if validation_result else "", 
-                    strategy.get("verifier_code_snippets", []) if strategy else []
-                ),
-                "invariant_tightness": getattr(self.validator, "_compute_invariant_tightness", lambda *a: 0.0)(
-                    validation_result.get("candidate", "") if validation_result else "", 
-                    strategy.get("verifier_code_snippets", []) if strategy else []
-                ),
-                "fidelity": getattr(self.validator, "last_fidelity", getattr(validation_result, "get", lambda k,d: d)("fidelity", 0.0)),
-                "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.72),
-                "c3a_confidence": getattr(self.validator, "last_c", 0.75),
-                "theta_dynamic": getattr(self.validator, "last_theta", 0.65),
-                "EFS": getattr(self, "last_efs", getattr(validation_result, "get", lambda k,d: d)("efs", 0.0)),
-                "real_vs_dry_run_delta": (
-                    getattr(self, "last_efs", 0.0) - 
-                    (dry_run.get("best_case_efs", 0.0) if dry_run else 0.0)
-                )
-            }
-    
-            # Auto-detect failure modes
-            failure_modes = []
-            if oracle_metrics["EFS"] < 0.60:
-                failure_modes.append("low_efs")
-            if oracle_metrics["c3a_confidence"] < 0.70:
-                failure_modes.append("low_c3a_confidence")
-            if dry_run and not dry_run.get("dry_run_passed", True):
-                failure_modes.append("dry_run_failure")
-            if swarm_results and len(swarm_results) > 0:
-                avg_local = sum(r.get("local_score", 0) for r in swarm_results if isinstance(r, dict)) / max(1, len(swarm_results))
-                if avg_local < 0.55:
+                               strategy: Dict, dry_run: Dict = None,
+                               swarm_results: List = None, validation_result: Dict = None) -> Dict:
+        """Rich failure context packet for intelligent replanning — v0.8+ hardened and SOTA version."""
+
+        # === TRACE: Failure context building start ===
+        self._append_trace("build_failure_context_start", 
+                          f"Building rich failure context — Type: {failure_type}",
+                          metrics={"failure_type": failure_type})
+
+        # Safe metric extraction with fallbacks
+        oracle_metrics = {
+            "edge_coverage": getattr(self.validator, "_compute_edge_coverage", lambda *a: 0.0)(
+                validation_result.get("candidate", "") if validation_result else "", 
+                strategy.get("verifier_code_snippets", []) if strategy else []
+            ),
+            "invariant_tightness": getattr(self.validator, "_compute_invariant_tightness", lambda *a: 0.0)(
+                validation_result.get("candidate", "") if validation_result else "", 
+                strategy.get("verifier_code_snippets", []) if strategy else []
+            ),
+            "fidelity": getattr(self.validator, "last_fidelity", 
+                               validation_result.get("fidelity", 0.8) if validation_result else 0.8),
+            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.72),
+            "c3a_confidence": getattr(self.validator, "last_c", 0.75),
+            "theta_dynamic": getattr(self.validator, "last_theta", 0.65),
+            "EFS": getattr(self, "last_efs", 
+                          validation_result.get("efs", 0.0) if validation_result else 0.0),
+            "real_vs_dry_run_delta": (
+                getattr(self, "last_efs", 0.0) - 
+                (dry_run.get("best_case_efs", 0.0) if dry_run else 0.0)
+            )
+        }
+
+        # Auto-detect failure modes with better granularity
+        failure_modes = []
+        if oracle_metrics["EFS"] < 0.55:
+            failure_modes.append("critical_low_efs")
+        elif oracle_metrics["EFS"] < 0.65:
+            failure_modes.append("low_efs")
+        
+        if oracle_metrics["c3a_confidence"] < 0.65:
+            failure_modes.append("low_c3a_confidence")
+        
+        if dry_run and not dry_run.get("dry_run_passed", True):
+            failure_modes.append("dry_run_failure")
+        
+        if swarm_results and len(swarm_results) > 0:
+            valid_scores = [r.get("local_score", 0) for r in swarm_results if isinstance(r, dict)]
+            if valid_scores:
+                avg_local = sum(valid_scores) / len(valid_scores)
+                if avg_local < 0.50:
+                    failure_modes.append("severe_low_subtask_consistency")
+                elif avg_local < 0.60:
                     failure_modes.append("low_subtask_consistency")
-    
-            # DOUBLE_CLICK readiness check
-            if any(mode in ["low_efs", "low_c3a_confidence", "dry_run_failure"] for mode in failure_modes):
-                failure_modes.append("DOUBLE_CLICK_eligible")
-    
-            context = {
-                "failure_type": failure_type,
-                "task": task[:500],  # prevent huge strings
-                "timestamp": datetime.now().isoformat(),
-                "original_verifiability_contract": strategy.get("verifiability_contract", {}) if strategy else {},
-                "orchestrator_dialogue": strategy.get("orchestrator_dialogue", {}) if strategy else {},
-                "dry_run_result": dry_run or {},
-                "swarm_results_summary": {
-                    "total_subtasks": len(swarm_results or []),
-                    "avg_local_score": round(
-                        sum(r.get("local_score", 0) for r in (swarm_results or []) if isinstance(r, dict)) 
-                        / max(1, len([r for r in (swarm_results or []) if isinstance(r, dict)])), 4)
-                },
-                "oracle_metrics": oracle_metrics,
-                "failure_modes": failure_modes,
-                "loop_count": getattr(self, "loop_count", 0),
-                "recent_history_summary": self.recent_scores[-5:] if hasattr(self, "recent_scores") else [],
-                "goal_md_snippet": goal_md[:300] if goal_md else "",
-                "double_click_recommended": "DOUBLE_CLICK_eligible" in failure_modes
-            }
-    
-            logger.info(f"Built failure context — Type: {failure_type} | Modes: {failure_modes} | DOUBLE_CLICK eligible: {context['double_click_recommended']}")
-    
-            # === TRACE: Failure context complete ===
-            self._append_trace("build_failure_context_complete", 
-                              f"Rich failure context built — {len(failure_modes)} modes detected",
-                              metrics={
-                                  "failure_type": failure_type,
-                                  "failure_modes_count": len(failure_modes),
-                                  "double_click_eligible": context["double_click_recommended"],
-                                  "efs": round(oracle_metrics.get("EFS", 0.0), 4),
-                                  "c3a_confidence": round(oracle_metrics.get("c3a_confidence", 0.0), 4)
-                              })
-    
-            return context
+
+        # DOUBLE_CLICK readiness check (high-signal trigger)
+        double_click_eligible = any(mode in ["critical_low_efs", "low_c3a_confidence", "dry_run_failure", 
+                                           "severe_low_subtask_consistency"] for mode in failure_modes)
+
+        if double_click_eligible:
+            failure_modes.append("DOUBLE_CLICK_eligible")
+
+        context = {
+            "failure_type": failure_type,
+            "task": task[:500],
+            "timestamp": datetime.now().isoformat(),
+            "original_verifiability_contract": strategy.get("verifiability_contract", {}) if strategy else {},
+            "orchestrator_dialogue": strategy.get("orchestrator_dialogue", {}) if strategy else {},
+            "dry_run_result": dry_run or {},
+            "swarm_results_summary": {
+                "total_subtasks": len(swarm_results or []),
+                "avg_local_score": round(
+                    sum(r.get("local_score", 0) for r in (swarm_results or []) if isinstance(r, dict)) 
+                    / max(1, len([r for r in (swarm_results or []) if isinstance(r, dict)])), 4)
+            },
+            "oracle_metrics": oracle_metrics,
+            "failure_modes": failure_modes,
+            "loop_count": getattr(self, "loop_count", 0),
+            "recent_history_summary": self.recent_scores[-6:] if hasattr(self, "recent_scores") else [],
+            "goal_md_snippet": goal_md[:350] if goal_md else "",
+            "double_click_recommended": double_click_eligible,
+            "severity": "high" if double_click_eligible or oracle_metrics["EFS"] < 0.55 else "medium"
+        }
+
+        logger.info(f"Built failure context — Type: {failure_type} | Modes: {failure_modes} | DOUBLE_CLICK eligible: {double_click_eligible}")
+
+        # === TRACE: Failure context complete ===
+        self._append_trace("build_failure_context_complete", 
+                          f"Rich failure context built — {len(failure_modes)} modes detected",
+                          metrics={
+                              "failure_type": failure_type,
+                              "failure_modes_count": len(failure_modes),
+                              "double_click_eligible": double_click_eligible,
+                              "efs": round(oracle_metrics.get("EFS", 0.0), 4),
+                              "c3a_confidence": round(oracle_metrics.get("c3a_confidence", 0.0), 4),
+                              "severity": context["severity"]
+                          })
+
+        return context
                                    
     def _detect_gaps_from_previous_outputs(self, previous_outputs: List) -> List[str]:
         """Lightweight gap detection for proactive ToolHunter and DOUBLE_CLICK handling."""
@@ -1036,64 +1052,72 @@ After creating the contract, critique it internally for completeness and feasibi
         return list(dict.fromkeys(gaps))
         
     def _intelligent_replan(self, failure_context: Dict) -> Dict:
-            """v0.8+ Intelligent Replanner — richer analysis before deciding fix vs full redo."""
-    
-            score = failure_context.get("oracle_metrics", {}).get("EFS", 0.0)
-            is_severe_stall = failure_context.get("is_severe_stall", False)
-            failure_modes = failure_context.get("failure_modes", [])
-            double_click = any("DOUBLE_CLICK" in str(m).upper() for m in failure_modes)
-    
-            # === TRACE: Replan start ===
-            self._append_trace("intelligent_replan_start", 
-                              "Intelligent replanner activated with full failure context",
+        """v0.8+ Intelligent Replanner — richer context-aware analysis before deciding fix vs full redo."""
+
+        score = failure_context.get("oracle_metrics", {}).get("EFS", 0.0)
+        is_severe_stall = failure_context.get("is_severe_stall", False)
+        failure_modes = failure_context.get("failure_modes", [])
+        double_click = any("DOUBLE_CLICK" in str(m).upper() for m in failure_modes)
+        delta = failure_context.get("oracle_metrics", {}).get("real_vs_dry_run_delta", 0.0)
+
+        # === TRACE: Replan start ===
+        self._append_trace("intelligent_replan_start", 
+                          "Intelligent replanner activated with full failure context",
+                          metrics={
+                              "efs": round(score, 4),
+                              "is_severe_stall": is_severe_stall,
+                              "double_click_detected": double_click,
+                              "failure_modes_count": len(failure_modes),
+                              "efs_delta": round(delta, 4)
+                          })
+
+        decision = {
+            "decision": "fix_current_plan",
+            "confidence": 0.65,
+            "spec_fixes": [],
+            "next_action": "targeted_repair",
+            "reasoning": "",
+            "severity": "low"
+        }
+
+        # 1. Highest priority: DOUBLE_CLICK or severe stall
+        if double_click or is_severe_stall or score < 0.52 or abs(delta) > 0.25:
+            decision.update({
+                "decision": "new_strategy_needed",
+                "next_action": "full_replan_or_scientist_mode",
+                "confidence": 0.93,
+                "reasoning": "DOUBLE_CLICK or severe stall / large dry-run divergence detected — full replan or narrow experiment required",
+                "severity": "high"
+            })
+            self._append_trace("replan_decision_new_strategy", 
+                              "NEW STRATEGY NEEDED — Critical stall or DOUBLE_CLICK detected",
                               metrics={
-                                  "efs": round(score, 4),
-                                  "is_severe_stall": is_severe_stall,
-                                  "double_click_detected": double_click,
-                                  "failure_modes_count": len(failure_modes)
+                                  "decision": "new_strategy_needed",
+                                  "confidence": 0.93,
+                                  "trigger": "double_click_or_severe_stall",
+                                  "severity": "high"
                               })
-    
-            decision = {
-                "decision": "fix_current_plan",
-                "confidence": 0.65,
-                "spec_fixes": [],
-                "next_action": "targeted_repair",
-                "reasoning": ""
-            }
-    
-            # 1. Highest priority: DOUBLE_CLICK or severe stall
-            if double_click or is_severe_stall or score < 0.52:
-                decision.update({
-                    "decision": "new_strategy_needed",
-                    "next_action": "full_replan_or_scientist_mode",
-                    "confidence": 0.92,
-                    "reasoning": "DOUBLE_CLICK or severe stall detected — full replan or narrow experiment required"
-                })
-                self._append_trace("replan_decision_new_strategy", 
-                                  "NEW STRATEGY NEEDED — DOUBLE_CLICK or severe stall detected",
-                                  metrics={
-                                      "decision": "new_strategy_needed",
-                                      "confidence": 0.92,
-                                      "trigger": "double_click_or_severe_stall"
-                                  })
-                return decision
+            return decision
 
         # 2. Contract / composability / verifier quality issues → targeted fixes
-        if any(k in str(failure_modes).lower() for k in ["composability", "verifier_quality", "invariant", "contract"]):
+        if any(k in str(failure_modes).lower() for k in ["composability", "verifier_quality", "invariant", "contract", "low_c3a"]):
             decision.update({
                 "spec_fixes": [
                     "Add more symbolic verifier snippets",
                     "Strengthen composability_rules in contract",
-                    "Increase adversarial mocks in dry-run"
+                    "Increase adversarial mocks in dry-run",
+                    "Tighten artifact definitions"
                 ],
-                "reasoning": "Contract or verification gap — applying targeted fixes"
+                "reasoning": "Contract, verifier quality or composability gap detected — applying targeted fixes",
+                "severity": "medium"
             })
             self._append_trace("replan_decision_targeted_fixes", 
-                              "Targeted contract/verifier fixes applied",
+                              "Targeted contract/verifier fixes selected",
                               metrics={
                                   "decision": "fix_current_plan",
-                                  "spec_fixes_count": 3,
-                                  "trigger": "contract_or_verifier_issues"
+                                  "spec_fixes_count": 4,
+                                  "trigger": "contract_or_verifier_issues",
+                                  "severity": "medium"
                               })
             return decision
 
@@ -1101,15 +1125,17 @@ After creating the contract, critique it internally for completeness and feasibi
         if any("tool" in str(m).lower() for m in failure_modes):
             decision.update({
                 "next_action": "tool_hunter_escalation",
-                "reasoning": "Tool/capability gap detected"
+                "reasoning": "Tool or capability gap detected — escalate to ToolHunter",
+                "severity": "medium"
             })
             self._append_trace("replan_decision_tool_escalation", 
                               "ToolHunter escalation triggered",
-                              metrics={"next_action": "tool_hunter_escalation"})
+                              metrics={"next_action": "tool_hunter_escalation", "severity": "medium"})
 
         # 4. Default safe repair
-        decision["spec_fixes"] = ["Increase heterogeneity", "Strengthen verifier snippets"]
-        decision["reasoning"] = "Moderate issues — applying safe targeted repairs"
+        decision["spec_fixes"] = ["Increase heterogeneity", "Strengthen verifier snippets", "Add more diversity in roles"]
+        decision["reasoning"] = "Moderate issues detected — applying safe targeted repairs"
+        decision["severity"] = "low"
 
         logger.info(f"Replan decision: {decision['decision']} | Confidence: {decision['confidence']:.2f} | Reason: {decision['reasoning']}")
 
@@ -1120,108 +1146,86 @@ After creating the contract, critique it internally for completeness and feasibi
                               "final_decision": decision["decision"],
                               "confidence": decision["confidence"],
                               "spec_fixes_count": len(decision["spec_fixes"]),
-                              "reasoning_summary": decision["reasoning"][:120]
+                              "reasoning_summary": decision["reasoning"][:150],
+                              "severity": decision["severity"]
                           })
 
         return decision
         
     def _analyze_swarm_stall(self, subtask_outputs: List[Dict], 
-                                 validation_result: Dict = None, 
-                                 dry_run_result: Dict = None) -> Dict:
-            """SOTA Swarm Stall Detection — distinguishes between local subtask issues and systemic failure."""
-    
-            # === TRACE: Stall analysis start ===
-            self._append_trace("analyze_swarm_stall_start", 
-                              "Starting SOTA swarm stall analysis",
-                              metrics={
-                                  "subtask_count": len(subtask_outputs),
-                                  "has_validation_result": bool(validation_result),
-                                  "has_dry_run_result": bool(dry_run_result)
-                              })
-    
-            if not subtask_outputs:
-                self._append_trace("analyze_swarm_stall_complete", 
-                                  "No subtask outputs — severe stall",
-                                  metrics={"is_severe_stall": True, "reason": "no_outputs"})
-                return {"is_severe_stall": True, "reason": "no_outputs"}
-    
-            scores = [o.get("local_score", 0.0) for o in subtask_outputs if isinstance(o, dict)]
-            if not scores:
-                self._append_trace("analyze_swarm_stall_complete", 
-                                  "No valid scores — severe stall",
-                                  metrics={"is_severe_stall": True, "reason": "no_scores"})
-                return {"is_severe_stall": True, "reason": "no_scores"}
-    
-            avg_score = np.mean(scores)
-            min_score = min(scores)
-            low_performers = sum(1 for s in scores if s < 0.55)
-            severe_low = low_performers / len(scores) > 0.5
-    
-            real_efs = validation_result.get("efs", 0.0) if validation_result else 0.0
-            dry_efs = dry_run_result.get("best_case_efs", 0.0) if dry_run_result else 0.0
-            delta = real_efs - dry_efs
-    
-            hetero = self._compute_heterogeneity_score().get("heterogeneity_score", 0.72)
-    
-            stall_context = {
-                "is_severe_stall": False,
-                "avg_score": round(avg_score, 3),
-                "min_score": round(min_score, 3),
-                "low_performer_ratio": round(low_performers / len(scores), 3),
-                "efs_delta": round(delta, 3),
-                "heterogeneity": round(hetero, 3),
-                "reason": "",
-                "recommendation": "continue"
-            }
-    
-            # 1. Severe systemic failure → full replan
-            if delta < -0.18 or (avg_score < 0.48 and severe_low):
-                stall_context.update({
-                    "is_severe_stall": True,
-                    "reason": "severe_efs_drop_or_systemic_failure",
-                    "recommendation": "full_replan"
-                })
-                self._append_trace("analyze_swarm_stall_complete", 
-                                  "Severe systemic stall detected",
-                                  metrics={
-                                      "is_severe_stall": True,
-                                      "reason": "severe_efs_drop_or_systemic_failure",
-                                      "efs_delta": round(delta, 3),
-                                      "avg_score": round(avg_score, 3)
-                                  })
-                return stall_context
-    
-            # 2. Moderate stall — try local adjustment first
-            if (delta < -0.10 or min_score < 0.45 or hetero < 0.58):
-                stall_context.update({
-                    "is_severe_stall": False,
-                    "reason": "moderate_stall_local_adjustment_recommended",
-                    "recommendation": "local_repair_or_diversity_boost"
-                })
-                self._append_trace("analyze_swarm_stall_complete", 
-                                  "Moderate stall detected — local repair recommended",
-                                  metrics={
-                                      "is_severe_stall": False,
-                                      "reason": "moderate_stall_local_adjustment_recommended",
-                                      "efs_delta": round(delta, 3),
-                                      "min_score": round(min_score, 3),
-                                      "heterogeneity": round(hetero, 3)
-                                  })
-                return stall_context
-    
-            # 3. Healthy enough — continue
-            stall_context["reason"] = "no_significant_stall"
-            
+                             validation_result: Dict = None, 
+                             dry_run_result: Dict = None) -> Dict:
+        """SOTA Swarm Stall Detection — distinguishes between local subtask issues and systemic failure.
+        Uses multi-metric analysis for accurate classification and intelligent recommendations."""
+
+        # === TRACE: Stall analysis start ===
+        self._append_trace("analyze_swarm_stall_start", 
+                          "Starting SOTA swarm stall analysis",
+                          metrics={
+                              "subtask_count": len(subtask_outputs),
+                              "has_validation_result": bool(validation_result),
+                              "has_dry_run_result": bool(dry_run_result)
+                          })
+
+        if not subtask_outputs:
+            analysis = {"is_severe_stall": True, "reason": "no_outputs", "recommendation": "full_replan"}
             self._append_trace("analyze_swarm_stall_complete", 
-                              "No significant stall detected — continue",
-                              metrics={
-                                  "is_severe_stall": False,
-                                  "reason": "no_significant_stall",
-                                  "avg_score": round(avg_score, 3),
-                                  "efs_delta": round(delta, 3)
-                              })
-    
-            return stall_context
+                              "Severe stall — no subtask outputs",
+                              metrics=analysis)
+            return analysis
+
+        scores = [o.get("local_score", 0.0) for o in subtask_outputs if isinstance(o, dict)]
+        if not scores:
+            analysis = {"is_severe_stall": True, "reason": "no_scores", "recommendation": "full_replan"}
+            self._append_trace("analyze_swarm_stall_complete", 
+                              "Severe stall — no valid scores",
+                              metrics=analysis)
+            return analysis
+
+        avg_score = np.mean(scores)
+        min_score = min(scores)
+        low_performers = sum(1 for s in scores if s < 0.55)
+        low_performer_ratio = low_performers / len(scores)
+        severe_low = low_performer_ratio > 0.45
+
+        real_efs = validation_result.get("efs", 0.0) if validation_result else 0.0
+        dry_efs = dry_run_result.get("best_case_efs", 0.0) if dry_run_result else 0.0
+        delta = real_efs - dry_efs
+
+        hetero = self._compute_heterogeneity_score().get("heterogeneity_score", 0.72)
+
+        # Intelligent stall classification
+        if delta < -0.22 or (avg_score < 0.45 and severe_low):
+            is_severe_stall = True
+            reason = "severe_efs_drop_or_systemic_failure"
+            recommendation = "full_replan"
+        elif delta < -0.11 or min_score < 0.42 or hetero < 0.55 or low_performer_ratio > 0.35:
+            is_severe_stall = False
+            reason = "moderate_stall_local_adjustment_recommended"
+            recommendation = "local_repair_or_diversity_boost"
+        else:
+            is_severe_stall = False
+            reason = "no_significant_stall"
+            recommendation = "continue"
+
+        stall_context = {
+            "is_severe_stall": is_severe_stall,
+            "avg_score": round(avg_score, 4),
+            "min_score": round(min_score, 4),
+            "low_performer_ratio": round(low_performer_ratio, 4),
+            "efs_delta": round(delta, 4),
+            "heterogeneity": round(hetero, 4),
+            "reason": reason,
+            "recommendation": recommendation
+        }
+
+        self._append_trace("analyze_swarm_stall_complete", 
+                          f"Stall analysis finished — Severe: {is_severe_stall} | Reason: {reason}",
+                          metrics=stall_context)
+
+        logger.info(f"Swarm stall analysis: {reason} (delta: {delta:.4f}, avg_score: {avg_score:.4f})")
+
+        return stall_context
         
     def compute_confidence(self, edge_coverage: float, invariant_tightness: float, historical_reliability: float) -> float:
         """Compute C3A confidence score with floor and ceiling."""
@@ -2863,7 +2867,7 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
         """v0.8+ Full inner loop execution with exact flow:
         Swarm → Raw Recompose → Symbiosis Arbos (pattern discovery) →
         Synthesis Arbos (enriched debate + contract enforcement) → Final Validation.
-        Fully wired with observability trace_log."""
+        Fully wired with observability trace_log and intelligent stall handling."""
     
         self._append_trace("execute_full_cycle_start", f"Starting cycle for challenge: {challenge[:100]}...")
     
@@ -2937,6 +2941,7 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
             dry_run_result
         )
     
+        # === WIRING: Stall block (as requested) ===
         if stall_analysis.get("is_severe_stall", False):
             logger.warning(f"Real swarm stall detected. Delta: {stall_analysis.get('delta', 0):.3f}")
             failure_context = self._build_failure_context(
@@ -5165,6 +5170,81 @@ Return ONLY valid JSON:
     
             return meta_result
 
+    def analyze_run(self, oracle_result: Dict, run_data: dict):
+        """Pruning Advisor — generates actionable toggle and module recommendations 
+        based on run performance, heterogeneity, EFS impact, and trace patterns."""
+
+        # === TRACE: Pruning Advisor start ===
+        self._append_trace("pruning_advisor_analyzed_start", 
+                          "Pruning Advisor analyzing current run performance",
+                          metrics={
+                              "efs": round(oracle_result.get("efs", 0.0), 4),
+                              "heterogeneity": round(oracle_result.get("heterogeneity_score", 0.0), 4)
+                          })
+
+        recommendations = []
+
+        efs = oracle_result.get("efs", 0.0)
+        hetero = oracle_result.get("heterogeneity_score", 0.0)
+        trace_length = len(getattr(self, 'trace_log', []))
+
+        # High-priority recommendations
+        if efs < 0.62:
+            recommendations.append({
+                "module": "embodiment_enabled",
+                "action": "disable",
+                "reason": "Low EFS — embodiment modules showing negative or neutral impact in recent runs",
+                "priority": "high",
+                "expected_efs_gain": "+0.08 to +0.15"
+            })
+
+        if hetero < 0.58 and trace_length > 25:
+            recommendations.append({
+                "module": "rps_pps_enabled",
+                "action": "disable",
+                "reason": "Low heterogeneity contribution from pattern surfacers",
+                "priority": "medium",
+                "expected_efs_gain": "+0.04 to +0.09"
+            })
+
+        if efs > 0.81:
+            recommendations.append({
+                "module": "hybrid_ingestion_enabled",
+                "action": "enable",
+                "reason": "High EFS — hybrid ingestion likely contributing positively",
+                "priority": "low",
+                "expected_efs_gain": "maintain or slight increase"
+            })
+
+        # Memory-related recommendation
+        if trace_length > 40 and getattr(self, 'loop_count', 0) % 5 == 0:
+            recommendations.append({
+                "module": "memory_compression",
+                "action": "increase_aggression",
+                "reason": "Long trace history — increase compression to maintain performance",
+                "priority": "medium"
+            })
+
+        if not recommendations:
+            recommendations.append({
+                "module": "none",
+                "action": "maintain_current",
+                "reason": "All systems performing optimally — no pruning recommended",
+                "priority": "low"
+            })
+
+        self._append_trace("pruning_advisor_analyzed", 
+                          f"Pruning Advisor generated {len(recommendations)} recommendations",
+                          metrics={
+                              "recommendations_count": len(recommendations),
+                              "efs": round(efs, 4),
+                              "heterogeneity": round(hetero, 4),
+                              "high_priority_count": sum(1 for r in recommendations if r.get("priority") == "high")
+                          })
+
+        logger.info(f"Pruning Advisor completed — {len(recommendations)} recommendations generated")
+
+        return recommendations
     # ====================== REAL TPE HELPERS ======================
 
     def _generate_tpe_mutants(self, base_constants: Dict) -> List[Dict]:
@@ -5320,185 +5400,187 @@ Return ONLY valid JSON:
             
     # ====================== v0.6 FULLY WIRED: _end_of_run (all 8 features integrated) ======================
     def _end_of_run(self, run_data: dict):
-            """v0.8+ Final high-signal processing — embodiment, pattern surfacing,
-            MP4 archival (with Scientist Mode summary), retrospectives,
-            fragmented memory re-scoring, and outer-loop evolution."""
-    
-            score = run_data.get("final_score", 0.0)
-            efs = run_data.get("efs", 0.0)
-            best_solution = run_data.get("best_solution", "")
-            diagnostics = run_data.get("diagnostics", {})
-            
-            logger.info(f"🔄 _end_of_run — Score: {score:.3f} | EFS: {efs:.3f} | Loop: {self.loop_count}")
-    
-            # === TRACE: Start of end-of-run ===
-            self._append_trace("end_of_run_start", 
-                              f"Processing high-signal run — Score: {score:.3f} | EFS: {efs:.3f}")
-    
-            # Build oracle result for downstream modules
-            oracle_result = {
+        """v0.8+ Final high-signal processing — embodiment, pattern surfacing,
+        MP4 archival (with Scientist Mode summary), retrospectives,
+        fragmented memory re-scoring, and outer-loop evolution."""
+
+        score = run_data.get("final_score", 0.0)
+        efs = run_data.get("efs", 0.0)
+        best_solution = run_data.get("best_solution", "")
+        diagnostics = run_data.get("diagnostics", {})
+        
+        logger.info(f"🔄 _end_of_run — Score: {score:.3f} | EFS: {efs:.3f} | Loop: {self.loop_count}")
+
+        # === TRACE: Start of end-of-run ===
+        self._append_trace("end_of_run_start", 
+                          f"Processing high-signal run — Score: {score:.3f} | EFS: {efs:.3f}")
+
+        # Build oracle result for downstream modules
+        oracle_result = {
+            "efs": efs,
+            "validation_score": score,
+            "fidelity": diagnostics.get("fidelity", 0.82),
+            "c3a_confidence": diagnostics.get("c3a_confidence", 0.75),
+            "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.72),
+            "dry_run_passed": diagnostics.get("dry_run_passed", True),
+            "verifiability_contract": getattr(self, '_current_strategy', {}).get("verifiability_contract", {}),
+            "scientist_summary": run_data.get("scientist_summary", {})
+        }
+
+        # 1. MP4 Archival with full context
+        try:
+            archive_data = {
+                "mau_pyramid": getattr(self.memory_layers, 'get_mau_summary', lambda: {})(),
+                "wiki_snapshot": self._get_wiki_snapshot() if hasattr(self, '_get_wiki_snapshot') else {},
+                "c3a_logs": diagnostics,
+                "grail": run_data,
+                "trajectories": self.recent_scores[-10:],
+                "final_score": score,
                 "efs": efs,
-                "validation_score": score,
-                "fidelity": diagnostics.get("fidelity", 0.82),
-                "c3a_confidence": diagnostics.get("c3a_confidence", 0.75),
-                "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.72),
-                "dry_run_passed": diagnostics.get("dry_run_passed", True),
-                "verifiability_contract": getattr(self, '_current_strategy', {}).get("verifiability_contract", {}),
-                "scientist_summary": run_data.get("scientist_summary", {})
+                "experiment_summary": run_data.get("scientist_summary", {})
             }
-    
-            # 1. MP4 Archival with full context
+            mp4_path = self.video_archiver.archive_run_to_mp4(archive_data, f"run_{self.loop_count}")
+            logger.info(f"✅ MP4 archived: {mp4_path}")
+            self._append_trace("mp4_archival_complete", f"MP4 saved to {mp4_path}")
+        except Exception as e:
+            logger.debug(f"Video archival skipped (safe): {e}")
+            self._append_trace("mp4_archival_skipped", str(e))
+
+        # 2. Fragmented Memory Re-scoring + Dynamic Impact Update (v0.8+ Core)
+        try:
+            self._re_score_fragments(run_data)
+            logger.info("✅ Fragmented memory re-scoring completed")
+            self._append_trace("fragment_re_scoring_complete", "Utilization scores updated")
+        except Exception as e:
+            logger.debug(f"Fragment re-scoring skipped (safe): {e}")
+            self._append_trace("fragment_re_scoring_skipped", str(e))
+
+        # 3. Retrospective + Audit (gated)
+        if self.toggles.get("retrospective_enabled", True) and score > 0.75:
             try:
-                archive_data = {
-                    "mau_pyramid": getattr(self.memory_layers, 'get_mau_summary', lambda: {})(),
-                    "wiki_snapshot": self._get_wiki_snapshot() if hasattr(self, '_get_wiki_snapshot') else {},
-                    "c3a_logs": diagnostics,
-                    "grail": run_data,
-                    "trajectories": self.recent_scores[-10:],
-                    "final_score": score,
-                    "efs": efs,
-                    "experiment_summary": run_data.get("scientist_summary", {})
+                self.history_hunter.trigger_retrospective(
+                    run_id=f"run_{self.loop_count}",
+                    oracle_result=oracle_result
+                )
+                self._append_trace("retrospective_triggered", "High-signal retrospective executed")
+            except Exception as e:
+                logger.debug(f"Retrospective skipped (safe): {e}")
+
+        # 4. Automatic Outer-Loop Evolution on high-signal runs
+        if score > 0.82 or efs > 0.75:
+            logger.info("High-signal run detected — triggering automatic outer-loop evolution")
+            self._append_trace("outer_loop_evolution_start", "High-signal trigger activated")
+
+            if hasattr(self, 'evolve_principles_post_run'):
+                self.evolve_principles_post_run(
+                    best_solution=best_solution,
+                    best_score=score,
+                    best_diagnostics=diagnostics
+                )
+            if hasattr(self, 'evolve_compression_prompt'):
+                self.evolve_compression_prompt(score, 0.92)
+            if hasattr(self, 'meta_reflect'):
+                self.meta_reflect(best_solution, score, diagnostics)
+
+            # v0.8+: Contract evolution from high-signal runs
+            if score > 0.88 and hasattr(self, '_apply_contract_delta'):
+                delta = {
+                    "provenance": "high_signal_end_of_run",
+                    "delta_type": "contract_strengthening",
+                    "content": f"High EFS run ({efs:.3f}) → recommend tighter composability rules, more symbolic verifier snippets, and stronger artifact merge interfaces.",
+                    "source": "End-of-Run + Meta-Tuning"
                 }
-                mp4_path = self.video_archiver.archive_run_to_mp4(archive_data, f"run_{self.loop_count}")
-                logger.info(f"✅ MP4 archived: {mp4_path}")
-                self._append_trace("mp4_archival_complete", f"MP4 saved to {mp4_path}")
-            except Exception as e:
-                logger.debug(f"Video archival skipped (safe): {e}")
-                self._append_trace("mp4_archival_skipped", str(e))
-    
-            # 2. Fragmented Memory Re-scoring + Dynamic Impact Update (v0.8+ Core)
+                self._apply_contract_delta(delta)
+                self._append_trace("contract_delta_applied", "High-signal contract strengthening")
+
+        # 5. Advanced Embodiment + Pattern Surfacers
+        if self.toggles.get("embodiment_enabled", True):
             try:
-                self._re_score_fragments(run_data)
-                logger.info("✅ Fragmented memory re-scoring completed")
-                self._append_trace("fragment_re_scoring_complete", "Utilization scores updated")
+                threading.Thread(target=self.neurogenesis.spawn_if_high_delta,
+                               args=(oracle_result,), daemon=True).start()
+                threading.Thread(target=self.microbiome.ferment_novelty,
+                               args=(best_solution[:2000], oracle_result), daemon=True).start()
+                threading.Thread(target=self.vagus.monitor_hardware_state,
+                               args=(oracle_result,), daemon=True).start()
+                self._append_trace("embodiment_threads_launched", "Neurogenesis, Microbiome, Vagus activated")
             except Exception as e:
-                logger.debug(f"Fragment re-scoring skipped (safe): {e}")
-                self._append_trace("fragment_re_scoring_skipped", str(e))
-    
-            # 3. Retrospective + Audit (gated)
-            if self.toggles.get("retrospective_enabled", True) and score > 0.75:
-                try:
-                    self.history_hunter.trigger_retrospective(
-                        run_id=f"run_{self.loop_count}",
-                        oracle_result=oracle_result
-                    )
-                    self._append_trace("retrospective_triggered", "High-signal retrospective executed")
-                except Exception as e:
-                    logger.debug(f"Retrospective skipped (safe): {e}")
-    
-            # 4. Automatic Outer-Loop Evolution on high-signal runs
-            if score > 0.82 or efs > 0.75:
-                logger.info("High-signal run detected — triggering automatic outer-loop evolution")
-                self._append_trace("outer_loop_evolution_start", "High-signal trigger activated")
-    
-                if hasattr(self, 'evolve_principles_post_run'):
-                    self.evolve_principles_post_run(
-                        best_solution=best_solution,
-                        best_score=score,
-                        best_diagnostics=diagnostics
-                    )
-                if hasattr(self, 'evolve_compression_prompt'):
-                    self.evolve_compression_prompt(score, 0.92)
-                if hasattr(self, 'meta_reflect'):
-                    self.meta_reflect(best_solution, score, diagnostics)
-    
-                # v0.8+: Contract evolution from high-signal runs
-                if score > 0.88 and hasattr(self, '_apply_contract_delta'):
-                    delta = {
-                        "provenance": "high_signal_end_of_run",
-                        "delta_type": "contract_strengthening",
-                        "content": f"High EFS run ({efs:.3f}) → recommend tighter composability rules, more symbolic verifier snippets, and stronger artifact merge interfaces.",
-                        "source": "End-of-Run + Meta-Tuning"
-                    }
-                    self._apply_contract_delta(delta)
-                    self._append_trace("contract_delta_applied", "High-signal contract strengthening")
-    
-            # 5. Advanced Embodiment + Pattern Surfacers
-            if self.toggles.get("embodiment_enabled", True):
-                try:
-                    threading.Thread(target=self.neurogenesis.spawn_if_high_delta,
-                                   args=(oracle_result,), daemon=True).start()
-                    threading.Thread(target=self.microbiome.ferment_novelty,
-                                   args=(best_solution[:2000], oracle_result), daemon=True).start()
-                    threading.Thread(target=self.vagus.monitor_hardware_state,
-                                   args=(oracle_result,), daemon=True).start()
-                    self._append_trace("embodiment_threads_launched", "Neurogenesis, Microbiome, Vagus activated")
-                except Exception as e:
-                    logger.debug(f"Embodiment threads skipped (safe): {e}")
-    
-            if self.toggles.get("rps_pps_enabled", True):
-                try:
-                    self.rps.surface_resonance(oracle_result=oracle_result)
-                    self.pps.surface_photoelectric(oracle_result=oracle_result)
-                    self._append_trace("pattern_surfacer_complete", "Resonance + Photoelectric patterns surfaced")
-                except Exception as e:
-                    logger.debug(f"Pattern surfacers skipped (safe): {e}")
-    
-            # 6. Meta-Tuning Integration (high-signal or periodic)
-            if score > 0.78 or (self.loop_count % 4 == 0):
-                try:
-                    meta_result = self.run_meta_tuning_cycle(
-                        stall_detected=self._is_stale_regime(self.recent_scores),
-                        oracle_result=oracle_result
-                    )
-                    logger.info("Meta-tuning cycle completed in _end_of_run")
-                    self._append_trace("meta_tuning_complete", "Outer-loop tuning executed")
-                except Exception as e:
-                    logger.debug(f"Meta-tuning skipped (safe): {e}")
-    
-            # 7. Pruning Advisor synergy
-            if hasattr(self, 'pruning_advisor') and score > 0.75:
-                try:
-                    self.pruning_advisor.analyze_run(oracle_result, run_data)
-                    self._append_trace("pruning_advisor_analyzed", "Run analyzed for toggle recommendations")
-                except Exception as e:
-                    logger.debug(f"Pruning Advisor skipped (safe): {e}")
-    
-            # 8. Contract Evolution (final high-signal check)
-            if score > 0.88 and hasattr(self, '_evolve_verification_contract_from_synthetic'):
-                try:
-                    delta = self._evolve_verification_contract_from_synthetic({
-                        "score": score,
-                        "efs": efs,
-                        "contract_recommendation": "High-signal real run"
-                    })
-                    if delta:
-                        self._append_trace("contract_evolution_applied", "Verification contract strengthened")
-                except Exception as e:
-                    logger.debug(f"Contract evolution skipped: {e}")
-    
-            # 9. Stigmergic Trace + Memory Cleanup + Provenance Audit
-            trace = {
-                "loop": self.loop_count,
-                "final_score": round(score, 4),
-                "efs": round(efs, 4),
-                "heterogeneity": oracle_result.get("heterogeneity_score", 0.72),
-                "c3a": oracle_result.get("c3a_confidence", 0.75),
-                "timestamp": datetime.now().isoformat(),
-                "oracle_result": oracle_result
-            }
-    
-            # Final safety guardrails
-            guardrail_result = apply_guardrails(str(best_solution), context={"efs": efs})
-            if not guardrail_result.get("passed", True):
-                logger.critical(f"End-of-run guardrails failed: {guardrail_result.get('reason')}")
-                self._append_trace("end_of_run_guardrail_failure", guardrail_result.get("reason", ""))
-    
-            self._write_stigmergic_trace(trace)
-            self.memory_layers.compress_low_value(current_score=score)
-    
-            # NEW: Automatic provenance audit for notebook export
+                logger.debug(f"Embodiment threads skipped (safe): {e}")
+
+        if self.toggles.get("rps_pps_enabled", True):
             try:
-                self._export_provenance_audit_log(run_data)
-                self._append_trace("provenance_audit_exported", "Notebook-ready audit log created")
+                self.rps.surface_resonance(oracle_result=oracle_result)
+                self.pps.surface_photoelectric(oracle_result=oracle_result)
+                self._append_trace("pattern_surfacer_complete", "Resonance + Photoelectric patterns surfaced")
             except Exception as e:
-                logger.debug(f"Provenance audit export skipped (safe): {e}")
-    
-            # === TRACE: End of run complete ===
-            self._append_trace("end_of_run_complete", 
-                              f"Outer-loop evolution + fragmented memory update finished | Final EFS: {efs:.3f}")
-    
-            logger.info("✅ _end_of_run complete — outer-loop evolution + fragmented memory update executed")
+                logger.debug(f"Pattern surfacers skipped (safe): {e}")
+
+        # 6. Meta-Tuning Integration (high-signal or periodic)
+        if score > 0.78 or (self.loop_count % 4 == 0):
+            try:
+                meta_result = self.run_meta_tuning_cycle(
+                    stall_detected=self._is_stale_regime(self.recent_scores),
+                    oracle_result=oracle_result
+                )
+                logger.info("Meta-tuning cycle completed in _end_of_run")
+                self._append_trace("meta_tuning_complete", "Outer-loop tuning executed")
+            except Exception as e:
+                logger.debug(f"Meta-tuning skipped (safe): {e}")
+
+        # 7. Pruning Advisor synergy (WIRING)
+        try:
+            recs = self.analyze_run(oracle_result, run_data)
+            self._append_trace("pruning_advisor_analyzed", 
+                              f"Generated {len(recs)} recommendations",
+                              metrics={"recommendations_count": len(recs)})
+        except Exception as e:
+            logger.debug(f"Pruning Advisor skipped: {e}")
+            self._append_trace("pruning_advisor_skipped", str(e))
+
+        # 8. Contract Evolution (final high-signal check)
+        if score > 0.88 and hasattr(self, '_evolve_verification_contract_from_synthetic'):
+            try:
+                delta = self._evolve_verification_contract_from_synthetic({
+                    "score": score,
+                    "efs": efs,
+                    "contract_recommendation": "High-signal real run"
+                })
+                if delta:
+                    self._append_trace("contract_evolution_applied", "Verification contract strengthened")
+            except Exception as e:
+                logger.debug(f"Contract evolution skipped: {e}")
+
+        # 9. Stigmergic Trace + Memory Cleanup + Provenance Audit
+        trace = {
+            "loop": self.loop_count,
+            "final_score": round(score, 4),
+            "efs": round(efs, 4),
+            "heterogeneity": oracle_result.get("heterogeneity_score", 0.72),
+            "c3a": oracle_result.get("c3a_confidence", 0.75),
+            "timestamp": datetime.now().isoformat(),
+            "oracle_result": oracle_result
+        }
+
+        # Final safety guardrails
+        guardrail_result = apply_guardrails(str(best_solution), context={"efs": efs})
+        if not guardrail_result.get("passed", True):
+            logger.critical(f"End-of-run guardrails failed: {guardrail_result.get('reason')}")
+            self._append_trace("end_of_run_guardrail_failure", guardrail_result.get("reason", ""))
+
+        self._write_stigmergic_trace(trace)
+        self.memory_layers.compress_low_value(current_score=score)
+
+        # NEW: Automatic provenance audit for notebook export
+        try:
+            self._export_provenance_audit_log(run_data)
+            self._append_trace("provenance_audit_exported", "Notebook-ready audit log created")
+        except Exception as e:
+            logger.debug(f"Provenance audit export skipped (safe): {e}")
+
+        # === TRACE: End of run complete ===
+        self._append_trace("end_of_run_complete", 
+                          f"Outer-loop evolution + fragmented memory update finished | Final EFS: {efs:.3f}")
+
+        logger.info("✅ _end_of_run complete — outer-loop evolution + fragmented memory update executed")
                 
     # ====================== v0.6 helper for wiki snapshot (used in run_data) ======================
     def _get_wiki_snapshot(self) -> dict:
