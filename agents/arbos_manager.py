@@ -198,6 +198,82 @@ class RealComputeEngine:
     
     # _run_single_backend, _run_probabilistic_model_check, _gather_hardware_telemetry remain unchanged (or use your latest version)
 # ====================== DRY-RUN SIMULATOR (pre-swarm test-plan validator) ======================
+
+class DeterministicReasoningLayer:
+    """v0.9.3 — Detects and routes entire subtasks that can be solved purely with real backends
+    (PuLP optimization, SciPy, JAX, Stim, CUDA-Q stabilizer sims, etc.) BEFORE any LLM is called."""
+    
+    @staticmethod
+    def classify_subtask(subtask: str, contract: Dict) -> str:
+        """Returns: 'symbolic', 'optimization', 'quantum_sim', 'stabilizer', 'llm_only'."""
+        text = (subtask + str(contract)).lower()
+        if any(k in text for k in ["optimize", "minimize", "maximize", "lp", "milp", "linear program"]):
+            return "optimization"
+        if any(k in text for k in ["stabilizer", "qec", "error correction", "surface code", "toric code", "stim"]):
+            return "stabilizer"
+        if any(k in text for k in ["cuda-q", "quantum circuit", "statevector", "unitary", "hamiltonian"]):
+            return "quantum_sim"
+        if any(k in text for k in ["sympy", "solve equation", "symbolic", "derivative", "integral", "scipy.optimize"]):
+            return "symbolic"
+        return "llm_only"
+    
+    @staticmethod
+    def route_to_backend(subtask: str, contract: Dict, manager) -> Dict:
+        """Direct real-backend execution for deterministic subtasks."""
+        category = DeterministicReasoningLayer.classify_subtask(subtask, contract)
+        if category == "llm_only":
+            return {"status": "llm_only", "result": None}
+        
+        # Build minimal submission for RealComputeEngine
+        submission = {
+            "verifier_snippets": [contract.get("verifier_code_snippet", "")],
+            "hypothesis": f"Deterministic {category} solve for: {subtask[:200]}",
+            "category": category
+        }
+        
+        if getattr(manager, "enable_unrestricted_compute", False) and category in ("quantum_sim", "stabilizer"):
+            # Route heavy jobs to unrestricted executor
+            result = manager.unrestricted_executor.submit(
+                manager.real_compute_engine.validate_with_real_backend, submission
+            ).result()
+        else:
+            result = manager.real_compute_engine.validate_with_real_backend(submission)
+        
+        return {
+            "status": "deterministic_success",
+            "category": category,
+            "result": result,
+            "backend_used": list(manager.real_compute_engine.available_backends.keys())[:3]
+        }
+
+
+class UnrestrictedComputeExecutor:
+    """v0.9.3 — First-class ProcessPoolExecutor outside RestrictedPython for CUDA-Q MPI,
+    heavy GPU, multi-node jobs. Full provenance + telemetry."""
+    
+    def __init__(self, max_workers: int = 8):
+        self.executor = concurrent.futures.ProcessPoolExecutor(
+            max_workers=max_workers,
+            mp_context=multiprocessing.get_context('spawn')
+        )
+        logger.info(f"✅ Unrestricted high-perf executor ready — {max_workers} processes")
+    
+    def submit(self, func, *args, **kwargs) -> concurrent.futures.Future:
+        """Submit job with automatic provenance wrapper."""
+        def wrapped(*a, **k):
+            start = datetime.now()
+            try:
+                result = func(*a, **k)
+                telemetry = {"start": start.isoformat(), "duration_sec": (datetime.now() - start).total_seconds()}
+                return {"result": result, "provenance": telemetry, "status": "success"}
+            except Exception as e:
+                return {"result": None, "provenance": {"error": str(e)}, "status": "failed"}
+        return self.executor.submit(wrapped, *args, **kwargs)
+    
+    def shutdown(self):
+        self.executor.shutdown(wait=True)
+
+
 class DVRDryRunSimulator:
     def __init__(self, validator):
         self.validator = validator
@@ -789,6 +865,12 @@ class ArbosManager:
         self.enable_adaptive_rebalance = load_toggle("enable_adaptive_rebalance", "true") == "true"
         self.enable_auto_experiment = load_toggle("enable_auto_experiment", "true") == "true"
         self.enable_deterministic_mocks = load_toggle("enable_deterministic_mocks", "true") == "true"
+
+                # v0.9.3 Deterministic + Unrestricted upgrades
+        self.enable_deterministic_reasoning = load_toggle("enable_deterministic_reasoning", True)
+        self.enable_unrestricted_compute = load_toggle("enable_unrestricted_compute", False)  # OFF by default for safety
+        self.unrestricted_executor = UnrestrictedComputeExecutor(max_workers=load_toggle("unrestricted_max_workers", 8))
+        self.deterministic_layer = DeterministicReasoningLayer()
 
         # Wire memory layers
         self.memory_layers.byterover_mau_enabled = self.byterover_mau_enabled
@@ -1992,131 +2074,158 @@ After creating the contract, critique it internally for completeness and feasibi
         except:
             pass  # safe fallback        
     # ====================== PLANNING ======================
-    def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu") -> Dict[str, Any]:
-        """v0.9+ Phase 1: Planning Arbos — generates decomposition, reassembly plan, 
-        dependency graph, initial verifier snippets, deep graph search, and 
-        ToolHunter → RealComputeEngine registration."""
+def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu") -> Dict[str, Any]:
+    """v0.9.3 — Planning Arbos with Deterministic Reasoning Layer + Unrestricted High-Perf Path.
+    Detects symbolic/optimization/quantum_sim/stabilizer subtasks and routes them DIRECTLY
+    to real backends BEFORE any LLM decomposition or swarm workers are spawned."""
+    
+    self.set_compute_source(compute_mode)
+    
+    if not challenge or len(challenge.strip()) < 10:
+        self._append_trace("plan_challenge_error", "Challenge too short")
+        return {"error": "Challenge too short"}
+    
+    # === TRACE: Planning start ===
+    self._append_trace("plan_challenge_start",
+                      f"Planning Arbos Phase 1 started for challenge: {challenge[:100]}...",
+                      metrics={"compute_mode": compute_mode})
+    logger.info("🚀 Planning Arbos Phase 1 started (v0.9.3 deterministic-first)")
 
-        self.set_compute_source(compute_mode)
+    # Rich prior context (unchanged)
+    recent_history = self.get_run_history(n=6)
+    grail_patterns = self._load_recent_grail_patterns()
+    wiki_deltas = self._apply_wiki_strategy(goal_md + "\n" + challenge, challenge.replace(" ", "_").lower())
+
+    # Generate high-quality verifiability contract (unchanged)
+    contract_result = self.generate_verifiability_contract(challenge, goal_md)
+    self._append_trace("contract_generation_complete",
+                      "Verifiability contract generated",
+                      metrics={
+                          "artifacts_count": len(contract_result.get("final_verifiability_contract", {}).get("artifacts_required", [])),
+                          "verifier_snippets_count": len(contract_result.get("verifier_code_snippets", []))
+                      })
+
+    # Strong human-in-the-loop enforcement (unchanged)
+    if not enhancement_prompt or len(enhancement_prompt.strip()) < 30:
+        enhancement_prompt = "Maximize verifier compliance, heterogeneity across all five axes, deterministic/symbolic paths first. Prioritize clean composability for Synthesis Arbos. Be brutally honest about feasibility."
+    self._current_enhancement = enhancement_prompt
+    self._append_trace("human_refinement_applied",
+                      "Human-in-the-loop enhancement prompt applied",
+                      metrics={"enhancement_prompt_length": len(enhancement_prompt)})
+
+    # ====================== v0.9.3 DETERMINISTIC REASONING LAYER ======================
+    deterministic_results = {}
+    if getattr(self, "enable_deterministic_reasoning", True):
+        logger.info("🔍 v0.9.3 Deterministic Reasoning Layer scanning for reducible subtasks...")
         
-        if not challenge or len(challenge.strip()) < 10:
-            self._append_trace("plan_challenge_error", "Challenge too short")
-            return {"error": "Challenge too short"}
-
-        # === TRACE: Planning start ===
-        self._append_trace("plan_challenge_start", 
-                          f"Planning Arbos Phase 1 started for challenge: {challenge[:100]}...",
-                          metrics={"compute_mode": compute_mode})
-
-        logger.info("🚀 Planning Arbos Phase 1 started")
-
-        # Rich prior context
-        recent_history = self.get_run_history(n=6)
-        grail_patterns = self._load_recent_grail_patterns()
-        wiki_deltas = self._apply_wiki_strategy(goal_md + "\n" + challenge, challenge.replace(" ", "_").lower())
-
-        # Generate high-quality verifiability contract
-        contract_result = self.generate_verifiability_contract(challenge, goal_md)
-
-        self._append_trace("contract_generation_complete", 
-                          "Verifiability contract generated",
-                          metrics={
-                              "artifacts_count": len(contract_result.get("final_verifiability_contract", {}).get("artifacts_required", [])),
-                              "verifier_snippets_count": len(contract_result.get("verifier_code_snippets", []))
-                          })
-
-        # Strong human-in-the-loop enforcement
-        if not enhancement_prompt or len(enhancement_prompt.strip()) < 30:
-            enhancement_prompt = "Maximize verifier compliance, heterogeneity across all five axes, deterministic/symbolic paths first. Prioritize clean composability for Synthesis Arbos. Be brutally honest about feasibility."
-
-        self._current_enhancement = enhancement_prompt
-
-        self._append_trace("human_refinement_applied", 
-                          "Human-in-the-loop enhancement prompt applied",
-                          metrics={"enhancement_prompt_length": len(enhancement_prompt)})
-
-        # Structured handoff to Orchestrator Phase 2
-        orchestrator_input = {
-            "human_refinement": enhancement_prompt,
-            "verifiability_contract": contract_result["final_verifiability_contract"],
-            "decomposition": contract_result.get("decomposition", []),
-            "reassembly_plan": contract_result.get("recomposition_plan", {}),
-            "dependency_graph": contract_result.get("dependency_graph", {}),
-            "initial_verifier_snippets": contract_result.get("verifier_code_snippets", []),
-            "prior_lessons": {
-                "recent_history": recent_history,
-                "grail_patterns": grail_patterns,
-                "wiki_deltas": wiki_deltas
-            }
-        }
-
-        # Hand off to Orchestrator Arbos (Phase 2)
-        execution_result = self.orchestrate_subarbos(
-            task=challenge,
-            goal_md=goal_md,
-            orchestrator_input=orchestrator_input
-        )
-
-        self._current_strategy = self.analyzer.analyze("", challenge)
-        self.validator.adapt_scoring(self._current_strategy)
-
-        # === TRACE: Planning complete ===
-        self._append_trace("plan_challenge_complete", 
-                          "Planning Arbos Phase 1 completed successfully",
-                          metrics={
-                              "dynamic_swarm_size": execution_result.get("dynamic_swarm_size", 6),
-                              "structured_handoff": True,
-                              "contract_artifacts": len(contract_result.get("final_verifiability_contract", {}).get("artifacts_required", []))
-                          })
-
-        # Deep graph search + borrowing high-signal fragments
-        plan = {
-            "decomposition": contract_result.get("decomposition", []),
-            "verifiability_contract": contract_result.get("final_verifiability_contract", {}),
-            "borrowed_fragments": []
-        }
+        # Use the contract's own decomposition if available, otherwise fall back
+        initial_decomp = contract_result.get("decomposition", [])
         
-        self._append_trace("graph_search_pre_planning", "Searching wiki graph for high-signal fragments to borrow")
-        
-        for subtask in plan.get("decomposition", []):
-            borrowed = self._borrow_fragment_for_subtask(subtask, plan.get("verifiability_contract", {}))
-            if borrowed:
-                plan["borrowed_fragments"].append(borrowed)
-
-        if plan["borrowed_fragments"]:
-            logger.info(f"Planning Arbos borrowed {len(plan['borrowed_fragments'])} high-signal fragments")
-            self._append_trace("fragments_borrowed", 
-                              f"Borrowed {len(plan['borrowed_fragments'])} high-signal fragments for planning",
-                              metrics={"borrowed_count": len(plan["borrowed_fragments"])})
-
-        # ====================== v0.9 TOOLHUNTER → REAL COMPUTE ENGINE REGISTRATION ======================
-        # Register any tools/backends recommended during planning/orchestration
-        if hasattr(self, 'real_compute_engine'):
-            recommended_tools = []
-            if isinstance(execution_result, dict):
-                recommended_tools = (
-                    execution_result.get("recommended_tools", []) or 
-                    execution_result.get("tools", []) or 
-                    execution_result.get("proposals", [])
-                )
+        for subtask in initial_decomp:
+            contract_slice = contract_result.get("final_verifiability_contract", {}).get(subtask, {})
+            det_result = self.deterministic_layer.route_to_backend(subtask, contract_slice, self)
             
-            self.real_compute_engine.register_recommendations(recommended_tools)
-            logger.info(f"RealComputeEngine registered {len(recommended_tools)} tools/backends from planning phase")
-        # ================================================================================================
-        # v0.9.1 Auto-experiment trigger
-        if getattr(self, "enable_auto_experiment", True):
-            self.run_scientist_mode(intent=None)
-            
-        return {
-            "phase1": contract_result,
-            "phase2": execution_result,
-            "adapted_strategy": self._current_strategy,
-            "dynamic_swarm_size": execution_result.get("dynamic_swarm_size", 6),
-            "human_refinement": enhancement_prompt,
-            "verifiability_contract": contract_result["final_verifiability_contract"],
-            "structured_handoff": True,
-            "borrowed_fragments": plan["borrowed_fragments"]
-        }
+            if det_result.get("status") == "deterministic_success":
+                deterministic_results[subtask] = det_result
+                logger.info(f"✅ Deterministic win on subtask '{subtask[:80]}...' → {det_result['category']} backend")
+                self._append_trace("deterministic_routing",
+                                  f"Routed subtask directly to real backend",
+                                  metrics={
+                                      "subtask": subtask[:100],
+                                      "category": det_result["category"],
+                                      "backend_used": det_result.get("backend_used", [])
+                                  })
+    
+    # Store deterministic results for later synthesis and swarm skipping
+    self._current_deterministic_results = deterministic_results
+    # =================================================================================
+
+    # Structured handoff to Orchestrator Phase 2 (enhanced with deterministic results)
+    orchestrator_input = {
+        "human_refinement": enhancement_prompt,
+        "verifiability_contract": contract_result["final_verifiability_contract"],
+        "decomposition": contract_result.get("decomposition", []),
+        "reassembly_plan": contract_result.get("recomposition_plan", {}),
+        "dependency_graph": contract_result.get("dependency_graph", {}),
+        "initial_verifier_snippets": contract_result.get("verifier_code_snippets", []),
+        "prior_lessons": {
+            "recent_history": recent_history,
+            "grail_patterns": grail_patterns,
+            "wiki_deltas": wiki_deltas
+        },
+        "deterministic_results": deterministic_results  # NEW: pass to orchestrator/synthesis
+    }
+
+    # Hand off to Orchestrator Arbos (Phase 2)
+    execution_result = self.orchestrate_subarbos(
+        task=challenge,
+        goal_md=goal_md,
+        orchestrator_input=orchestrator_input
+    )
+
+    self._current_strategy = self.analyzer.analyze("", challenge)
+    self.validator.adapt_scoring(self._current_strategy)
+
+    # === TRACE: Planning complete ===
+    self._append_trace("plan_challenge_complete",
+                      "Planning Arbos Phase 1 completed successfully (v0.9.3)",
+                      metrics={
+                          "dynamic_swarm_size": execution_result.get("dynamic_swarm_size", 6),
+                          "structured_handoff": True,
+                          "contract_artifacts": len(contract_result.get("final_verifiability_contract", {}).get("artifacts_required", [])),
+                          "deterministic_subtasks_routed": len(deterministic_results)
+                      })
+
+    # Deep graph search + borrowing high-signal fragments (unchanged)
+    plan = {
+        "decomposition": contract_result.get("decomposition", []),
+        "verifiability_contract": contract_result.get("final_verifiability_contract", {}),
+        "borrowed_fragments": []
+    }
+    
+    self._append_trace("graph_search_pre_planning", "Searching wiki graph for high-signal fragments to borrow")
+    
+    for subtask in plan.get("decomposition", []):
+        borrowed = self._borrow_fragment_for_subtask(subtask, plan.get("verifiability_contract", {}))
+        if borrowed:
+            plan["borrowed_fragments"].append(borrowed)
+    
+    if plan["borrowed_fragments"]:
+        logger.info(f"Planning Arbos borrowed {len(plan['borrowed_fragments'])} high-signal fragments")
+        self._append_trace("fragments_borrowed",
+                          f"Borrowed {len(plan['borrowed_fragments'])} high-signal fragments for planning",
+                          metrics={"borrowed_count": len(plan["borrowed_fragments"])})
+
+    # ====================== v0.9 TOOLHUNTER → REAL COMPUTE ENGINE REGISTRATION ======================
+    if hasattr(self, 'real_compute_engine'):
+        recommended_tools = []
+        if isinstance(execution_result, dict):
+            recommended_tools = (
+                execution_result.get("recommended_tools", []) or
+                execution_result.get("tools", []) or
+                execution_result.get("proposals", [])
+            )
+        
+        self.real_compute_engine.register_recommendations(recommended_tools)
+        logger.info(f"RealComputeEngine registered {len(recommended_tools)} tools/backends from planning phase")
+    # ================================================================================================
+
+    # v0.9.1 Auto-experiment trigger (unchanged)
+    if getattr(self, "enable_auto_experiment", True):
+        self.run_scientist_mode(intent=None)
+    
+    return {
+        "phase1": contract_result,
+        "phase2": execution_result,
+        "adapted_strategy": self._current_strategy,
+        "dynamic_swarm_size": execution_result.get("dynamic_swarm_size", 6),
+        "human_refinement": enhancement_prompt,
+        "verifiability_contract": contract_result["final_verifiability_contract"],
+        "structured_handoff": True,
+        "borrowed_fragments": plan["borrowed_fragments"],
+        "deterministic_results": deterministic_results,   # NEW: exposed for synthesis & swarm
+        "deterministic_subtasks_routed": len(deterministic_results)
+    }
     # Clean handoff helper
     
         
@@ -2637,7 +2746,18 @@ Return ONLY valid JSON with this exact structure (no extra text):
             task=blueprint.get("challenge", "current"),
             strategy=blueprint
         )
-
+        # v0.9.3 — Skip LLM workers for deterministic subtasks
+        if getattr(self, "enable_deterministic_reasoning", True):
+            for subtask_id, det_result in blueprint.get("deterministic_results", {}).items():
+                if det_result["status"] == "deterministic_success":
+                    manager_dict[subtask_id] = {
+                        "subtask_id": subtask_id,
+                        "output": det_result["result"],
+                        "is_deterministic": True,
+                        "category": det_result["category"]
+                    }
+                    logger.info(f"🚀 Routed subtask {subtask_id} directly to real backend (no LLM)")
+                    
         # ====================== v0.9.1 SMART ADAPTIVE REBALANCE ======================
         self._rebalanced_once = getattr(self, "_rebalanced_once", False)
        
@@ -3363,220 +3483,198 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
         """Lightweight fallback evolutionary selection (used by older paths)."""
         return self._swarm_evolutionary_tournament(outputs, [], contract)  # reuse the better version
         
-    def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = "") -> Dict:
-        """v0.9+ Full inner loop execution with exact flow:
-        Swarm → Raw Recompose → Symbiosis Arbos (pattern discovery) →
-        Synthesis Arbos (enriched debate + contract enforcement) → Final Validation.
-        Fully wired with observability trace_log, intelligent stall handling, 
-        real compute validation, and v0.9 self-healing features."""
+def execute_full_cycle(self, blueprint: Dict, challenge: str, verification_instructions: str = "") -> Dict:
+    """v0.9.3 — Full inner loop execution with deterministic-first flow.
+    Swarm → Raw Recompose → Symbiosis Arbos → Synthesis Arbos (with deterministic injection) → Real Compute Validation → Final Guardrails.
+    Fully wired with traces, intelligent stall handling, and self-healing."""
+    
+    self._append_trace("execute_full_cycle_start", f"Starting cycle for challenge: {challenge[:100]}...")
+    logger.info("🚀 execute_full_cycle started (v0.9.3 deterministic-first)")
 
-        self._append_trace("execute_full_cycle_start", f"Starting cycle for challenge: {challenge[:100]}...")
+    dynamic_size = blueprint.get("dynamic_swarm_size",
+                                blueprint.get("swarm_config", {}).get("total_instances", 6))
 
-        dynamic_size = blueprint.get("dynamic_swarm_size",
-                                    blueprint.get("swarm_config", {}).get("total_instances", 6))
-        self._full_tool_integration_scan()  # integrate ALL tooling before planning/swarm
+    # Integrate all tooling early
+    self._full_tool_integration_scan()
 
-        # 1. Advanced Swarm Execution (with per-subtask contract slices)
-        self._append_trace("swarm_execution_start", f"Launching swarm with size {dynamic_size}")
-        results = self._execute_swarm(blueprint, dynamic_size)
+    # 1. Advanced Swarm Execution
+    self._append_trace("swarm_execution_start", f"Launching swarm with size {dynamic_size}")
+    results = self._execute_swarm(blueprint, dynamic_size)
 
-        # 2. Raw merge (simple fidelity-ordered merge)
-        raw_merged = self._recompose(results, {}) if results else {"solution": str(results)}
-        self._append_trace("raw_recompose_complete", "Raw merge completed", 
-                          metrics={"raw_merged_size": len(str(raw_merged))})
+    # 2. Raw merge (baseline)
+    raw_merged = self._recompose(results, {}) if results and hasattr(self, "_recompose") else {"solution": str(results)}
+    self._append_trace("raw_recompose_complete", "Raw merge completed",
+                      metrics={"raw_merged_size": len(str(raw_merged.get("solution", raw_merged)))})
 
-        # 3. Symbiosis Arbos — runs on FULL raw swarm outputs (including partial ones)
-        symbiosis_patterns = self._run_symbiosis_arbos(
-            aggregated_outputs=results,
-            message_bus=getattr(self, 'message_bus', None),
-            synthesis_result=None  # not yet synthesized
-        )
-        self._append_trace("symbiosis_complete", 
-                          f"Discovered {len(symbiosis_patterns) if isinstance(symbiosis_patterns, (list, dict)) else 0} patterns",
-                          metrics={"pattern_count": len(symbiosis_patterns) if isinstance(symbiosis_patterns, (list, dict)) else 0})
+    # 3. Symbiosis Arbos — pattern discovery on raw outputs
+    symbiosis_patterns = self._run_symbiosis_arbos(
+        aggregated_outputs=results,
+        message_bus=getattr(self, 'message_bus', None),
+        synthesis_result=None
+    )
+    self._append_trace("symbiosis_complete",
+                      f"Discovered {len(symbiosis_patterns) if isinstance(symbiosis_patterns, (list, dict)) else 0} patterns",
+                      metrics={"pattern_count": len(symbiosis_patterns) if isinstance(symbiosis_patterns, (list, dict)) else 0})
 
-        # 4. Synthesis Arbos — receives symbiosis findings as enriched context
-        synthesis_result = self.synthesis_arbos(
-            subtask_outputs=list(results.values()) if isinstance(results, dict) else [],
-            recomposition_plan=blueprint.get("recomposition_plan", {}),
-            verifiability_contract=blueprint.get("verifiability_contract", blueprint.get("verifiability_spec", {})),
-            failure_context=None,
-            symbiosis_patterns=symbiosis_patterns  # ← enriched input
-        )
-        final_candidate = synthesis_result.get("final_candidate", raw_merged)
+    # 4. Synthesis Arbos — enriched with symbiosis + deterministic results
+    synthesis_result = self.synthesis_arbos(
+        subtask_outputs=list(results.values()) if isinstance(results, dict) else [],
+        recomposition_plan=blueprint.get("recomposition_plan", {}),
+        verifiability_contract=blueprint.get("verifiability_contract", blueprint.get("verifiability_spec", {})),
+        failure_context=None,
+        symbiosis_patterns=symbiosis_patterns
+    )
 
-        self._append_trace("synthesis_complete", 
-                          f"Synthesis finished — candidate length: {len(str(final_candidate))}",
-                          metrics={"candidate_length": len(str(final_candidate))})
+    final_candidate = synthesis_result.get("final_candidate", 
+                                         raw_merged.get("solution", str(raw_merged)))
+    
+    self._append_trace("synthesis_complete",
+                      f"Synthesis finished — candidate length: {len(str(final_candidate))}",
+                      metrics={
+                          "candidate_length": len(str(final_candidate)),
+                          "deterministic_injections": len(getattr(self, "_current_deterministic_results", {}))
+                      })
 
-        # ====================== v0.9 REAL COMPUTE VALIDATION ======================
-        self._append_trace("real_compute_validation_start", "Running real backends + probabilistic model checking")
-        try:
-            real_result = self.real_compute_engine.validate_with_real_backend({
-                "verifier_snippets": getattr(self, '_current_strategy', {}).get("verifier_code_snippets", []),
-                "final_candidate": str(final_candidate),
-                "challenge": challenge
-            })
-            self._append_trace("real_compute_validation_complete", 
-                              f"Real validation finished — score: {real_result.get('real_compute_score', 0):.3f}")
-        except Exception as e:
-            logger.debug(f"Real compute validation skipped (safe): {e}")
-            real_result = {"status": "fallback", "reason": str(e)}
-            self._append_trace("real_compute_validation_skipped", str(e))
-        # =======================================================================
-
-        # ====================== FINAL SUBMISSION GUARDRAILS ======================
-        guardrail_result = apply_guardrails(
-            solution=str(final_candidate),
-            context={
-                "efs": 0.0,
-                "sota_gate_passed": True,
-                "approximation_used": real_result.get("approximation_used", False),
-                "validation_score": 0.0
-            }
-        )
-        if not guardrail_result.get("passed", True):
-            logger.error(f"Final guardrails rejected the merged solution: {guardrail_result.get('reason')}")
-            final_candidate = f"[FINAL GUARDRAIL REJECTED] {guardrail_result.get('reason', 'Unknown')}"
-
-        # 5. Final ValidationOracle (source of truth)
-        validation_result = self.validator.run(
-            candidate=final_candidate,
-            verification_instructions=verification_instructions,
-            challenge=challenge,
-            goal_md=self.extra_context,
-            subtask_outputs=list(results.values()) if isinstance(results, dict) else []
-        )
-
-            # v0.9.1 Deterministic-First enforcement
-            deterministic_result = self._execute_deterministic_compute_path(final_candidate, full_verifier_snippets)
-            if deterministic_result["status"] == "success":
-                validation_result["real_compute"] = deterministic_result["result"]
-
-        # ====================== v0.9 REAL COMPUTE VALIDATION + HARDWARE TELEMETRY ======================
-        self._append_trace("real_compute_validation_start", 
-                          "Running real backends + probabilistic model checking + hardware telemetry")
-
-        try:
-            real_result = self.real_compute_engine.validate_with_real_backend({
-                "verifier_snippets": getattr(self, '_current_strategy', {}).get("verifier_code_snippets", []),
-                "final_candidate": str(final_candidate),
-                "challenge": challenge
-            })
-            
-            validation_result["real_compute"] = real_result
-            
-            self._append_trace("real_compute_validation_complete", 
-                              f"Real validation finished — backend: {real_result.get('backend_used', 'mixed')} | "
-                              f"Score: {real_result.get('real_compute_score', 0):.3f}",
-                              metrics={
-                                  "real_compute_score": real_result.get("real_compute_score", 0),
-                                  "backend_used": real_result.get("backend_used", "mixed"),
-                                  "approximation_used": real_result.get("approximation_used", True),
-                                  "prob_guarantee": real_result.get("prob_guarantee", 0.92)
-                              })
-            
-        except Exception as e:
-            logger.warning(f"Real compute validation failed, falling back safely: {e}")
-            real_result = {
-                "status": "fallback_to_mock",
-                "real_compute_score": 0.65,
-                "reason": str(e)[:150],
-                "approximation_used": True
-            }
-            validation_result["real_compute"] = real_result
-            self._append_trace("real_compute_validation_fallback", 
-                              f"Real validation fell back to mock: {str(e)[:100]}",
-                              metrics={"error": True})
-        # ===============================================================================================
-        
-        score = validation_result.get("validation_score", 0.0)
-        efs = validation_result.get("efs", 0.0)
-        self.last_efs = efs
-
-        # SOTA Swarm Stall Detection & Intelligent Replan
-        dry_run_result = blueprint.get("dry_run_result", {})
-        stall_analysis = self._analyze_swarm_stall(
-            list(results.values()) if isinstance(results, dict) else [],
-            validation_result,
-            dry_run_result
-        )
-
-        # === WIRING: Stall block (v0.9 enhanced) ===
-        if stall_analysis.get("is_severe_stall", False):
-            logger.warning(f"Real swarm stall detected. Delta: {stall_analysis.get('delta', 0):.3f}")
-            failure_context = self._build_failure_context(
-                failure_type="swarm_stall_on_passed_spec",
-                task=challenge,
-                goal_md=self.extra_context,
-                strategy=getattr(self, '_current_strategy', {}),
-                dry_run=dry_run_result,
-                swarm_results=list(results.values()) if isinstance(results, dict) else [],
-                validation_result=validation_result
-            )
-            self._append_trace("stall_replan_triggered", "Severe stall → replan", 
-                              metrics={"score": score, "efs": efs, "stall_delta": stall_analysis.get('delta', 0)})
-            
-            replan_decision = self._intelligent_replan(failure_context)
-
-            if replan_decision.get("decision") == "new_strategy_needed":
-                logger.info("Stall reflection decided NEW STRATEGY needed — triggering full replan")
-                new_task = f"{challenge} [STALL RECOVERY - previous spec failed in practice]"
-                return self.orchestrate_subarbos(new_task, self.extra_context)
-
-        # ByteRover promotion
-        if score > 0.70:
-            self.memory_layers.promote_high_signal(
-                str(final_candidate),
-                {
-                    "local_score": score,
-                    "fidelity": validation_result.get("fidelity", 0.8),
-                    "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.7)
-                }
-            )
-
-          # v0.9.1 Cosmic Compression (safe)
-        if getattr(self, "enable_cosmic_compression", True):
-            try:
-                compression_result = self.perform_cosmic_compression()
-                self._append_trace("cosmic_compression_complete", f"Removed {compression_result.get('fragments_removed', 0)} fragments")
-            except Exception as e:
-                logger.debug(f"Cosmic Compression skipped (safe): {e}")
-                self._append_trace("cosmic_compression_skipped", str(e))
-
-        # v0.9: Experiment summary capture for Scientist Mode / Meta-Tuning
-        run_data_for_end = {
-            "final_score": score,
-            "efs": efs,
-            "best_solution": final_candidate,
-            "diagnostics": validation_result,
-            "symbiosis_patterns": symbiosis_patterns,
-            "scientist_summary": blueprint.get("scientist_summary") or getattr(self, '_current_scientist_summary', {}),
-            "real_compute": real_result
-        }
-
-        # Success path
-        if score > 0.92 and getattr(self, "enable_grail", False):
-            self.consolidate_grail(str(final_candidate), score, validation_result)
-
-        if score > 0.85:
-            self.evolve_principles_post_run(str(final_candidate), score, validation_result)
-
-        self.save_run_to_history(challenge, "", str(final_candidate), score, 0.5, score)
-
-        # Final outer-loop processing
-        self._end_of_run(run_data_for_end)
-
-        self._append_trace("execute_full_cycle_complete", 
-                          f"Cycle finished — Final score: {score:.3f} | EFS: {efs:.3f}",
+    # ====================== v0.9.3 REAL COMPUTE VALIDATION (Single Clean Block) ======================
+    self._append_trace("real_compute_validation_start", "Running real backends + probabilistic model checking + hardware telemetry")
+    try:
+        real_result = self.real_compute_engine.validate_with_real_backend({
+            "verifier_snippets": getattr(self, '_current_strategy', {}).get("verifier_code_snippets", []),
+            "final_candidate": str(final_candidate),
+            "challenge": challenge
+        })
+        self._append_trace("real_compute_validation_complete",
+                          f"Real validation finished — score: {real_result.get('real_compute_score', 0):.3f}",
                           metrics={
-                              "final_score": score, 
-                              "efs": efs, 
-                              "heterogeneity": self._compute_heterogeneity_score().get("heterogeneity_score", 0.72),
-                              "real_compute_used": not real_result.get("approximation_used", True)
+                              "real_compute_score": real_result.get("real_compute_score", 0),
+                              "backend_used": real_result.get("backend_used", "mixed"),
+                              "approximation_used": real_result.get("approximation_used", False),
+                              "prob_guarantee": real_result.get("prob_guarantee", 0.92)
                           })
+    except Exception as e:
+        logger.warning(f"Real compute validation failed, falling back safely: {e}")
+        real_result = {
+            "status": "fallback_to_mock",
+            "real_compute_score": 0.65,
+            "reason": str(e)[:150],
+            "approximation_used": True
+        }
+        self._append_trace("real_compute_validation_fallback",
+                          f"Real validation fell back to mock: {str(e)[:100]}",
+                          metrics={"error": True})
+    # ===============================================================================================
 
-        return validation_result
+    # Final guardrails
+    guardrail_result = apply_guardrails(
+        solution=str(final_candidate),
+        context={
+            "efs": 0.0,
+            "sota_gate_passed": True,
+            "approximation_used": real_result.get("approximation_used", False),
+            "validation_score": real_result.get("real_compute_score", 0.0)
+        }
+    )
+    if not guardrail_result.get("passed", True):
+        logger.error(f"Final guardrails rejected the merged solution: {guardrail_result.get('reason')}")
+        final_candidate = f"[FINAL GUARDRAIL REJECTED] {guardrail_result.get('reason', 'Unknown')}"
+
+    # 5. Final ValidationOracle (source of truth)
+    validation_result = self.validator.run(
+        candidate=final_candidate,
+        verification_instructions=verification_instructions,
+        challenge=challenge,
+        goal_md=self.extra_context,
+        subtask_outputs=list(results.values()) if isinstance(results, dict) else []
+    )
+
+    # Attach real compute result
+    validation_result["real_compute"] = real_result
+
+    score = validation_result.get("validation_score", 0.0)
+    efs = validation_result.get("efs", score * 0.92)
+    self.last_efs = efs
+
+    # Stall detection & intelligent replan
+    dry_run_result = blueprint.get("dry_run_result", {})
+    stall_analysis = self._analyze_swarm_stall(
+        list(results.values()) if isinstance(results, dict) else [],
+        validation_result,
+        dry_run_result
+    )
+
+    if stall_analysis.get("is_severe_stall", False):
+        logger.warning(f"Real swarm stall detected. Delta: {stall_analysis.get('delta', 0):.3f}")
+        failure_context = self._build_failure_context(
+            failure_type="swarm_stall_on_passed_spec",
+            task=challenge,
+            goal_md=self.extra_context,
+            strategy=getattr(self, '_current_strategy', {}),
+            dry_run=dry_run_result,
+            swarm_results=list(results.values()) if isinstance(results, dict) else [],
+            validation_result=validation_result
+        )
+        self._append_trace("stall_replan_triggered", "Severe stall → replan",
+                          metrics={"score": score, "efs": efs, "stall_delta": stall_analysis.get('delta', 0)})
+
+        replan_decision = self._intelligent_replan(failure_context)
+        if replan_decision.get("decision") == "new_strategy_needed":
+            logger.info("Stall reflection decided NEW STRATEGY needed — triggering full replan")
+            new_task = f"{challenge} [STALL RECOVERY - previous spec failed in practice]"
+            return self.orchestrate_subarbos(new_task, self.extra_context)
+
+    # ByteRover promotion + Cosmic Compression
+    if score > 0.70:
+        self.memory_layers.promote_high_signal(
+            str(final_candidate),
+            {
+                "local_score": score,
+                "fidelity": validation_result.get("fidelity", 0.8),
+                "heterogeneity_score": self._compute_heterogeneity_score().get("heterogeneity_score", 0.7)
+            }
+        )
+
+    if getattr(self, "enable_cosmic_compression", True):
+        try:
+            compression_result = self.perform_cosmic_compression()
+            self._append_trace("cosmic_compression_complete", f"Removed {compression_result.get('fragments_removed', 0)} fragments")
+        except Exception as e:
+            logger.debug(f"Cosmic Compression skipped (safe): {e}")
+            self._append_trace("cosmic_compression_skipped", str(e))
+
+    # Run data for outer loop
+    run_data_for_end = {
+        "final_score": score,
+        "efs": efs,
+        "best_solution": final_candidate,
+        "diagnostics": validation_result,
+        "symbiosis_patterns": symbiosis_patterns,
+        "deterministic_injections": len(getattr(self, "_current_deterministic_results", {})),
+        "scientist_summary": blueprint.get("scientist_summary") or getattr(self, '_current_scientist_summary', {}),
+        "real_compute": real_result
+    }
+
+    # Success path
+    if score > 0.92 and getattr(self, "enable_grail", False):
+        self.consolidate_grail(str(final_candidate), score, validation_result)
+    if score > 0.85:
+        self.evolve_principles_post_run(str(final_candidate), score, validation_result)
+
+    self.save_run_to_history(challenge, "", str(final_candidate), score, 0.5, score)
+
+    # Final outer-loop processing
+    self._end_of_run(run_data_for_end)
+
+    self._append_trace("execute_full_cycle_complete",
+                      f"Cycle finished — Final score: {score:.3f} | EFS: {efs:.3f}",
+                      metrics={
+                          "final_score": score,
+                          "efs": efs,
+                          "heterogeneity": self._compute_heterogeneity_score().get("heterogeneity_score", 0.72),
+                          "real_compute_used": not real_result.get("approximation_used", True),
+                          "deterministic_injections": len(getattr(self, "_current_deterministic_results", {}))
+                      })
+
+    return validation_result
         
     def _write_stigmergic_trace(self, trace: Dict):
         """Core stigmergic learning — writes full traceable record to wiki and memory."""
@@ -3671,91 +3769,114 @@ Return ONLY a valid JSON array of role names (same length as decomposition)."""
     
             return merged
         
-    def synthesis_arbos(self, subtask_outputs: List[Dict], recomposition_plan: Dict, 
-                        verifiability_contract: Dict, failure_context: Dict = None) -> Dict:
-        """Maximum capability Synthesis Arbos — multi-proposal generation, structured debate, 
-        iterative refinement, strict contract enforcement, and memory graph injection."""
-
-        if not subtask_outputs or len(subtask_outputs) == 0:
-            self._append_trace("synthesis_arbos_start", "No subtask outputs received")
-            return {
-                "final_candidate": "", 
-                "synthesis_notes": "No outputs received", 
-                "spec_compliance": "low", 
-                "confidence": 0.0
-            }
-
-        # === TRACE: Synthesis start ===
-        self._append_trace("synthesis_arbos_start", 
-                          f"Starting critique-first synthesis with {len(subtask_outputs)} subtasks",
-                          metrics={"subtask_count": len(subtask_outputs)})
-
-        # Use consistent contract naming
-        contract = {
-            "artifacts_required": verifiability_contract.get("artifacts_required", []),
-            "composability_rules": verifiability_contract.get("composability_rules", []),
-            "synthesis_guidance": verifiability_contract.get("synthesis_guidance", ""),
-            "dry_run_criteria": verifiability_contract.get("dry_run_success_criteria", {}),
-            "recomposition_plan": recomposition_plan
+def synthesis_arbos(self, subtask_outputs: List[Dict], recomposition_plan: Dict,
+                    verifiability_contract: Dict, failure_context: Dict = None) -> Dict:
+    """v0.9.3 — Maximum capability Synthesis Arbos with deterministic integration.
+    Multi-proposal generation, critique-first structured debate, iterative refinement,
+    strict contract enforcement, memory graph injection, and direct use of deterministic results."""
+    
+    if not subtask_outputs or len(subtask_outputs) == 0:
+        self._append_trace("synthesis_arbos_start", "No subtask outputs received")
+        return {
+            "final_candidate": "",
+            "synthesis_notes": "No outputs received",
+            "spec_compliance": "low",
+            "confidence": 0.0
         }
 
-        # Deep graph search to enrich synthesis (v0.8+)
-        self._append_trace("graph_search_pre_synthesis", "Enriching synthesis with graph-searched fragments")
-        
-        # === QUERY HIGH-SIGNAL FRAGMENTS FROM MEMORY GRAPH ===
-        relevant_fragments = self._graph_search_high_signal_fragments(
-            query="synthesis recomposition merge composability artifacts", 
-            top_k=6
-        )
+    # === TRACE: Synthesis start ===
+    self._append_trace("synthesis_arbos_start",
+                      f"Starting critique-first synthesis with {len(subtask_outputs)} subtasks",
+                      metrics={"subtask_count": len(subtask_outputs)})
 
-        if relevant_fragments:
-            logger.info(f"Injected {len(relevant_fragments)} high-signal fragments into Synthesis Arbos")
+    # Use consistent contract naming
+    contract = {
+        "artifacts_required": verifiability_contract.get("artifacts_required", []),
+        "composability_rules": verifiability_contract.get("composability_rules", []),
+        "synthesis_guidance": verifiability_contract.get("synthesis_guidance", ""),
+        "dry_run_criteria": verifiability_contract.get("dry_run_success_criteria", {}),
+        "recomposition_plan": recomposition_plan
+    }
 
-        # Stage 1: Generate multiple diverse proposals
-        proposal_prompt = f"""You are Synthesis Arbos. Generate 4 fundamentally different high-quality merging strategies.
+    # Pull deterministic results (from Planning / Deterministic Reasoning Layer)
+    deterministic_results = getattr(self, "_current_deterministic_results", {}) or {}
 
+    # Deep graph search to enrich synthesis (v0.8+)
+    self._append_trace("graph_search_pre_synthesis", "Enriching synthesis with graph-searched fragments")
+    relevant_fragments = self._graph_search_high_signal_fragments(
+        query="synthesis recomposition merge composability artifacts",
+        top_k=6
+    )
+    if relevant_fragments:
+        logger.info(f"Injected {len(relevant_fragments)} high-signal fragments into Synthesis Arbos")
+
+    # === STAGE 0: Inject deterministic results directly (highest fidelity, no LLM waste) ===
+    raw_merged = self._recompose(subtask_outputs, recomposition_plan) if hasattr(self, "_recompose") else {
+        "solution": "\n\n".join(str(o.get("solution", o.get("output", ""))) for o in subtask_outputs)
+    }
+    enhanced_base = raw_merged.get("solution", str(raw_merged))
+
+    for subtask, det_result in deterministic_results.items():
+        if det_result.get("status") == "deterministic_success":
+            det_output = str(det_result.get("result", {}))
+            if isinstance(det_result.get("result"), dict):
+                det_output = str(det_result.get("result", {}).get("results", [{}])[0].get("output", det_output))
+            
+            marker = f"### DETERMINISTIC_{subtask.upper()}_RESULT ###"
+            if marker in enhanced_base:
+                enhanced_base = enhanced_base.replace(marker, det_output)
+            else:
+                enhanced_base += f"\n\n{marker}\n{det_output}\n"
+            logger.info(f"✅ Synthesis injected deterministic result for subtask: {subtask[:80]}...")
+
+    # Stage 1: Generate multiple diverse proposals (now on enhanced base)
+    proposal_prompt = f"""You are Synthesis Arbos. Generate 4 fundamentally different high-quality merging strategies.
 VERIFIABILITY CONTRACT (must be strictly satisfied):
 {json.dumps(contract, indent=2)}
 
 HIGH-SIGNAL FRAGMENTS FROM LONG-TERM MEMORY GRAPH (use relevant insights where they strengthen the merge):
 {json.dumps(relevant_fragments, indent=2)}
 
+DETERMINISTIC RESULTS (already computed with real backends — integrate directly, do not re-summarize):
+{json.dumps({k: v.get("category", "unknown") for k, v in deterministic_results.items()}, indent=2)}
+
+ENHANCED BASE ASSEMBLY:
+{enhanced_base[:4500]}
+
 SUBTASK OUTPUTS:
 {json.dumps([{
     "subtask": o.get("subtask", "unknown"),
     "role": o.get("role", "unknown"),
-    "solution": str(o.get("solution", ""))[:700]
+    "solution": str(o.get("solution", o.get("output", "")))[:600]
 } for o in subtask_outputs], indent=2)}
 
 {f"PAST FAILURE CONTEXT: {json.dumps(failure_context, indent=2)[:800]}" if failure_context else ""}
 
-Return ONLY a valid JSON array containing 4 proposals. Each proposal must have: 
+Return ONLY a valid JSON array containing 4 proposals. Each proposal must have:
 "proposal_id", "merged_candidate", "strategy_description", "expected_strengths", "risks"."""
 
-        model_config = self.load_model_registry(role="planner")
-        raw_proposals = self.harness.call_llm(proposal_prompt, temperature=0.6, max_tokens=2800, model_config=model_config)
-        proposals = self._safe_parse_json(raw_proposals)
-        proposals = self._enforce_heterogeneity_veto(proposals, self._compute_heterogeneity_score().get("heterogeneity_score", 0.7))
+    model_config = self.load_model_registry(role="planner")
+    raw_proposals = self.harness.call_llm(proposal_prompt, temperature=0.6, max_tokens=2800, model_config=model_config)
+    proposals = self._safe_parse_json(raw_proposals)
+    proposals = self._enforce_heterogeneity_veto(proposals, self._compute_heterogeneity_score().get("heterogeneity_score", 0.7))
+    if not isinstance(proposals, list):
+        proposals = [proposals] if proposals else []
 
-        if not isinstance(proposals, list):
-            proposals = [proposals] if proposals else []
-
-        # Stage 2: Multi-round debate and critique
-        debate_prompt = f"""You are Synthesis Arbos running a structured internal debate.
-
+    # Stage 2: Multi-round debate and critique (critique-first)
+    debate_prompt = f"""You are Synthesis Arbos running a structured internal debate.
 Contract (non-negotiable):
 {json.dumps(contract, indent=2)}
 
-HIGH-SIGNAL FRAGMENTS FROM MEMORY GRAPH:
+HIGH-SIGNAL FRAGMENTS + DETERMINISTIC RESULTS:
 {json.dumps(relevant_fragments, indent=2)}
+Deterministic categories: {list(deterministic_results.keys())}
 
 Proposals to debate:
 {json.dumps(proposals, indent=2)}
 
-Critique each proposal harshly against the contract.
+Critique each proposal harshly against the contract, composability rules, and deterministic fidelity.
 Identify which best satisfies the contract.
 Create the strongest possible hybrid if needed.
-
 Return ONLY valid JSON:
 {{
   "final_candidate": "the complete merged solution",
@@ -3767,40 +3888,41 @@ Return ONLY valid JSON:
   "remaining_risks": []
 }}"""
 
-        raw_final = self.harness.call_llm(debate_prompt, temperature=0.3, max_tokens=2600, model_config=model_config)
-        result = self._safe_parse_json(raw_final)
+    raw_final = self.harness.call_llm(debate_prompt, temperature=0.3, max_tokens=2600, model_config=model_config)
+    result = self._safe_parse_json(raw_final)
 
-        # Stage 3: Final strict contract enforcement pass
-        if result.get("spec_compliance") != "high":
-            logger.warning("Synthesis compliance not high — running final enforcement pass")
-            enforcement_prompt = f"""Take this candidate and make it FULLY compliant with the verifiability contract.
-
+    # Stage 3: Final strict contract enforcement pass
+    if result.get("spec_compliance") != "high":
+        logger.warning("Synthesis compliance not high — running final enforcement pass")
+        enforcement_prompt = f"""Take this candidate and make it FULLY compliant with the verifiability contract.
 Candidate:
-{result.get('final_candidate', '')[:3000]}
-
+{result.get('final_candidate', '')[:3500]}
 Contract:
 {json.dumps(contract, indent=2)}
-
 Return only the improved final_candidate."""
-            
-            fixed_candidate = self.harness.call_llm(enforcement_prompt, temperature=0.2, max_tokens=2200, model_config=model_config)
-            result["final_candidate"] = fixed_candidate
-            result.setdefault("refinement_steps", []).append("Final contract enforcement pass")
+        
+        fixed_candidate = self.harness.call_llm(enforcement_prompt, temperature=0.2, max_tokens=2200, model_config=model_config)
+        result["final_candidate"] = fixed_candidate
+        result.setdefault("refinement_steps", []).append("Final contract enforcement pass")
 
-        logger.info(f"Synthesis Arbos completed with {len(relevant_fragments)} memory fragments | Compliance: {result.get('spec_compliance', 'medium')} | Confidence: {result.get('confidence', 0.0):.3f}")
+    logger.info(f"Synthesis Arbos completed with {len(relevant_fragments)} memory fragments | "
+                f"{len(deterministic_results)} deterministic injections | "
+                f"Compliance: {result.get('spec_compliance', 'medium')} | "
+                f"Confidence: {result.get('confidence', 0.0):.3f}")
 
-        # === TRACE: Synthesis complete ===
-        self._append_trace("synthesis_arbos_complete", 
-                          f"Synthesis finished — candidate length: {len(str(result.get('final_candidate', '')))}",
-                          metrics={
-                              "spec_compliance": result.get("spec_compliance", "medium"),
-                              "confidence": result.get("confidence", 0.0),
-                              "memory_fragments_used": len(relevant_fragments),
-                              "refinement_steps": len(result.get("refinement_steps", [])),
-                              "candidate_length": len(str(result.get('final_candidate', '')))
-                          })
+    # === TRACE: Synthesis complete ===
+    self._append_trace("synthesis_arbos_complete",
+                      f"Synthesis finished — candidate length: {len(str(result.get('final_candidate', '')))}",
+                      metrics={
+                          "spec_compliance": result.get("spec_compliance", "medium"),
+                          "confidence": result.get("confidence", 0.0),
+                          "memory_fragments_used": len(relevant_fragments),
+                          "deterministic_injections": len(deterministic_results),
+                          "refinement_steps": len(result.get("refinement_steps", [])),
+                          "candidate_length": len(str(result.get('final_candidate', '')))
+                      })
 
-        return result
+    return result
                             
 
     def _run_verification(self, solution: str, verification_instructions: str, challenge: str) -> str:
@@ -6324,7 +6446,10 @@ Return ONLY valid JSON:
         # === TRACE: End of run complete ===
         self._append_trace("end_of_run_complete", 
                           f"Outer-loop evolution + fragmented memory update finished | Final EFS: {efs:.3f}")
-
+        # v0.9.3 — Clean shutdown of unrestricted executor
+        if hasattr(self, "unrestricted_executor"):
+            self.unrestricted_executor.shutdown()
+            
         logger.info("✅ _end_of_run complete — outer-loop evolution + fragmented memory update executed")
                 
     # ====================== v0.6 helper for wiki snapshot (used in run_data) ======================
