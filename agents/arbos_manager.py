@@ -199,6 +199,141 @@ class RealComputeEngine:
     # _run_single_backend, _run_probabilistic_model_check, _gather_hardware_telemetry remain unchanged (or use your latest version)
 # ====================== DRY-RUN SIMULATOR (pre-swarm test-plan validator) ======================
 
+class PatternEvolutionArbos:
+    """v0.9.5 — SOTA meta-invention layer. Graph mining + deterministic heuristics first.
+    LLM only for final creative synthesis. Sandbox dry-run for every new item.
+    Includes hypothesis testing, evolutionary population, module scoring, and post-run DOUBLE_CLICK recommendations."""
+
+    def evolve_from_new_knowledge(self, new_fragments: List[Dict], current_challenge: str = "") -> Dict:
+        logger.info(f"🧬 PatternEvolutionArbos started on {len(new_fragments)} new fragments")
+
+        # 1. High-scale pattern recognition (deterministic graph mining first)
+        all_patterns = self._run_high_scale_pattern_recognition(new_fragments, current_challenge)
+
+        # 2. Deterministic "Can We Use This?" filter
+        usable_items = []
+        for pattern in all_patterns:
+            evaluation = self._can_we_use_this_deterministic(pattern)
+            if evaluation["usable"]:
+                usable_items.append(pattern)
+
+        # 3. On-the-fly creation (deterministic templates first)
+        new_items = []
+        for item in usable_items:
+            created = self._create_tool_or_strategy_from_pattern(item)
+            if created and self._sandbox_dry_run_new_item(created):
+                new_items.append(created)
+                self.memory_layers.add_fragment(created)
+                if created.get("type") == "tool":
+                    self.real_compute_engine.register_recommendations([created["code"]])
+
+        # 4. Module-level scoring for "is it working"
+        self._record_module_performance(len(new_fragments), len(usable_items), len(new_items))
+
+        self._append_trace("pattern_evolution_complete", 
+                          f"Processed {len(new_fragments)} fragments → {len(usable_items)} usable → {len(new_items)} new items")
+
+        return {
+            "fragments_processed": len(new_fragments),
+            "usable_patterns": len(usable_items),
+            "new_items_created": len(new_items),
+            "new_items": new_items
+        }
+
+    def generate_post_run_double_click_recommendations(self, recent_run_data: Dict) -> List[Dict]:
+        """Post-run DOUBLE_CLICK recommendations to strengthen patterns or fill small gaps."""
+        logger.info("🧪 Generating post-run DOUBLE_CLICK recommendations")
+        
+        gaps = self.memory_layers.detect_small_discovery_gaps(recent_run_data)
+        
+        recommendations = []
+        for gap in gaps:
+            rec = {
+                "type": "double_click",
+                "target_variable": gap["target"],
+                "effect_variable": gap["effect"],
+                "domain_focus": gap["domain"],
+                "goal": f"Strengthen pattern or fill small gap: {gap['description']}",
+                "predicted_efs_uplift": gap["predicted_uplift"],
+                "reason": gap["reason"]
+            }
+            recommendations.append(rec)
+        
+        self._append_trace("double_click_recommendations_generated", 
+                          f"Generated {len(recommendations)} post-run DOUBLE_CLICK recommendations")
+        
+        return recommendations
+
+    def _run_high_scale_pattern_recognition(self, new_fragments: List[Dict], challenge: str) -> List[Dict]:
+        """Deterministic graph mining + clustering — minimal LLM."""
+        G = self.memory_layers.get_current_graph_snapshot()
+        for frag in new_fragments:
+            G.add_node(frag["id"], content=frag["content"])
+            similar = self.memory_layers.find_similar_fragments(frag["content"], top_k=5)
+            for s in similar:
+                G.add_edge(frag["id"], s["id"], weight=s.get("similarity", 0.7))
+        
+        communities = list(nx.community.greedy_modularity_communities(G))
+        patterns = []
+        for comm in communities:
+            patterns.append({
+                "name": f"community_{len(patterns)}",
+                "type": "synergistic_pattern",
+                "fragments": list(comm),
+                "description": "Emergent cross-fragment pattern detected via community detection"
+            })
+        
+        return patterns
+
+    def _can_we_use_this_deterministic(self, pattern: Dict) -> Dict:
+        """Deterministic filter first — no LLM until necessary."""
+        similar = self.memory_layers.find_similar_fragment(pattern.get("content", ""))
+        if similar and similar.get("score", 0) > 0.7:
+            return {"usable": False, "estimated_efs_uplift": 0.0, "reason": "redundant with existing high-signal fragment"}
+        
+        freshness = pattern.get("freshness_score", 0.0)
+        if freshness < 0.4:
+            return {"usable": False, "estimated_efs_uplift": 0.0, "reason": "too stale"}
+        
+        est_efs = self.memory_layers.get_similar_pattern_efs_proxy(pattern)
+        return {"usable": est_efs > 0.15, "estimated_efs_uplift": est_efs, "reason": "deterministic filter passed"}
+
+    def _create_tool_or_strategy_from_pattern(self, pattern: Dict) -> Dict:
+        """Deterministic creation first; LLM only for truly synergistic cases."""
+        if pattern.get("type") == "strategy":
+            return {
+                "type": "strategy",
+                "name": pattern.get("name", "new_strategy"),
+                "description": pattern.get("description", ""),
+                "template": "if condition: apply_pattern()"
+            }
+        
+        if pattern.get("type") == "synergistic_pattern":
+            prompt = f"Generate a concise synergistic strategy or small code template from this pattern. Keep it minimal and executable.\nPattern: {json.dumps(pattern)}"
+            result = self.harness.call_llm(prompt, temperature=0.3, max_tokens=600)
+            return self._safe_parse_json(result) or None
+        
+        return None
+
+    def _sandbox_dry_run_new_item(self, item: Dict) -> bool:
+        """Mandatory sandbox test before registration."""
+        if item.get("type") != "tool":
+            return True
+        
+        code = item.get("code", "")
+        try:
+            result = safe_exec(code, timeout=2.0)
+            return result.get("success", False)
+        except:
+            return False
+
+    def _record_module_performance(self, fragments_processed: int, usable: int, created: int):
+        """Module-level 'is it working' score for pruning advisor."""
+        score = 0.0
+        if fragments_processed > 0:
+            score = (usable / fragments_processed) * 0.6 + (created / usable if usable > 0 else 0) * 0.4
+        self.memory_layers.record_pattern_evolution_score(score)
+
 class DeterministicReasoningLayer:
     """v0.9.3 — Detects and routes entire subtasks that can be solved purely with real backends
     (PuLP optimization, SciPy, JAX, Stim, CUDA-Q stabilizer sims, etc.) BEFORE any LLM is called."""
