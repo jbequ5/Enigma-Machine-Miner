@@ -1009,6 +1009,9 @@ class ArbosManager:
 
         # Wire memory layers
         self.memory_layers.byterover_mau_enabled = self.byterover_mau_enabled
+        self.memory_layers = MemoryLayers()
+            self.memory_layers.arbos = self  # critical bidirectional wiring
+            logger.info("✅ MemoryLayers wired with full v0.9.5 SOTA helpers")
 
         self.set_compute_source("local_gpu")
         self._load_heterogeneity_weights()
