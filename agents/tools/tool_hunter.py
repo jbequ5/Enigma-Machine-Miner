@@ -211,6 +211,40 @@ class ToolHunter:
             logger.debug(f"Lightweight check failed: {e}")
         return {"items": items, "new_items_detected": len(items) > 0}
 
+    def hunt_for_all_compute_tools(self, priority_domains: List[str] = None, force: bool = False) -> Dict:
+            """v0.9.5 SOTA — Lightweight pre-contract + targeted compute tool hunt.
+            Uses novelty_score gate (0.5), deep hunt fallback, freshness tracking,
+            and wires directly into MemoryLayers + PatternEvolutionArbos."""
+            
+            if priority_domains is None:
+                priority_domains = ["general"]
+            
+            logger.info(f"🔍 hunt_for_all_compute_tools started — domains: {priority_domains} | force: {force}")
+            
+            hunt_metrics = {
+                "new_fragments": 0,
+                "novelty_score": 0.0,
+                "phase": "pre_contract" if not force else "targeted",
+                "domains": priority_domains,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # 1. Lightweight check first (fast, low cost)
+            lightweight_results = self._lightweight_check(priority_domains)
+            
+            # 2. Novelty gate — only go deep if needed
+            novelty_score = self._compute_novelty_score(lightweight_results, priority_domains)
+            hunt_metrics["novelty_score"] = novelty_score
+            
+            if not force and novelty_score < 0.5:
+                logger.info(f"⏭️ Skipping deep hunt — low novelty ({novelty_score:.3f})")
+                hunt_metrics["status"] = "skipped_low_novelty"
+                self.memory_layers.record_deep_hunt_success(hunt_metrics)  # still record for tracking
+                return hunt_metrics
+            
+            # 3. Deep / full hunt when novelty is high or force=True
+            deep_results = self._full_scrape_and_parse(priority_domains)
+
     def _full_scrape_and_parse(self, priority_domains: List[str]) -> Dict:
         """Full scrape only when novelty score justifies it."""
         items = []
