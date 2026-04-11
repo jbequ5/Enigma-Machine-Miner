@@ -229,12 +229,12 @@ class PatternEvolutionArbos:
 
         # 4. Module-level scoring for "is it working"
         self._record_module_performance(len(new_fragments), len(usable_items), len(new_items))
-
+        
+        module_score = (usable / max(1, fragments_processed)) * 0.6 + (created / max(1, usable)) * 0.4 if 'usable' in locals() and 'fragments_processed' in locals() else 0.0
+            self.memory_layers.record_pattern_evolution_score(module_score)
         self._append_trace("pattern_evolution_complete", 
                           f"Processed {len(new_fragments)} fragments → {len(usable_items)} usable → {len(new_items)} new items")
-        
-        module_score = (usable / max(1, fragments_processed)) * 0.6 + (created / max(1, usable)) * 0.4 if 'usable' in locals() else 0.0
-        self.memory_layers.record_pattern_evolution_score(module_score)
+
         
         return {
             "fragments_processed": len(new_fragments),
@@ -948,6 +948,10 @@ class ArbosManager:
         self.tool_hunter.memory_layers = self.memory_layers
         self.tool_hunter.pattern_evolution_arbos = self.pattern_evolution_arbos
         logger.info("✅ v0.9.5 Full memory + ToolHunter + PatternEvolutionArbos wiring complete")
+                # v0.9.5 Final Continuous Intelligence wiring
+        self.real_compute_engine.tool_hunter = self.tool_hunter
+        self.real_compute_engine.memory_layers = self.memory_layers
+        logger.info("✅ v0.9.5 RealComputeEngine + ToolHunter + MemoryLayers fully wired")
         
 
         # AutoHarness with constitution
@@ -2246,9 +2250,6 @@ After creating the contract, critique it internally for completeness and feasibi
             # v0.9.5 Pre-contract lightweight ToolHunter hunt
             hunt_result = self.tool_hunter.hunt_for_all_compute_tools(priority_domains=[domain])
             self.memory_layers.record_deep_hunt_success({"new_fragments": hunt_result.get("new_fragments", 0), "phase": "pre_contract"})
-          
-            # Lightweight hunt first
-            self.tool_hunter.hunt_for_all_compute_tools(priority_domains=[domain])
             
             # High-scale pattern recognition + discovery (Knowledge Bootstrap)
             bootstrap_fragments = self.pattern_evolution_arbos.evolve_from_new_knowledge(
@@ -6649,19 +6650,19 @@ Return ONLY valid JSON:
     
         self._write_stigmergic_trace(trace)
         self.memory_layers.compress_low_value(current_score=score)
-                # v0.9.5 Ensure graph is updated with final outputs (for PatternEvolutionArbos discovery)
-        # Use the actual variable from your swarm/synthesis (adjust if needed)
+
+        # v0.9.5 Ensure graph is updated with final outputs (for PatternEvolutionArbos discovery)
         for output in (subtask_outputs if 'subtask_outputs' in locals() else []) or []:
             if isinstance(output, dict) and "content" in output:
                 self.memory_layers.add(output["content"], output.get("metadata", {}))
             elif isinstance(output, dict) and "solution" in output:
                 self.memory_layers.add(str(output.get("solution", "")), output.get("metadata", {}))
-                
+
+        # v0.9.5 Post-run DOUBLE_CLICK recommendations
         if hasattr(self, "pattern_evolution_arbos"):
-            double_click_recs = self.pattern_evolution_arbos.generate_post_run_double_click_recommendations(run_data_for_end)
+            double_click_recs = self.pattern_evolution_arbos.generate_post_run_double_click_recommendations(run_data)
             self._current_double_click_recommendations = double_click_recs
             self._append_trace("double_click_recommendations_generated", f"Generated {len(double_click_recs)} targeted experiments")
-    
         # v0.9.1 Cosmic Compression (safe)
         if getattr(self, "enable_cosmic_compression", True):
             try:
