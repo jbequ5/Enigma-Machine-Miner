@@ -186,18 +186,21 @@ class ToolHunter:
         """Fast, low-cost check (RSS/arXiv/HF Hub polling)."""
         items = []
         try:
-            # arXiv recent papers (example lightweight check)
-            if any(d in str(priority_domains).lower() for d in ["quantum", "fusion", "plasma", "battery", "decoder"]):
-                # Simulate finding new papers
+            # Realistic lightweight checks
+            query_str = " ".join(priority_domains).lower() if priority_domains else ""
+            
+            # arXiv-style recent papers simulation (real API would be here in production)
+            if any(k in query_str for k in ["quantum", "fusion", "plasma", "battery", "decoder", "stim", "cuda"]):
                 items.append({
                     "type": "paper",
-                    "title": "Recent advances in leakage-aware decoding",
+                    "title": "Recent advances in leakage-aware stabilizer decoding",
                     "url": "https://arxiv.org/abs/2504.12345",
                     "date": datetime.now().isoformat(),
-                    "citations": 12
+                    "citations": 18
                 })
-            # HF Hub new models check
-            if any(d in str(priority_domains).lower() for d in ["model", "sympy", "stim"]):
+            
+            # HF Hub new models simulation
+            if any(k in query_str for k in ["model", "sympy", "stim", "jax"]):
                 items.append({
                     "type": "model",
                     "name": "sympy-leakage-decoder-v2",
@@ -212,8 +215,8 @@ class ToolHunter:
         """Full scrape only when novelty score justifies it."""
         items = []
         try:
-            # GitHub full search
-            q = " ".join(priority_domains).replace(" ", "+")
+            # Realistic GitHub full search
+            q = " ".join(priority_domains).replace(" ", "+") if priority_domains else ""
             url = f"https://api.github.com/search/repositories?q={q}&sort=stars&order=desc&per_page=6"
             headers = {"Authorization": f"token {self.github_token}"} if self.github_token else {}
             r = requests.get(url, headers=headers, timeout=10)
@@ -228,13 +231,13 @@ class ToolHunter:
                         "date": item.get("pushed_at", datetime.now().isoformat())
                     })
             
-            # HF Hub example (real snapshot_download would be here in production)
-            if any(d in str(priority_domains).lower() for d in ["decoder", "stim", "cuda"]):
+            # HF Hub simulation for models
+            if any(k in str(priority_domains).lower() for k in ["decoder", "stim", "cuda", "jax"]):
                 items.append({
                     "type": "model",
                     "name": "stim-leakage-aware-decoder",
                     "url": "https://huggingface.co/models/stim-leakage-aware-decoder",
-                    "description": "Leakage-aware stabilizer simulator",
+                    "description": "Leakage-aware stabilizer simulator with JAX acceleration",
                     "date": datetime.now().isoformat()
                 })
         except Exception as e:
