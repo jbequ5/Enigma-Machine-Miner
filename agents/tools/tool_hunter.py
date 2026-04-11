@@ -45,6 +45,8 @@ class ToolHunter:
         self.github_token = os.getenv("GITHUB_TOKEN", "")
         self.models_dir = Path("models")
         self.models_dir.mkdir(parents=True, exist_ok=True)
+        self.memory_layers = None  # will be set from ArbosManager
+        self.pattern_evolution_arbos = None
         self.env_manager = ToolEnvManager()
         logger.info("🔍 ToolHunter v2.1 initialized — SOTA Continuous Intelligence Engine with novelty-based dive deeper, deep hunt tracking, and PatternEvolutionArbos integration")
 
