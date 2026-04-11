@@ -2,9 +2,6 @@
 
 **English-first • Verifier-first • Biologically-evolving • Maximum Heterogeneity • Self-Hardening • Real Compute Backends**
 
-The Enigma Machine Miner is a self-improving agentic system engineered to solve the hardest verifiable optimization problems on the Enigma subnet — quantum, cryptography, symbolic mathematics, stochastic systems, plasma control, battery chemistry, fusion, and beyond.
-
-Every execution is treated as both a solution attempt and a permanent evolutionary step. High-signal outcomes are distilled through per-fragment reinforcement scoring and folded into a living second brain of readable Markdown files. This creates measurable compounding capability that grows stronger, more reliable, and more creative over time.
 
 
 ### Unique & Novel Solver Features
