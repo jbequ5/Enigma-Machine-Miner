@@ -4966,134 +4966,144 @@ Return ONLY the complete function code."""
                 logger.error(f"Failed to process proposal {pfile}: {e}")
                 pfile.unlink(missing_ok=True)
                 
-    def run_scientist_mode(self, num_synthetic: int = 4, max_runtime_seconds: int = 300,
-                           focus_gap: str = None, intent: Dict = None) -> Dict:
-        """v0.9+ SOTA Scientist Mode — outer-loop intelligence engine with 
-        Intelligent Data-Driven Experiment Recommendation and Auto-Experiment Design."""
+def run_scientist_mode(self, num_synthetic: int = 4, max_runtime_seconds: int = 300,
+                       focus_gap: str = None, intent: Dict = None) -> Dict:
+    """v0.9.5 SOTA Scientist Mode — outer-loop intelligence engine.
+    Intelligent Data-Driven Experiment Recommendation, Auto-Experiment Design,
+    and post-run DOUBLE_CLICK recommendations from PatternEvolutionArbos."""
 
-        # Global DOUBLE_CLICK guard
-        if getattr(self, "_double_click_count", 0) >= 3:
-            logger.warning("DOUBLE_CLICK limit reached — skipping nested experiment")
-            self._append_trace("scientist_mode_skipped", "DOUBLE_CLICK nesting limit reached")
-            return {"status": "skipped", "reason": "double_click_limit_reached"}
+    # Global DOUBLE_CLICK guard
+    if getattr(self, "_double_click_count", 0) >= 3:
+        logger.warning("DOUBLE_CLICK limit reached — skipping nested experiment")
+        self._append_trace("scientist_mode_skipped", "DOUBLE_CLICK nesting limit reached")
+        return {"status": "skipped", "reason": "double_click_limit_reached"}
 
-        self._double_click_count = getattr(self, "_double_click_count", 0) + 1
+    self._double_click_count = getattr(self, "_double_click_count", 0) + 1
 
-        # v0.9 Intelligent Data-Driven Recommendation Engine
-        if intent is None:
-            recommendation = self._recommend_next_experiment()
-            intent = recommendation["intent"]
-            logger.info(f"Scientist Mode auto-recommended: {recommendation['recommendation_reason']}")
+    # v0.9.5 Intelligent Data-Driven Recommendation Engine
+    if intent is None:
+        recommendation = self._recommend_next_experiment()
+        intent = recommendation["intent"]
+        logger.info(f"Scientist Mode auto-recommended: {recommendation['recommendation_reason']}")
 
-        logger.info(f"🚀 Scientist Mode v0.9+ started — {num_synthetic} experiments | "
-                   f"Target: {intent.get('target_variable')} | Goal: {intent.get('goal')}")
+    logger.info(f"🚀 Scientist Mode v0.9.5 started — {num_synthetic} experiments | "
+               f"Target: {intent.get('target_variable')} | Goal: {intent.get('goal')}")
 
-        # === TRACE: Scientist Mode start ===
-        self._append_trace("scientist_mode_start", 
-                          f"Scientist Mode launched — {num_synthetic} synthetic experiments",
-                          metrics={
-                              "num_synthetic": num_synthetic,
-                              "max_runtime_seconds": max_runtime_seconds,
-                              "intent_target": intent.get("target_variable"),
-                              "focus_gap": focus_gap,
-                              "auto_recommended": intent.get("auto_recommended", False),
-                              "recommendation_reason": intent.get("recommendation_reason", "")
-                          })
+    # === TRACE: Scientist Mode start ===
+    self._append_trace("scientist_mode_start",
+                      f"Scientist Mode launched — {num_synthetic} synthetic experiments",
+                      metrics={
+                          "num_synthetic": num_synthetic,
+                          "max_runtime_seconds": max_runtime_seconds,
+                          "intent_target": intent.get("target_variable"),
+                          "focus_gap": focus_gap,
+                          "auto_recommended": intent.get("auto_recommended", False),
+                          "recommendation_reason": intent.get("recommendation_reason", "")
+                      })
 
-        start_time = time.time()
-        experiment_summaries = []
-        contract_deltas = []
+    start_time = time.time()
+    experiment_summaries = []
+    contract_deltas = []
 
-        for i in range(num_synthetic):
-            if time.time() - start_time > max_runtime_seconds:
-                logger.warning("Scientist Mode reached max runtime safeguard — stopping early")
-                self._append_trace("scientist_mode_early_stop", "Max runtime safeguard triggered")
-                break
+    for i in range(num_synthetic):
+        if time.time() - start_time > max_runtime_seconds:
+            logger.warning("Scientist Mode reached max runtime safeguard — stopping early")
+            self._append_trace("scientist_mode_early_stop", "Max runtime safeguard triggered")
+            break
 
-            synthetic_task = self._generate_synthetic_challenge(focus_gap or intent.get("domain_focus"))
-            logger.info(f"Scientist Mode experiment {i+1}/{num_synthetic}: {synthetic_task[:150]}...")
+        synthetic_task = self._generate_synthetic_challenge(focus_gap or intent.get("domain_focus"))
+        logger.info(f"Scientist Mode experiment {i+1}/{num_synthetic}: {synthetic_task[:150]}...")
+        self._append_trace("scientist_synthetic_start",
+                          f"Experiment {i+1}/{num_synthetic}: {synthetic_task[:120]}...",
+                          metrics={"experiment_index": i+1, "synthetic_task_length": len(synthetic_task)})
 
-            self._append_trace("scientist_synthetic_start", 
-                              f"Experiment {i+1}/{num_synthetic}: {synthetic_task[:120]}...",
-                              metrics={"experiment_index": i+1, "synthetic_task_length": len(synthetic_task)})
+        synthetic_result = self.orchestrate_subarbos(
+            task=synthetic_task,
+            goal_md=self.extra_context or "",
+            previous_outputs=None
+        )
 
-            synthetic_result = self.orchestrate_subarbos(
-                task=synthetic_task,
-                goal_md=self.extra_context or "",
-                previous_outputs=None
-            )
+        summary = self._build_scientist_experiment_summary(synthetic_result, synthetic_task)
+        summary["intent"] = intent
+        experiment_summaries.append(summary)
 
-            summary = self._build_scientist_experiment_summary(synthetic_result, synthetic_task)
-            summary["intent"] = intent
-            experiment_summaries.append(summary)
+        # Contract evolution on strong runs
+        if summary.get("efs", 0.0) > 0.78 or summary.get("double_click_triggered", False):
+            delta = self._evolve_verification_contract_from_synthetic(summary)
+            if delta:
+                contract_deltas.append(delta)
 
-            # Contract evolution on strong runs
-            if summary.get("efs", 0.0) > 0.78 or summary.get("double_click_triggered", False):
-                delta = self._evolve_verification_contract_from_synthetic(summary)
-                if delta:
-                    contract_deltas.append(delta)
+        # DOUBLE_CLICK narrower experiment (with nesting guard)
+        if summary.get("double_click_triggered", False) and focus_gap is None:
+            if getattr(self, "_double_click_nest_level", 0) < 2:
+                self._double_click_nest_level = getattr(self, "_double_click_nest_level", 0) + 1
+                narrow_result = self._run_narrower_double_click_experiment(
+                    summary.get("gap"), synthetic_task
+                )
+                if narrow_result:
+                    experiment_summaries.append(narrow_result)
+                self._double_click_nest_level -= 1
 
-            # DOUBLE_CLICK narrower experiment (with nesting guard)
-            if summary.get("double_click_triggered", False) and focus_gap is None:
-                if getattr(self, "_double_click_nest_level", 0) < 2:
-                    self._double_click_nest_level = getattr(self, "_double_click_nest_level", 0) + 1
-                    narrow_result = self._run_narrower_double_click_experiment(
-                        summary.get("gap"), synthetic_task
-                    )
-                    if narrow_result:
-                        experiment_summaries.append(narrow_result)
-                    self._double_click_nest_level -= 1
+    # Memory constant tuning
+    self._run_memory_constant_tuning(experiment_summaries, intent)
 
-        # Memory constant tuning
-        self._run_memory_constant_tuning(experiment_summaries, intent)
+    # Meta-Tuning feed
+    meta_summary = {
+        "experiment_count": len(experiment_summaries),
+        "avg_efs": round(sum(s.get("efs", 0) for s in experiment_summaries) / max(1, len(experiment_summaries)), 4),
+        "contract_deltas_generated": len(contract_deltas),
+        "high_signal_count": sum(1 for s in experiment_summaries if s.get("efs", 0) > 0.80),
+        "double_click_count": sum(1 for s in experiment_summaries if s.get("double_click_triggered", False)),
+        "intent": intent
+    }
 
-        # Meta-Tuning feed
-        meta_summary = {
-            "experiment_count": len(experiment_summaries),
-            "avg_efs": round(sum(s.get("efs", 0) for s in experiment_summaries) / max(1, len(experiment_summaries)), 4),
-            "contract_deltas_generated": len(contract_deltas),
-            "high_signal_count": sum(1 for s in experiment_summaries if s.get("efs", 0) > 0.80),
-            "double_click_count": sum(1 for s in experiment_summaries if s.get("double_click_triggered", False)),
-            "intent": intent
-        }
+    try:
+        self.run_meta_tuning_cycle(
+            stall_detected=False,
+            oracle_result={"scientist_summary": meta_summary, "experiments": experiment_summaries}
+        )
+    except Exception as e:
+        logger.debug(f"Meta-Tuning after Scientist Mode skipped: {e}")
 
+    self._current_scientist_summary = meta_summary
+    runtime = round(time.time() - start_time, 1)
+    self._double_click_count -= 1  # reset after run
+
+    logger.info(f"✅ Scientist Mode completed — {len(experiment_summaries)} experiments | Avg EFS: {meta_summary['avg_efs']:.3f} | Runtime: {runtime}s")
+
+    # === TRACE: Scientist Mode complete ===
+    self._append_trace("scientist_mode_complete",
+                      f"Scientist Mode finished — {len(experiment_summaries)} experiments completed",
+                      metrics={
+                          "experiment_count": len(experiment_summaries),
+                          "avg_efs": meta_summary["avg_efs"],
+                          "contract_deltas_generated": len(contract_deltas),
+                          "high_signal_count": meta_summary["high_signal_count"],
+                          "double_click_count": meta_summary["double_click_count"],
+                          "runtime_seconds": runtime,
+                          "auto_recommended": intent.get("auto_recommended", False),
+                          "recommendation_reason": intent.get("recommendation_reason", "")
+                      })
+
+    # v0.9.5 Post-run DOUBLE_CLICK recommendations from PatternEvolutionArbos
+    if hasattr(self, "pattern_evolution_arbos"):
         try:
-            self.run_meta_tuning_cycle(
-                stall_detected=False,
-                oracle_result={"scientist_summary": meta_summary, "experiments": experiment_summaries}
-            )
+            double_click_recs = self.pattern_evolution_arbos.generate_post_run_double_click_recommendations(meta_summary)
+            self._current_double_click_recommendations = double_click_recs
+            self._append_trace("post_run_double_click_recommendations", 
+                              f"Generated {len(double_click_recs)} targeted experiments")
         except Exception as e:
-            logger.debug(f"Meta-Tuning after Scientist Mode skipped: {e}")
+            logger.debug(f"Post-run DOUBLE_CLICK recommendations skipped (safe): {e}")
 
-        self._current_scientist_summary = meta_summary
-
-        runtime = round(time.time() - start_time, 1)
-        self._double_click_count -= 1  # reset after run
-
-        logger.info(f"✅ Scientist Mode completed — {len(experiment_summaries)} experiments | Avg EFS: {meta_summary['avg_efs']:.3f} | Runtime: {runtime}s")
-
-        # === TRACE: Scientist Mode complete ===
-        self._append_trace("scientist_mode_complete", 
-                          f"Scientist Mode finished — {len(experiment_summaries)} experiments completed",
-                          metrics={
-                              "experiment_count": len(experiment_summaries),
-                              "avg_efs": meta_summary["avg_efs"],
-                              "contract_deltas_generated": len(contract_deltas),
-                              "high_signal_count": meta_summary["high_signal_count"],
-                              "double_click_count": meta_summary["double_click_count"],
-                              "runtime_seconds": runtime,
-                              "auto_recommended": intent.get("auto_recommended", False),
-                              "recommendation_reason": intent.get("recommendation_reason", "")
-                          })
-
-        return {
-            "status": "completed",
-            "experiment_summaries": experiment_summaries,
-            "meta_summary": meta_summary,
-            "contract_deltas": contract_deltas,
-            "runtime_seconds": runtime,
-            "recommendation": intent.get("recommendation_reason", "")
-        }
+    return {
+        "status": "completed",
+        "experiment_summaries": experiment_summaries,
+        "meta_summary": meta_summary,
+        "contract_deltas": contract_deltas,
+        "runtime_seconds": runtime,
+        "recommendation": intent.get("recommendation_reason", ""),
+        "double_click_recommendations": getattr(self, "_current_double_click_recommendations", [])
+    }
 
     # ====================== SCIENTIST MODE HELPERS (v0.9) ======================
 
