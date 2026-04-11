@@ -5,6 +5,12 @@ from pathlib import Path
 from datetime import datetime
 import time
 import os
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from scipy.cluster.hierarchy import linkage, fcluster
+import networkx as nx
+import numpy as np
 
 # ====================== PAGE CONFIG ======================
 st.set_page_config(
@@ -35,11 +41,11 @@ st.markdown("""
         background: linear-gradient(rgba(0, 0, 0, 0.92), rgba(0, 25, 10, 0.96));
         z-index: -1;
     }
-    h1, h2, h3 { 
-        color: #00ff9d !important; 
-        font-family: 'Courier New', monospace; 
-        text-shadow: 0 0 30px #00ff9d, 0 0 60px #00aa77; 
-        letter-spacing: 4px; 
+    h1, h2, h3 {
+        color: #00ff9d !important;
+        font-family: 'Courier New', monospace;
+        text-shadow: 0 0 30px #00ff9d, 0 0 60px #00aa77;
+        letter-spacing: 4px;
     }
     .metric-card {
         background: rgba(0, 30, 15, 0.85);
@@ -76,27 +82,24 @@ st.markdown("""
 
 st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER — COMMAND DASHBOARD v1.0</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #ffaa00;'>TOP SECRET • BUNKER COMMAND POST 1944 • SN63 QUANTUM INNOVATE</h3>", unsafe_allow_html=True)
-
 st.caption("""
-<span class='live-dot'></span> ENIGMA ROTORS SPINNING • LIVE DECRYPTION MISSION ACTIVE • 
-SELF-OPTIMIZING EMBODIED ORGANISM • v0.8+ FULLY FRAGMENTED MEMORY SYSTEM • TRACE ENABLED
+<span class='live-dot'></span> ENIGMA ROTORS SPINNING • LIVE DECRYPTION MISSION ACTIVE •
+SELF-OPTIMIZING EMBODIED ORGANISM • v0.9.5 CONTINUOUS INTELLIGENCE ENGINE • TRACE ENABLED
 """, unsafe_allow_html=True)
 
 # ====================== SESSION STATE ======================
 if "manager" not in st.session_state:
     st.session_state.manager = ArbosManager()
-
 if "last_result" not in st.session_state:
     st.session_state.last_result = None
-
 if "high_level_plan" not in st.session_state:
     st.session_state.high_level_plan = None
-
 if "trace_log" not in st.session_state:
     st.session_state.trace_log = []
-
 if "current_run_status" not in st.session_state:
     st.session_state.current_run_status = {}
+if "current_double_click_recommendations" not in st.session_state:
+    st.session_state.current_double_click_recommendations = []
 
 manager = st.session_state.manager
 
@@ -123,25 +126,24 @@ with col4:
         st.rerun()
 
 # ====================== MAIN TABS ======================
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
     "📊 OVERVIEW DASHBOARD",
-    "🎯 COMMAND BRIDGE", 
-    "🧠 BRAIN VAULT", 
-    "🛰️ RECON & INTEL", 
-    "🔬 ORGANISM CORE", 
+    "🎯 COMMAND BRIDGE",
+    "🧠 BRAIN VAULT",
+    "🛰️ RECON & INTEL",
+    "🔬 ORGANISM CORE",
     "📜 DVR CONTRACT MONITOR",
     "📈 LIVE SYSTEM METRICS",
     "🔍 MISSION TRACE LOG",
     "🌌 COSMIC COMPRESSION — Memory Graph Pruning",
-    "🧹 PRUNING ADVISOR — Intelligent Recommendations"
-    
+    "🧹 PRUNING ADVISOR — Intelligent Recommendations",
+    "🧪 RECOMMENDED EXPERIMENTS"   # NEW TAB
 ])
 
 # ====================== TAB 1: OVERVIEW DASHBOARD ======================
 with tab1:
     st.header("📊 OPERATIONAL DASHBOARD")
     st.caption("Real-time system status • Memory health • Mission metrics")
-
     m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
@@ -161,16 +163,13 @@ with tab1:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
         st.metric("EMBODIMENT STATUS", "ACTIVE" if manager.toggles.get("embodiment_enabled", True) else "STANDBY")
         st.markdown("</div>", unsafe_allow_html=True)
-
     st.divider()
-
     st.subheader("📜 RECENT MISSION ACTIVITY")
     if st.session_state.last_result:
         result = st.session_state.last_result
         st.success(f"Last Mission — Score: **{result.get('validation_score', 0):.3f}** | EFS: **{result.get('efs', 0):.3f}**")
     else:
         st.info("No missions executed yet. Launch from Command Bridge.")
-
     st.subheader("🛠️ SYSTEM HEALTH")
     health_cols = st.columns(3)
     with health_cols[0]:
@@ -189,12 +188,11 @@ with tab2:
         placeholder="Describe the full problem in detail...",
         key="challenge_input"
     )
-    
+   
     st.subheader("✅ VERIFICATION PROTOCOL")
     default_verification = '''def verify_solution(solution, params=None):
     """Return (passed: bool, explanation: str, score: float)"""
     return False, "Verification not implemented yet", 0.0'''
-
     verification_response = code_editor(
         default_verification,
         lang="python",
@@ -203,7 +201,6 @@ with tab2:
         allow_reset=True,
         key="verification_editor_unique"
     )
-
     if isinstance(verification_response, dict):
         verification_instructions = verification_response.get("text", default_verification)
     else:
@@ -212,10 +209,8 @@ with tab2:
     # ToolHunter Recommendations
     st.subheader("🛠️ ToolHunter Recommendations")
     st.caption("Proactive tools detected from contract, memory graph, and gap analysis. Add with one click.")
-
     plan = st.session_state.get("high_level_plan", {}) or {}
     recommended = plan.get("recommended_tools", [])
-
     if recommended:
         for tool in recommended:
             tool_name = tool if isinstance(tool, str) else tool.get("name", "Unnamed Tool")
@@ -260,9 +255,7 @@ with tab2:
 with tab3:
     st.header("🧠 BRAIN VAULT — Living Second Brain")
     st.caption("Mycelial + wiki + bio heuristics. Edit live.")
-
     edit_mode = st.radio("Edit Mode", ["Quick Toggles", "Individual Components"], horizontal=True)
-
     if edit_mode == "Quick Toggles":
         toggles_content = load_brain_component("toggles")
         edited_toggles = st.text_area("Centralized Toggles", value=toggles_content, height=300)
@@ -305,7 +298,6 @@ with tab4:
 with tab5:
     st.header("🔬 ORGANISM CORE — v1.0 Self-Optimizing Embodied Organism")
     st.caption("All features are toggleable, replay-tested, and EFS-gated.")
-
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🧬 Run Meta-Tuning Cycle", type="primary"):
@@ -318,7 +310,6 @@ with tab5:
                 manager.rps.surface_resonance(st.session_state.get("last_result", {}))
                 manager.pps.surface_photoelectric(st.session_state.get("last_result", {}))
                 st.success("✅ Pattern surfacers activated")
-
     st.subheader("Toggle Controls")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -337,9 +328,9 @@ with tab6:
         st.info("Run a mission to see live contract data")
 
 # ====================== TAB 7: LIVE METRICS ======================
-with tab7:  # LIVE METRICS
+with tab7:
     st.header("📈 LIVE SYSTEM METRICS")
-    
+   
     # EFS Trend Sparkline
     if hasattr(manager, 'recent_scores') and len(manager.recent_scores) > 3:
         fig = go.Figure()
@@ -362,17 +353,16 @@ with tab7:  # LIVE METRICS
         "heterogeneity": hetero,
         "approximation_mode": "active" if getattr(manager.validator, 'last_approximation_used', False) else "real_backends"
     })
+
 # ====================== TAB 8: MISSION TRACE LOG ======================
 with tab8:
     st.header("🔍 MISSION TRACE LOG — Full System Observability")
     st.caption("Real-time chronological execution trace of every major phase")
-
     if st.session_state.trace_log:
-        for entry in reversed(st.session_state.trace_log[-40:]):  # Last 40 entries
+        for entry in reversed(st.session_state.trace_log[-40:]): # Last 40 entries
             ts = entry.get("timestamp", "")[-8:] if entry.get("timestamp") else "—"
             step = entry.get("step", "Unknown Step")
             details = entry.get("details", "")
-
             with st.expander(f"[{ts}] {step}", expanded=False):
                 st.write(details)
                 if entry.get("metrics"):
@@ -384,20 +374,18 @@ with tab8:
                     st.warning("🔴 DOUBLE_CLICK EVENT DETECTED")
     else:
         st.info("No trace data yet. Launch a full mission from the Command Bridge.")
-
     if st.button("🔄 Refresh Trace Log"):
         st.rerun()
-        
-with tab9:  # NEW: COSMIC COMPRESSION
+
+# ====================== TAB 9: COSMIC COMPRESSION ======================
+with tab9:
     st.header("🌌 COSMIC COMPRESSION — Memory Graph Pruning")
     st.caption("Intelligent pruning to keep the brain lean and high-signal")
-
     if st.button("🚀 Run Cosmic Compression Now", type="primary", use_container_width=True):
         with st.spinner("Performing advanced graph pruning..."):
             compressed, promoted = manager.perform_cosmic_compression(force=True)
             st.success(f"✅ Compression complete — Removed {compressed} low-value fragments | Promoted {promoted} invariants to Grail")
             st.rerun()
-
     # Live graph stats
     if hasattr(manager, 'fragment_tracker') and hasattr(manager.fragment_tracker, 'graph'):
         g = manager.fragment_tracker.graph
@@ -413,10 +401,10 @@ with tab9:  # NEW: COSMIC COMPRESSION
             avg_mau = np.mean([d.get('mau', 0) for n,d in g.nodes(data=True)]) if g.nodes else 0
             st.metric("Avg MAU", f"{avg_mau:.3f}")
 
-with tab10:  # NEW: PRUNING ADVISOR
+# ====================== TAB 10: PRUNING ADVISOR ======================
+with tab10:
     st.header("🧹 PRUNING ADVISOR — Intelligent Recommendations")
     st.caption("Data-driven analysis of the last run with actionable recommendations")
-
     if st.button("🔍 Analyze Current Run", type="primary", use_container_width=True):
         with st.spinner("Analyzing run data..."):
             if st.session_state.last_result:
@@ -428,20 +416,90 @@ with tab10:  # NEW: PRUNING ADVISOR
                 st.success("✅ Analysis complete")
             else:
                 st.error("No recent run data available. Launch a mission first.")
-
     if "last_analysis" in st.session_state:
         analysis = st.session_state.last_analysis
         st.metric("Run Health Score", f"{analysis.get('health_score', 0):.3f}", delta="Higher is better")
-
         st.subheader("Recommendations")
         for rec in analysis.get("recommendations", []):
             priority_color = "🔴" if rec.get("priority") == "critical" else "🟠" if rec.get("priority") == "high" else "🟡"
             with st.expander(f"{priority_color} {rec.get('module')} → {rec.get('action')}"):
                 st.write(rec.get("reason"))
                 st.caption(f"Priority: {rec.get('priority', 'medium').upper()}")
-
         st.subheader("Key Signals")
         st.json(analysis.get("signals", {}))
+
+# ====================== TAB 11: RECOMMENDED EXPERIMENTS (NEW) ======================
+with tab11:
+    st.subheader("🧪 Scientist Mode — Recommended Experiments")
+    st.caption("Data-driven recommendations generated from recent runs. One-click execution available.")
+
+    if hasattr(manager, "_current_scientist_summary") and manager._current_scientist_summary:
+        summary = manager._current_scientist_summary
+        
+        # Latest recommendations
+        st.markdown("**Latest Recommendations (from most recent run)**")
+        if "experiment_summaries" in summary and summary["experiment_summaries"]:
+            for i, exp in enumerate(summary["experiment_summaries"]):
+                with st.expander(f"Recommendation {i+1}: {exp.get('target_variable', 'Unknown')} → {exp.get('effect_variable', 'Unknown')}"):
+                    st.json(exp)
+                    if st.button("🚀 Run This Experiment", key=f"run_exp_{i}"):
+                        with st.spinner("Running targeted Scientist Mode experiment..."):
+                            intent = {
+                                "target_variable": exp.get("target_variable"),
+                                "effect_variable": exp.get("effect_variable"),
+                                "domain_focus": exp.get("domain_focus"),
+                                "goal": exp.get("goal", "maximize_EFS_and_robustness"),
+                                "trial_weights": exp.get("trial_weights", {"retention": 0.6, "efs_impact": 0.4})
+                            }
+                            result = manager.run_scientist_mode(intent=intent)
+                            st.success("✅ Experiment completed and logged!")
+                            st.json(result)
+        else:
+            st.info("No active recommendations from the latest run.")
+        
+        # Historical overview
+        st.divider()
+        st.subheader("Historical Experiment Impact")
+        recent = manager.get_run_history(n=15)
+        if recent:
+            df_data = []
+            for r in recent:
+                if isinstance(r, dict) and "experiment_count" in r:
+                    df_data.append({
+                        "Timestamp": r.get("timestamp", "N/A"),
+                        "Experiments Run": r.get("experiment_count", 0),
+                        "Avg EFS": round(r.get("avg_efs", 0), 4),
+                        "High-Signal Experiments": r.get("high_signal_count", 0),
+                        "Contract Deltas": len(r.get("contract_deltas", []))
+                    })
+            if df_data:
+                st.dataframe(pd.DataFrame(df_data), use_container_width=True)
+        else:
+            st.info("No experiment history yet — run more missions with Scientist Mode enabled.")
+        
+        st.caption("Recommendations are automatically generated from EFS deltas, stall patterns, verifier quality, and memory utilization in recent runs.")
+
+    # NEW: Post-run DOUBLE_CLICK Recommendations from PatternEvolutionArbos
+    st.subheader("🔄 Post-Run DOUBLE_CLICK Recommendations")
+    if hasattr(manager, "_current_double_click_recommendations") and manager._current_double_click_recommendations:
+        for i, rec in enumerate(manager._current_double_click_recommendations):
+            with st.expander(f"DOUBLE_CLICK {i+1}: {rec['goal']}"):
+                st.json(rec)
+                if st.button("🚀 Run This DOUBLE_CLICK Now", key=f"double_click_{i}"):
+                    with st.spinner("Running targeted DOUBLE_CLICK experiment..."):
+                        intent = {
+                            "target_variable": rec["target_variable"],
+                            "effect_variable": rec["effect_variable"],
+                            "domain_focus": rec["domain_focus"],
+                            "goal": rec["goal"]
+                        }
+                        result = manager.run_scientist_mode(intent=intent)
+                        st.success("DOUBLE_CLICK completed!")
+                        st.json(result)
+    else:
+        st.info("No post-run DOUBLE_CLICK recommendations yet.")
+
+    st.caption("DOUBLE_CLICK recommendations are generated post-run by PatternEvolutionArbos to strengthen patterns or fill small discovery gaps.")
 
 # ====================== PACKAGE & EXPORT ======================
 st.divider()
@@ -457,13 +515,12 @@ if st.session_state.last_result:
             deterministic_tooling="SymPy + Cirq + Z3 + PuLP"
         )
 
-def _package_submission(solution: str, blueprint: dict, trace: list, notes: str, 
+def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
                         challenge: str, verification: str, deterministic_tooling: str):
     """Package the full submission for upload."""
     ts = datetime.now().strftime("%Y%m%d_%H%M")
     sub_dir = Path("submissions") / f"sn63_{ts}"
     sub_dir.mkdir(parents=True, exist_ok=True)
-
     (sub_dir / "solution.md").write_text(str(solution), encoding="utf-8")
     (sub_dir / "blueprint.json").write_text(json.dumps(blueprint, indent=2), encoding="utf-8")
     (sub_dir / "trace.log").write_text("\n".join(str(t) for t in trace), encoding="utf-8")
@@ -471,20 +528,18 @@ def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
     (sub_dir / "challenge.txt").write_text(challenge, encoding="utf-8")
     (sub_dir / "verification.txt").write_text(verification, encoding="utf-8")
     (sub_dir / "deterministic_tooling.txt").write_text(deterministic_tooling, encoding="utf-8")
-
     with zipfile.ZipFile(sub_dir / "submission_package.zip", "w") as z:
         for f in sub_dir.glob("*"):
             if f.is_file() and f.suffix != ".zip":
                 z.write(f, f.name)
-
     with open(sub_dir / "submission_package.zip", "rb") as f:
         st.download_button(
-            label="📥 Download Submission Package", 
-            data=f.read(), 
-            file_name=f"sn63_{ts}.zip", 
+            label="📥 Download Submission Package",
+            data=f.read(),
+            file_name=f"sn63_{ts}.zip",
             mime="application/zip"
         )
-    
+   
     st.success(f"✅ Package created: sn63_{ts}.zip")
 
 st.caption("© 1944–2026 ALLIED ENIGMA MINER • PUSHING HUMANITY TO THE NEXT STAGE")
