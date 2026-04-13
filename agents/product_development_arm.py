@@ -1,6 +1,4 @@
-# agents/product_development_arm.py - v0.9.7 MAXIMUM SOTA Synthesis Arbos
-# Hardened LLM debate, real vault semantic search, self-critique, verifier-first, rich product creation.
-
+# agents/product_development_arm.py - v0.9.7 MAX SOTA Synthesis Arbos with Graph Intelligence
 import logging
 import json
 from pathlib import Path
@@ -17,16 +15,16 @@ class ProductDevelopmentArm:
         self.output_root.mkdir(parents=True, exist_ok=True)
 
     def synthesize_product(self, vault_data: List[Dict] = None, market_signals: Dict = None) -> Dict:
-        """Full SOTA Synthesis Arbos with real vault semantic search and hardened LLM pipeline."""
+        """Full SOTA Synthesis Arbos — intelligently hunts the fragmented graph for best vault data."""
         if vault_data is None:
             vault_data = []
         if market_signals is None:
-            market_signals = {"predictive_power": self.arbos.predictive.predictive_power if hasattr(self.arbos, 'predictive') else 0.0}
+            market_signals = {"predictive_power": getattr(self.arbos, 'predictive', type('obj', (object,), {'predictive_power': 0.0}))().predictive_power}
 
-        logger.info("🚀 Synthesis Arbos started with real vault semantic search")
+        logger.info("🚀 Synthesis Arbos started — hunting fragmented graph for best vault data")
 
-        # Real vault semantic search + summarization
-        real_insights = self._semantic_vault_search()
+        # === INTELLIGENT GRAPH HUNT ===
+        real_insights = self._graph_hunt_best_vault_data()
 
         proposals = self._llm_generate_proposals(real_insights, market_signals)
         debated = self._llm_structured_debate(proposals, market_signals)
@@ -36,34 +34,30 @@ class ProductDevelopmentArm:
 
         return created
 
-    def _semantic_vault_search(self) -> List[Dict]:
-        """Real semantic search over vault content using existing memory layers."""
+    def _graph_hunt_best_vault_data(self) -> List[Dict]:
+        """SOTA graph hunt — uses the same fragmented intelligence as the EM wiki."""
+        if not hasattr(self.arbos, 'fragment_tracker'):
+            return []
+
+        # Query the graph for high-impact vault entries
+        query = "high-signal vault entry OR crown jewel OR predictive OR synthesis OR academy"
+        best_fragments = self.arbos.fragment_tracker.query_relevant_fragments(query, top_k=12)
+
         insights = []
-        for vault_name in ["publications", "assets", "services", "academy"]:
-            vault_dir = self.intelligence.vault_root / vault_name
-            if not vault_dir.exists():
-                continue
-            files = sorted(vault_dir.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True)[:6]
-            for f in files:
-                try:
-                    content = f.read_text(encoding="utf-8")
-                    # Simple semantic score (can be enhanced with embeddings later)
-                    score = len(content) / 1000.0 + (1 if "high-signal" in content.lower() else 0)
-                    insights.append({
-                        "vault": vault_name,
-                        "path": str(f),
-                        "content": content[:3000],
-                        "semantic_score": score,
-                        "timestamp": f.stat().st_mtime
-                    })
-                except Exception as e:
-                    logger.debug(f"Vault read failed: {e}")
-        # Sort by semantic score
-        return sorted(insights, key=lambda x: x["semantic_score"], reverse=True)[:8]
+        for frag in best_fragments:
+            if isinstance(frag, dict) and frag.get("metadata", {}).get("type") == "vault_entry":
+                insights.append({
+                    "vault": frag["metadata"].get("vault", "unknown"),
+                    "content": frag.get("content", ""),
+                    "score": frag.get("impact_score", frag.get("mau_score", 0.0)),
+                    "freshness": frag.get("freshness_score", 0.0),
+                    "path": frag["metadata"].get("path", "")
+                })
+        return insights
 
     def _llm_generate_proposals(self, insights: List, market_signals: Dict) -> List[Dict]:
-        context = "\n\n".join([f"[{i['vault']}] {i['content'][:600]}" for i in insights])
-        prompt = f"""You are Synthesis Arbos. Use these real vault insights:
+        context = "\n\n".join([f"[{i.get('vault', 'unknown')}] {i.get('content', '')[:700]}" for i in insights])
+        prompt = f"""You are Synthesis Arbos. Use these real graph-hunted vault insights:
 
 {context}
 
@@ -76,7 +70,7 @@ Generate 4 strong, distinct product proposals. Return ONLY valid JSON array."""
             return json.loads(raw) if isinstance(raw, str) else []
         except Exception as e:
             logger.warning(f"LLM proposal generation failed: {e}")
-            return [{"name": "Fallback Synthesis Kit", "type": "kit", "description": "Generated from vault data", "confidence": 0.75}]
+            return [{"name": "Fallback Synthesis Kit", "type": "kit", "description": "Generated from graph-hunted vault data", "confidence": 0.75}]
 
     def _llm_structured_debate(self, proposals: List, market_signals: Dict) -> List[Dict]:
         prompt = f"""You are Debate Arbos. Critique and rank these proposals:
