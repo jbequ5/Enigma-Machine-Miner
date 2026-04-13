@@ -33,6 +33,7 @@ from agents.meta_tuning_arbos import MetaTuningArbos
 from tools.archive_hunter import ArchiveHunter
 from agents.embodiment import NeurogenesisArbos, MicrobiomeLayer, VagusFeedbackLoop
 from agents.pattern_surfacer import ResonancePatternSurfacer, PhotoelectricPatternSurfacer
+from agents.predictive_intelligence_layer import PredictiveIntelligenceLayer
 
 
 from validation_oracle import ValidationOracle
@@ -1009,8 +1010,7 @@ class ArbosManager:
             
         # Safe execution (RestrictedPython)
         self.safe_exec = self.validator.safe_exec
-        self.predictive = PredictiveIntelligenceLayer(self)
-        self.business_dev = BusinessDev(self)
+        
 
         # Toggles - cleaned and complete
         self.toggles = {
@@ -1064,6 +1064,13 @@ class ArbosManager:
         # Tool Hunter
         self.tool_hunter = tool_hunter
             self.pattern_evolution_arbos = PatternEvolutionArbos()
+        
+                # v0.9.7 FULL PREDICTIVE INTELLIGENCE LAYER — wired here
+        self.predictive = PredictiveIntelligenceLayer(self)
+        self.business_dev = BusinessDev(self)
+        self.tool_hunter.predictive = self.predictive          # ToolHunter now has direct access
+        logger.info("v0.9.7 PredictiveIntelligenceLayer fully wired into ArbosManager")
+        
         self.memory_layers = MemoryLayers()
         self.memory_layers.arbos = self
             # Wire ToolHunter back to memory and pattern evolution
@@ -6033,6 +6040,18 @@ Return ONLY valid JSON:
             "diagnostics": best_diagnostics,
             "loop": self.loop_count
         }
+
+                # === v0.9.7 PREDICTIVE UPDATE — every single run feeds real metrics ===
+        self.predictive.update_from_run({
+            "validation_score": best_score,
+            "efs": getattr(self.validator, 'last_efs', 0.0),
+            "fidelity": getattr(self.validator, 'last_fidelity', 0.0),
+            "heterogeneity": hetero,                    # already computed in the loop
+            "fragments_count": len(self.memory_layers.get_fragments()),
+            "alpha_demand_impact": self.predictive.market_demand_signal
+        })
+        self.predictive.route_predictive_signals(run_data)
+        
         self._end_of_run(run_data)
 
         logger.info(f"✅ Full mission completed — Best score: {best_score:.3f}")
