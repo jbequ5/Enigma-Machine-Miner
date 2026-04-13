@@ -137,7 +137,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
     "🔍 MISSION TRACE LOG",
     "🌌 COSMIC COMPRESSION — Memory Graph Pruning",
     "🧹 PRUNING ADVISOR — Intelligent Recommendations",
-    "🧪 RECOMMENDED EXPERIMENTS"   # NEW TAB
+    "🧪 RECOMMENDED EXPERIMENTS",
+    "🔮 PREDICTIVE INTELLIGENCE"
 ])
 
 # ====================== TAB 1: OVERVIEW DASHBOARD ======================
@@ -500,6 +501,19 @@ with tab11:
         st.info("No post-run DOUBLE_CLICK recommendations yet.")
 
     st.caption("DOUBLE_CLICK recommendations are generated post-run by PatternEvolutionArbos to strengthen patterns or fill small discovery gaps.")
+
+# ====================== NEW PREDICTIVE TAB ======================
+with tab12:  # adjust index if needed
+    st.header("🔮 Predictive Algorithmic Intelligence Layer")
+    st.metric("Market Demand Signal", f"{manager.predictive.market_demand_signal:.3f}")
+    st.metric("Prize Pool Forecast", f"${manager.predictive.prize_pool_forecast:,.0f}")
+    st.metric("Conversion Probability", f"{manager.predictive.conversion_forecast:.1%}")
+    st.metric("Overall Predictive Power", f"{manager.predictive.predictive_power:.3f}")
+    
+    if not manager.predictive.historical_data.empty:
+        st.line_chart(manager.predictive.historical_data.set_index("timestamp")[["efs", "validation_score"]])
+    
+    st.caption("Real-time RandomForest + ARIMA + DEAP + NetworkX + SymPy ensemble • Feeds VaultRouter + PD Arm + Flywheel")
 
 # ====================== PACKAGE & EXPORT ======================
 st.divider()
