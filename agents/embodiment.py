@@ -1,6 +1,7 @@
-# agents/embodiment.py - v2.0 MAXIMUM CAPABILITY Embodiment Modules
+# agents/embodiment.py - v0.9.7 MAXIMUM SOTA Embodiment Modules
 # NeurogenesisArbos + MicrobiomeLayer + VagusFeedbackLoop
-# Fully verifier-first, EFS/c/θ/heterogeneity-driven, contract-aware, and Grail-promoting
+# Fully verifier-first, EFS/c/θ/heterogeneity-driven, contract-aware, graph-integrated,
+# predictive-aware, vault-routing, PD Arm triggering, and Grail-promoting.
 
 import time
 import threading
@@ -56,6 +57,26 @@ class NeurogenesisArbos:
             (branch_path / "README.md").write_text(f"# Neurogenesis Spawn {self.spawned_count}\nTriggered by strong oracle signal (EFS={efs:.3f}, c={c:.3f})\n")
 
             logger.info(f"🧠 Neurogenesis spawned new branch (ID {self.spawned_count}, EFS={efs:.3f}, c={c:.3f})")
+
+            # SOTA: Route high-signal spawn to Vaults
+            if hasattr(self, 'arbos') and self.arbos and hasattr(self.arbos, 'intelligence'):
+                run_data = {
+                    "insight_score": efs,
+                    "predictive_power": getattr(self.arbos.predictive, 'predictive_power', 0.0),
+                    "efs": efs,
+                    "heterogeneity": hetero,
+                    "key_takeaway": f"Neurogenesis spawned new branch (ID {self.spawned_count})",
+                    "flywheel_step": "embodiment_to_vaults"
+                }
+                self.arbos.intelligence.route_to_vaults(run_data)
+
+            # Trigger PD Arm synthesis for new branch curriculum/tool
+            if hasattr(self, 'arbos') and self.arbos and hasattr(self.arbos, 'pd_arm'):
+                self.arbos.pd_arm.synthesize_product(
+                    vault_data=[], 
+                    market_signals={"predictive_power": getattr(self.arbos.predictive, 'predictive_power', 0.0)}
+                )
+
             return pattern
 
         except Exception as e:
@@ -100,6 +121,19 @@ class MicrobiomeLayer:
             (self.ferment_dir / f"ferment_{self.novelty_injections}.json").write_text(json.dumps(injection, indent=2))
 
             logger.info(f"🍄 Microbiome fermented novelty injection #{self.novelty_injections} (EFS={efs:.3f}, hetero={hetero:.3f})")
+
+            # Route to Vaults if strong injection
+            if hasattr(self, 'arbos') and self.arbos and hasattr(self.arbos, 'intelligence') and hetero > 0.75:
+                run_data = {
+                    "insight_score": efs,
+                    "predictive_power": getattr(self.arbos.predictive, 'predictive_power', 0.0),
+                    "efs": efs,
+                    "heterogeneity": hetero,
+                    "key_takeaway": f"Microbiome novelty injection #{self.novelty_injections}",
+                    "flywheel_step": "embodiment_to_vaults"
+                }
+                self.arbos.intelligence.route_to_vaults(run_data)
+
             return injection
 
         except Exception as e:
@@ -108,7 +142,7 @@ class MicrobiomeLayer:
 
 
 class VagusFeedbackLoop:
-    """Bidirectional hardware + confidence feedback loop — now tightly tied to real C3A, θ, and EFS."""
+    """Bidirectional hardware + confidence feedback loop — now tightly tied to real C3A, θ, EFS, and predictive power."""
     def __init__(self):
         self.monitor = ResourceMonitor(max_hours=3.8)
         self.stress_level = 0.0
@@ -120,28 +154,4 @@ class VagusFeedbackLoop:
             elapsed = self.monitor.elapsed_hours()
             vram = self.monitor.get_available_vram_gb()
             cpu = psutil.cpu_percent(interval=0.5)
-            mem = psutil.virtual_memory().percent
-
-            # Hardware stress base
-            hardware_stress = min(1.0, cpu * 0.4 + mem * 0.35 + (elapsed / 4.0) * 0.25)
-
-            # Oracle confidence modifier
-            c = oracle_result.get("c3a_confidence", 0.75) if oracle_result else 0.75
-            theta = oracle_result.get("theta_dynamic", 0.65) if oracle_result else 0.65
-            confidence_bonus = (c - 0.75) * 0.45 + (theta - 0.65) * 0.25
-
-            self.stress_level = max(0.0, min(1.0, hardware_stress - confidence_bonus))
-
-            if self.stress_level > 0.82:
-                logger.warning(f"😣 Vagus HIGH STRESS ({self.stress_level:.2f}) — c={c:.3f}, θ={theta:.3f} | recommend early stop or conservative mode")
-            elif self.stress_level < 0.35:
-                logger.info(f"😌 Vagus low stress — high confidence/coherence mode active (c={c:.3f})")
-
-        except Exception as e:
-            logger.debug(f"Vagus monitoring skipped (safe): {e}")
-
-
-# Global instances (imported by ArbosManager)
-neurogenesis = NeurogenesisArbos()
-microbiome = MicrobiomeLayer()
-vagus = VagusFeedbackLoop()
+            mem = psutil
