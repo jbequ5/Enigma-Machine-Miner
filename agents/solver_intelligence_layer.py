@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class SolverIntelligenceLayer:
     def __init__(self, memory_layers=None, fragment_tracker=None):
         self.memory = memory_layers
-        self.fragment_tracker = fragment_tracker   # ← Full graph intelligence
+        self.fragment_tracker = fragment_tracker   # Full fragmented graph intelligence
         self.vault_root = Path("vaults")
         self.vault_root.mkdir(parents=True, exist_ok=True)
         
@@ -21,6 +21,22 @@ class SolverIntelligenceLayer:
             self.vaults[vault] = vault_dir
 
         self.stats = {"publications": 0, "assets": 0, "services": 0, "academy": 0}
+
+    def _calculate_vault_scores(self, run_data: Dict) -> Dict:
+        """Maximum intelligence scoring using predictive, EFS, freshness, heterogeneity, and MAU."""
+        insight = run_data.get("insight_score", 0.0)
+        predictive = run_data.get("predictive_power", 0.0)
+        efs = run_data.get("efs", 0.0)
+        freshness = run_data.get("freshness_avg", 0.7)
+        heterogeneity = run_data.get("heterogeneity", 0.0)
+        mau = run_data.get("mau_score", 0.0)
+
+        return {
+            "publications": min(1.0, insight * 0.45 + predictive * 0.35 + freshness * 0.2),
+            "assets": min(1.0, efs * 0.5 + predictive * 0.3 + heterogeneity * 0.2),
+            "services": min(1.0, predictive * 0.55 + insight * 0.3 + freshness * 0.15),
+            "academy": min(1.0, insight * 0.5 + efs * 0.3 + freshness * 0.2)  # Crown jewel bias
+        }
 
     def route_to_vaults(self, run_data: Dict):
         """SOTA VaultRouter — appends to files AND integrates into the main fragmented graph."""
@@ -63,24 +79,6 @@ class SolverIntelligenceLayer:
                 self.fragment_tracker.add_fragment({"content": insight, "metadata": {**fragment_metadata, "vault": "academy", "crown_jewel": True}})
 
         logger.info(f"VaultRouter routed + graph-integrated — {routed}")
-
-    # ... rest of the methods (_calculate_vault_scores, _append_to_vault, distill_run_insight, get_vault_stats) remain the same as previous clean version
-
-    def _calculate_vault_scores(self, run_data: Dict) -> Dict:
-        """Maximum intelligence scoring using predictive, EFS, freshness, heterogeneity, and MAU."""
-        insight = run_data.get("insight_score", 0.0)
-        predictive = run_data.get("predictive_power", 0.0)
-        efs = run_data.get("efs", 0.0)
-        freshness = run_data.get("freshness_avg", 0.7)
-        heterogeneity = run_data.get("heterogeneity", 0.0)
-        mau = run_data.get("mau_score", 0.0)
-
-        return {
-            "publications": min(1.0, insight * 0.45 + predictive * 0.35 + freshness * 0.2),
-            "assets": min(1.0, efs * 0.5 + predictive * 0.3 + heterogeneity * 0.2),
-            "services": min(1.0, predictive * 0.55 + insight * 0.3 + freshness * 0.15),
-            "academy": min(1.0, insight * 0.5 + efs * 0.3 + freshness * 0.2)  # Crown jewel bias
-        }
 
     def _append_to_vault(self, vault_name: str, insight: str, run_data: Dict, timestamp: str, crown_jewel: bool = False):
         """Pure append-only with rich provenance."""
