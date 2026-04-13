@@ -6041,15 +6041,22 @@ Return ONLY valid JSON:
             "loop": self.loop_count
         }
 
-                # === v0.9.7 PREDICTIVE UPDATE — every single run feeds real metrics ===
+        # === v0.9.7 FULL PREDICTIVE UPDATE — rich real data from every run ===
         self.predictive.update_from_run({
             "validation_score": best_score,
             "efs": getattr(self.validator, 'last_efs', 0.0),
             "fidelity": getattr(self.validator, 'last_fidelity', 0.0),
             "heterogeneity": hetero,                    # already computed in the loop
             "fragments_count": len(self.memory_layers.get_fragments()),
-            "alpha_demand_impact": self.predictive.market_demand_signal
+            "mau_score": getattr(self, 'mau_per_token', 0.85),           # from memory/ByteRover
+            "freshness_avg": self.fragment_tracker.get_average_freshness() if hasattr(self, 'fragment_tracker') else 0.0,
+            "c3a_confidence": getattr(self.validator, 'last_c3a', run_data.get("c3a_confidence", 0.0)),
+            "theta_dynamic": getattr(self.validator, 'last_theta', run_data.get("theta_dynamic", 0.0)),
+            "run_duration": run_data.get("duration_seconds", 0.0),       # if you track it
+            "alpha_demand_impact": self.predictive.market_demand_signal, # previous signal for continuity
+            "notes": run_data.get("notes", "")                           # for potential NLP features later
         })
+        
         self.predictive.route_predictive_signals(run_data)
         
         self._end_of_run(run_data)
