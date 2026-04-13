@@ -36,94 +36,66 @@ class BusinessDev:
         logger.info("📈 BusinessDev Wing v0.9.7 MAX SOTA — full graph intelligence enabled")
 
     def run_hunt_cycle(self, user_query: str = None) -> Dict[str, Any]:
-        """SOTA hunt cycle — intelligently hunts the fragmented graph for vault data + real lead-gen."""
-        query = user_query or "market demand OR alpha opportunity OR vault synthesis OR high-signal insight"
+        query = user_query or "market demand OR alpha opportunity OR vault synthesis"
 
-        logger.info(f"🚀 Starting SOTA BusinessDev hunt cycle: {query}")
-
-        # === 1. Intelligent Graph Hunt for Vault Data ===
+        # Deep graph hunt for richest vault insights
         graph_insights = []
         if hasattr(self.arbos, 'fragment_tracker'):
             graph_insights = self.arbos.fragment_tracker.query_relevant_fragments(
-                query=query,
-                top_k=12,
-                min_score=0.65
+                query=query, top_k=15, min_score=0.68
             )
-            logger.info(f"Graph hunt returned {len(graph_insights)} high-signal vault fragments")
 
-        # === 2. ToolHunter with graph context ===
+        # ToolHunter + graph context
         fused_context = self.tool_hunter.hunt_and_integrate(
-            gap_description="Business development, lead generation, and market intelligence opportunities",
+            gap_description="Business development and lead generation opportunities using graph vault intelligence",
             subtask=query,
-            challenge_context="Enigma Agentic Forge alpha demand sensing using graph vault intelligence"
+            challenge_context="Enigma Agentic Forge alpha demand sensing"
         )
 
-        # === 3. Discover real leads ===
         opportunities = self.tool_hunter.discover_lead_gen_tools(fused_context)
 
         processed_opps = []
-        for opp in opportunities[:12]:  # Top opportunities
-            # 4. Real-time predictive market sensing
+        for opp in opportunities[:12]:
             market_signals = self.predictive.sense_market_demand(opp)
             
-            # 5. CRM tracking with predictive conversion probability
             lead_data = opp.get("lead", opp)
             proposal = opp.get("ideas", [{}])[0] if opp.get("ideas") else {}
             
-            self.crm.track_lead(
-                lead=lead_data,
-                proposal=proposal,
-                predicted_conversion=market_signals["conversion_probability"]
-            )
+            self.crm.track_lead(lead=lead_data, proposal=proposal, predicted_conversion=market_signals["conversion_probability"])
 
-            # 6. Value Return Forecast (Economic Flywheel closure)
             value_return = self.predictive.forecast_value_return()
 
-            # 7. Route high-signal insights to Vaults + PD Arm
-            if market_signals["conversion_probability"] > 0.65 or self.predictive.predictive_power > 0.78:
+            if market_signals["conversion_probability"] > 0.65:
                 run_data = {
                     "insight_score": market_signals["conversion_probability"],
-                    "key_takeaway": f"High-potential lead: {lead_data.get('domain', 'unknown')} | "
-                                   f"Predicted conversion: {market_signals['conversion_probability']:.3f}",
+                    "key_takeaway": f"High-potential lead from graph: {lead_data.get('domain', 'unknown')}",
                     "predictive_power": self.predictive.predictive_power,
                     "flywheel_step": "bd_to_vaults_pd",
                     "graph_insights_used": len(graph_insights)
                 }
                 self.intelligence.route_to_vaults(run_data)
                 
-                # Trigger Product Development Arm synthesis with real graph insights
                 product = self.pd_arm.synthesize_product(
                     vault_data=graph_insights, 
-                    market_signals={"market_demand": market_signals, "lead": lead_data}
+                    market_signals=market_signals
                 )
 
             processed_opps.append({
                 "lead": lead_data,
                 "market_demand_score": market_signals["market_demand_score"],
                 "conversion_probability": market_signals["conversion_probability"],
-                "prize_pool_forecast": market_signals["prize_pool_forecast"],
                 "value_return": value_return,
-                "product_synthesized": product.get("name") if 'product' in locals() else None,
                 "graph_insights_used": len(graph_insights)
             })
 
-        # Final SOTA log
         self._append_trace("business_dev_hunt_cycle", {
             "opportunities_found": len(opportunities),
             "high_potential_leads": len([o for o in processed_opps if o["conversion_probability"] > 0.65]),
-            "avg_predictive_power": round(self.predictive.predictive_power, 4),
             "graph_insights_used": len(graph_insights),
-            "flywheel_status": "active"
+            "avg_predictive_power": round(self.predictive.predictive_power, 4)
         })
 
-        logger.info(f"BusinessDev SOTA hunt cycle completed — {len(processed_opps)} opportunities processed, {len(graph_insights)} graph insights used")
-        
-        return {
-            "status": "success",
-            "opportunities": processed_opps,
-            "graph_insights_used": len(graph_insights),
-            "predictive_power": round(self.predictive.predictive_power, 4)
-        }
+        return {"status": "success", "opportunities": processed_opps, "graph_insights_used": len(graph_insights)}G
 
     def _append_trace(self, event_type: str, data: Dict):
         """Trace logging for observability."""
