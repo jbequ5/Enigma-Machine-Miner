@@ -38,7 +38,7 @@ This data flows into two powerful systems that ultimately feed the Product Devel
 ### BusinessDev Wing
 **The demand-sensing and opportunity engine of SAGE**
 
-It continuously scans the real world for high-value challenges, sponsor interest, and market pain points that match the strengths of the Enigma Machine. Using live scraping, Serper, Apify, NewsAPI, GitHub, and X semantic search — combined with the rich process insights from every run — it intelligently identifies, qualifies, and prioritizes opportunities. Leads are tracked in a dedicated CRM, scored with predictive signals, and converted into sponsored challenges and partnerships that feed directly back into the subnet’s prize pool value.
+It continuously scans the real world for high-value challenges, sponsor interest, and market pain points that match the strengths of the Enigma Machine. Using live scraping (Serper, Apify, NewsAPI, GitHub, and X) — combined with the rich process insights from every run — it intelligently identifies, qualifies, and prioritizes opportunities. Leads are tracked in a dedicated CRM, scored with predictive signals, and converted into sponsored challenges and partnerships that feed directly back into the subnet’s prize pool value.
 
 ### Open Public Good Vaults
 **The living memory of the platform**
@@ -49,9 +49,7 @@ Every high-signal run feeds scored data into four permanent, append-only, proven
 
 - **Assets** — Battle-tested verifiability contracts, solver frameworks, prompt libraries, system design templates, and modular components that miners and developers can immediately reuse and improve.
 
-
 - **Services** — High-margin opportunities and tools. Ready-to-deploy solutions, consulting frameworks, and sponsor-matched offerings that turn raw insights into practical revenue-generating value.
-
 
 - **Enigma Academy** — Experiential learning modules, interactive curricula, simulation replay kits, and progressive learning paths. It teaches not just *what* was solved, but *how* intelligence works — helping the next generation of solvers and builders level up faster in the age of AI.
 
