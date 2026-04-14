@@ -31,7 +31,7 @@ This data flows into two powerful systems that ultimately feed the Product Devel
 <div align="center">
   <img src="SAGE_Flywheel.png" 
        alt="SAGE Flywheel" 
-       width="780" 
+       width="600" 
        style="max-width: 100%; height: auto; border-radius: 8px;">
 </div>
 
