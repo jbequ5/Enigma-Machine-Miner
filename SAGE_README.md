@@ -28,7 +28,12 @@ More usage generates richer process insights and valuable data.
 
 This data flows into two powerful systems:
 
-![SAGE Flywheel](SAGE_Flywheel.png)
+<div align="center">
+  <img src="SAGE_Flywheel.png" 
+       alt="SAGE Flywheel" 
+       width="500" 
+       style="max-width: 100%; height: auto; border-radius: 8px;">
+</div>
 
 ### Business Development
 **The demand-sensing and opportunity engine of SAGE.**
