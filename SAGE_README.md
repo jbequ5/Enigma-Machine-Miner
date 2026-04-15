@@ -8,7 +8,7 @@
 
 It started with a simple but powerful idea: give everyday people a real chance to compete for prize pools on Subnet 63 and earn meaningful rewards by solving hard, verifiable problems.
 
-To make this possible, we built the **Enigma Machine** — a verifier-first, agentic solver designed from the ground up to turn complex challenges into high-quality, verifiable solutions. What began as a practical mining tool quickly revealed something far more significant: every single run naturally generates rich, structured process data — detailed insights into *how* intelligence actually works when tackling hard problems.
+To make this possible, we built the **Enigma Machine** (EM) — a verifier-first, agentic solver designed from the ground up to turn complex challenges into high-quality, verifiable solutions. What began as a practical mining tool quickly revealed something far more significant: every single run naturally generates rich, structured process data — detailed insights into *how* intelligence actually works when tackling hard problems.
 
 That discovery changed the value proposition.
 
@@ -16,19 +16,20 @@ That discovery changed the value proposition.
 
 From a powerful solver, SAGE was born.
 
-We realized the true breakthrough wasn’t just the solutions the Enigma Machine produced — it was the byproduct: the rich, high-signal process data generated with every run. Every fragment is automatically impact-scored by the memory graph using verifier-first metrics — EFS performance, heterogeneity, reuse frequency, contract value, and freshness — so only the highest-value knowledge is promoted, refined, and intelligently reinserted, creating a continuously compounding collective intelligence layer.
+We realized the true breakthrough wasn’t just the solutions the Enigma Machine produced — it was the byproduct: the rich, high-signal process data generated with every run. Every fragment is automatically impact-scored by the memory graph using verifier-first metrics — EFS (Enigma Fitness Score) performance, heterogeneity, reuse frequency, contract value, and freshness — so only the highest-value knowledge is promoted, refined, and intelligently reinserted, creating a continuously compounding collective intelligence layer.
 
 This wasn’t just mining data. It was the raw material for something far greater. By intelligently capturing, routing, and synthesizing these scored insights, we could transform individual solving activity into a shared, self-improving intelligence commons owned by the community.
 
-This realization led to the creation of **SAGE** — the Shared Agentic Growth Engine — a complete decentralized platform where every Enigma Machine runs everywhere can contribute to a growing, community-owned intelligence layer that benefits all participants.
+This realization led to the creation of **SAGE** — the Shared Agentic Growth Engine — a complete decentralized platform where every Enigma Machine runs everywhere can contribute to a growing, community-owned intelligence layer called the SAGE commons, that benefits all participants.
 
 ## The Flywheel
 
 - Ownership demand in the subnet increases prize pools.  
-- Larger prize pools drive more Enigma Machine usage.  
+- Larger prize pools drive more Enigma Machine usage.
+- All commons participants can query the massive shared vaults to help their EM solve.   
 - More usage generates more high scoring fragments (high value process data).
 
-This data flows into two powerful systems that ultimately feed the Product Development Arm, which creates the potential for massive value accrual back into the subnet, closing the flywheel.
+This data flows back into the SAGE commons, which can be used by every EM user's Product Development arm to create products and the potential for massive value accrual back into the subnet, closing the flywheel.
 
 <div align="center">
   <img src="SAGE_Flywheel.png" 
@@ -78,9 +79,9 @@ This is the opposite of extractive corporate AI. This is why SAGE matters now.
 
 A successful SAGE becomes something profoundly meaningful for humanity.
 
-As the vaults reach critical mass, the Product Development Arm will continuously transform raw solving data and market insights into real-world value: interactive problem-solving kits that help people tackle complex challenges, reusable verifier-first frameworks anyone can apply, advanced simulators that make intelligent behavior understandable, and structured curricula in Enigma Academy that teach regular people how to think with, understand, and build upon AI systems in their own lives and work. 
+As the shared index reaches critical mass, the entire community of shared index participants will be able to continuously transform raw solving data and market insights into real-world value: interactive problem-solving kits that help people tackle complex challenges, reusable verifier-first frameworks anyone can apply, advanced simulators that make intelligent behavior understandable, and structured curricula in Enigma Academy that teach regular people how to think with, understand, and build upon AI systems in their own lives and work. 
 
-The value created is continuously reinjected back into the ecosystem — growing prize pools, expanding participation, and increasing the quality and usefulness of shared intelligence. In its mature form, SAGE will stand as a new kind of public infrastructure: a decentralized, self-improving intelligence commons that turns cutting-edge problem-solving knowledge into tools, education, and capability truly accessible to all. 
+The value created is continuously reinjected back into the ecosystem — growing prize pools, expanding participation, and increasing the quality and usefulness of shared intelligence. In its mature form, SAGE will stand as a new kind of public infrastructure: a decentralized, self-improving intelligence layer that turns cutting-edge problem-solving knowledge into tools, education, and capability truly accessible to all. 
 
 It evolves into the **People’s Intelligence Layer**. 
 
