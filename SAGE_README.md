@@ -2,7 +2,7 @@
 
 **The People’s Intelligence Layer for Subnet 63, Enigma**
 
-# 1. Why?
+# Why?
 
 ## The Spark
 
@@ -92,7 +92,7 @@ This is how we make advanced AI knowledge democratic.
 This is how we ensure the future of intelligence serves and empowers everyday people.
 
 
-# 2. How?
+# How?
 
 As the vision takes shape, here is how we bring the SAGE to life.
 
