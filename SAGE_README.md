@@ -20,13 +20,13 @@ We realized the true breakthrough wasn’t just the solutions the Enigma Machine
 
 This wasn’t just mining data. It was the raw material for something far greater. By intelligently capturing, routing, and synthesizing these scored insights, we could transform individual solving activity into a shared, self-improving intelligence commons owned by the community.
 
-This realization led to the creation of **SAGE** — the Shared Agentic Growth Engine — a complete decentralized platform where every Enigma Machine run contributes to a growing, community-owned intelligence layer that benefits all participants.
+This realization led to the creation of **SAGE** — the Shared Agentic Growth Engine — a complete decentralized platform where every Enigma Machine runs everywhere can contribute to a growing, community-owned intelligence layer that benefits all participants.
 
 ## The Flywheel
 
-Ownership demand in the subnet increases prize pools.  
-Larger prize pools drive more Enigma Machine usage.  
-More usage generates richer process insights and valuable data.
+- Ownership demand in the subnet increases prize pools.  
+- Larger prize pools drive more Enigma Machine usage.  
+- More usage generates more high scoring fragments (high value process data).
 
 This data flows into two powerful systems that ultimately feed the Product Development Arm, which creates the potential for massive value accrual back into the subnet, closing the flywheel.
 
@@ -38,7 +38,7 @@ This data flows into two powerful systems that ultimately feed the Product Devel
 </div>
 
 ### Solve Vaults
-**The living memory of the platform**
+**The high-impact memory of the platform**
 
 Every high-signal run feeds scored data into four permanent, append-only, provenance-rich vaults:
 
@@ -55,12 +55,12 @@ All vaults are open by default. Miners can choose to contribute, turning individ
 ### Business Development Vault
 **The demand-sensing and opportunity engine of SAGE**
 
-It continuously scans the real world for high-value challenges, sponsor interest, and market pain points that match the strengths of the Enigma Machine. Using live scraping (Serper, Apify, NewsAPI, GitHub, and X) — combined with the rich process insights from every run — it intelligently identifies, qualifies, and prioritizes opportunities. Leads are tracked in a dedicated CRM, scored with predictive signals, and converted into sponsored challenges and partnerships that feed directly back into the subnet’s prize pool value. All output is scored, compiled, and actively pruned in a Business Vault.
+It continuously scans the real world for high-value challenges, sponsor interest, and market pain points that match the strengths of the Enigma Machine. Using live scraping (Serper, Apify, NewsAPI, GitHub, and X) — combined with the rich process insights from every run — it intelligently identifies, qualifies, and prioritizes opportunities. Leads are tracked in a dedicated CRM, scored with predictive signals, and converted into sponsored challenges and partnerships that feed directly back into the subnet’s prize pool value. All outputs are scored, compiled, and actively pruned in a Business Vault.
 
 ### Product Development Vault
 **The intelligent synthesis layer**
 
-All vault data and high-impact graph fragments converge here. It debates, refines, and composes the best insights into polished, shippable products: interactive kits, reusable frameworks, simulators, and structured curricula for Enigma Academy. Core versions remain fully open source. Premium features help sustain and grow the network while returning value to the community by reinvesting all revenue in the subnet. All outputs are scored and stored in a Product Vault. 
+All vault data and high-impact graph fragments converge here. It debates, refines, and composes the best insights into polished, shippable products: interactive kits, reusable frameworks, simulators, and structured curricula for Enigma Academy. Core versions remain fully open source. Premium features help sustain and grow the network while returning value to the community by reinvesting all revenue in the subnet. All outputs are scored, compiled, and actively pruned in a Product Vault. 
 
 ## The Real Shift
 
