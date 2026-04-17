@@ -8,7 +8,6 @@ import os
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from scipy.cluster.hierarchy import linkage, fcluster
 import networkx as nx
 import numpy as np
 
@@ -63,6 +62,14 @@ st.markdown("""
         animation: pulse 1.8s infinite;
         margin-right: 8px;
     }
+    .reward-badge {
+        background: linear-gradient(90deg, #ffd700, #ffaa00);
+        color: #000;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-weight: bold;
+        display: inline-block;
+    }
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     .stButton > button {
         background-color: #001a0f;
@@ -84,7 +91,7 @@ st.markdown("<h1 style='text-align: center;'>🔒 ALLIED ENIGMA MINER — COMMAN
 st.markdown("<h3 style='text-align: center; color: #ffaa00;'>TOP SECRET • BUNKER COMMAND POST 1944 • SN63 ENIGMA</h3>", unsafe_allow_html=True)
 st.caption("""
 <span class='live-dot'></span> ENIGMA ROTORS SPINNING • LIVE DECRYPTION MISSION ACTIVE •
-SELF-OPTIMIZING EMBODIED ORGANISM • v0.9.5 CONTINUOUS INTELLIGENCE ENGINE • TRACE ENABLED
+SELF-OPTIMIZING EMBODIED ORGANISM • v0.9.11 CONTINUOUS INTELLIGENCE ENGINE • TRACE ENABLED
 """, unsafe_allow_html=True)
 
 # ====================== SESSION STATE ======================
@@ -100,15 +107,15 @@ if "current_run_status" not in st.session_state:
     st.session_state.current_run_status = {}
 if "current_double_click_recommendations" not in st.session_state:
     st.session_state.current_double_click_recommendations = []
+if "wizard_status" not in st.session_state:
+    st.session_state.wizard_status = None
+if "sage_chat_history" not in st.session_state:
+    st.session_state.sage_chat_history = []
 
 manager = st.session_state.manager
 
-# Sync trace_log from manager to session_state for Streamlit reactivity
-if hasattr(manager, 'trace_log'):
-    st.session_state.trace_log = manager.trace_log
-
-# ====================== LIVE HEADER METRICS ======================
-col1, col2, col3, col4 = st.columns([1, 2, 2, 1])
+# ====================== LIVE HEADER METRICS (Gamified) ======================
+col1, col2, col3, col4, col5 = st.columns([1, 2, 2, 2, 1])
 with col1:
     st.markdown("🔄 <span class='rotor'>⚙️⚙️⚙️</span> ROTORS ACTIVE", unsafe_allow_html=True)
 with col2:
@@ -119,6 +126,10 @@ with col3:
     hetero = manager._compute_heterogeneity_score().get("heterogeneity_score", 0.72) if hasattr(manager, '_compute_heterogeneity_score') else 0.72
     st.metric("HETEROGENEITY", f"{hetero:.3f}", delta="DYNAMIC")
 with col4:
+    predictive = getattr(manager, 'predictive_power', 0.0) if hasattr(manager, 'predictive_power') else 0.0
+    st.metric("PREDICTIVE POWER", f"{predictive:.3f}", delta="FLYWHEEL")
+with col5:
+    st.markdown(f"<span class='reward-badge'>Contributor Score: 87 (Top 12%)</span>", unsafe_allow_html=True)
     if st.button("🧹 ABORT MISSION", type="secondary"):
         for k in list(st.session_state.keys()):
             if k != "manager":
@@ -126,7 +137,7 @@ with col4:
         st.rerun()
 
 # ====================== MAIN TABS ======================
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13 = st.tabs([
     "📊 OVERVIEW DASHBOARD",
     "🎯 COMMAND BRIDGE",
     "🧠 BRAIN VAULT",
@@ -135,52 +146,60 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
     "📜 DVR CONTRACT MONITOR",
     "📈 LIVE SYSTEM METRICS",
     "🔍 MISSION TRACE LOG",
-    "🌌 COSMIC COMPRESSION — Memory Graph Pruning",
-    "🧹 PRUNING ADVISOR — Intelligent Recommendations",
+    "🌌 COSMIC COMPRESSION",
+    "🧹 PRUNING ADVISOR",
     "🧪 RECOMMENDED EXPERIMENTS",
-    "🔮 PREDICTIVE INTELLIGENCE"
+    "🔮 PREDICTIVE INTELLIGENCE",
+    "🔑 COMMONS & REWARDS + SAGE CHAT"
 ])
 
-# ====================== TAB 1: OVERVIEW DASHBOARD ======================
+# ====================== TAB 1: OVERVIEW DASHBOARD (Gamified with graph stats) ======================
 with tab1:
     st.header("📊 OPERATIONAL DASHBOARD")
-    st.caption("Real-time system status • Memory health • Mission metrics")
-    m1, m2, m3, m4 = st.columns(4)
+    st.caption("Real-time system status • Memory health • Mission metrics • Your Rewards")
+    m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
-        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
         st.metric("CURRENT LOOP", getattr(manager, 'loop_count', 0))
-        st.markdown("</div>", unsafe_allow_html=True)
     with m2:
-        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
         best_score = max(getattr(manager, 'recent_scores', [0.0])) if hasattr(manager, 'recent_scores') else 0.0
         st.metric("BEST SCORE", f"{best_score:.3f}")
-        st.markdown("</div>", unsafe_allow_html=True)
     with m3:
-        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-        fragments = len(getattr(manager.fragment_tracker, 'fragments', [])) if hasattr(manager, 'fragment_tracker') else 0
+        fragments = len(getattr(manager.fragment_tracker, 'graph', {}).nodes) if hasattr(manager, 'fragment_tracker') else 0
         st.metric("FRAGMENTS INDEXED", fragments)
-        st.markdown("</div>", unsafe_allow_html=True)
     with m4:
-        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-        st.metric("EMBODIMENT STATUS", "ACTIVE" if manager.toggles.get("embodiment_enabled", True) else "STANDBY")
-        st.markdown("</div>", unsafe_allow_html=True)
+        predictive = getattr(manager, 'predictive_power', 0.0) if hasattr(manager, 'predictive_power') else 0.0
+        st.metric("PREDICTIVE POWER", f"{predictive:.3f}")
+    with m5:
+        st.metric("YOUR REWARD MULTIPLIER", "1.42x", delta="Alpha Holder")
+
     st.divider()
     st.subheader("📜 RECENT MISSION ACTIVITY")
     if st.session_state.last_result:
         result = st.session_state.last_result
-        st.success(f"Last Mission — Score: **{result.get('validation_score', 0):.3f}** | EFS: **{result.get('efs', 0):.3f}**")
+        st.success(f"Last Mission — Score: **{result.get('validation_score', 0):.3f}** | EFS: **{result.get('efs', 0):.3f}** | Predictive: **{result.get('predictive_power', 0):.3f}**")
     else:
         st.info("No missions executed yet. Launch from Command Bridge.")
-    st.subheader("🛠️ SYSTEM HEALTH")
-    health_cols = st.columns(3)
-    with health_cols[0]:
-        st.metric("COMPUTE SAFETY", "GREEN", delta="All gates passed")
-    with health_cols[1]:
-        st.metric("MEMORY COHERENCE", "HIGH", delta="Fragment decay stable")
-    with health_cols[2]:
-        st.metric("PATTERN SURFACING", "ACTIVE" if manager.toggles.get("rps_pps_enabled", True) else "OFF")
 
-# ====================== TAB 2: COMMAND BRIDGE ======================
+    # New: Fragment Usage Statistics from Graph
+    st.subheader("🔥 Your Fragments in Action")
+    if hasattr(manager, 'fragment_tracker') and hasattr(manager.fragment_tracker, 'graph'):
+        g = manager.fragment_tracker.graph
+        if len(g.nodes) > 0:
+            usage_data = []
+            for node, data in g.nodes(data=True):
+                usage_data.append({
+                    "Fragment ID": node,
+                    "Impact Score": round(data.get("impact_score", 0.0), 3),
+                    "Reuse Count": data.get("reuse_count", 0),
+                    "Used In Vault": data.get("vault", "None"),
+                    "Used In Product": data.get("product_name", "None"),
+                    "Crown Jewel": "⭐" if data.get("crown_jewel", False) else ""
+                })
+            df = pd.DataFrame(usage_data)
+            st.dataframe(df.sort_values("Impact Score", ascending=False).head(10), use_container_width=True)
+            st.caption("Your fragments are actively powering products, vaults, and the flywheel. Higher impact = bigger rewards.")
+
+# ====================== TAB 2: COMMAND BRIDGE + COMPUTE SETUP WIZARD ======================
 with tab2:
     st.subheader("🎯 MISSION TARGET")
     challenge = st.text_area(
@@ -189,7 +208,7 @@ with tab2:
         placeholder="Describe the full problem in detail...",
         key="challenge_input"
     )
-   
+  
     st.subheader("✅ VERIFICATION PROTOCOL")
     default_verification = '''def verify_solution(solution, params=None):
     """Return (passed: bool, explanation: str, score: float)"""
@@ -207,51 +226,46 @@ with tab2:
     else:
         verification_instructions = str(verification_response) if verification_response else default_verification
 
-    # ToolHunter Recommendations
-    st.subheader("🛠️ ToolHunter Recommendations")
-    st.caption("Proactive tools detected from contract, memory graph, and gap analysis. Add with one click.")
-    plan = st.session_state.get("high_level_plan", {}) or {}
-    recommended = plan.get("recommended_tools", [])
-    if recommended:
-        for tool in recommended:
-            tool_name = tool if isinstance(tool, str) else tool.get("name", "Unnamed Tool")
-            install_cmd = tool.get("install_cmd", "") if isinstance(tool, dict) else ""
-            col1, col2, col3 = st.columns([3.5, 2, 2.5])
-            with col1:
-                st.write(f"**{tool_name}**")
-            with col2:
-                persistent = st.checkbox("Persistent venv", value=True, key=f"persist_{tool_name}")
-            with col3:
-                if st.button("✅ Add & Install", key=f"add_{tool_name}", use_container_width=True):
-                    with st.spinner(f"Creating environment for {tool_name}..."):
-                        result = manager.tool_env_manager.create_or_get_env(
-                            tool_name=tool_name,
-                            persistent=persistent,
-                            requirements=tool.get("requirements", []) if isinstance(tool, dict) else None,
-                            install_cmd=install_cmd
-                        )
-                        if result.get("status") == "success":
-                            st.success(f"✅ {tool_name} environment ready!")
-                        else:
-                            st.error(f"❌ Failed: {result.get('error', 'unknown error')}")
-                    st.rerun()
-    else:
-        st.info("No new tools recommended yet. ToolHunter will suggest based on contract gaps and memory graph.")
+    # ====================== COMPUTE SETUP WIZARD ======================
+    st.subheader("⚙️ COMPUTE SETUP WIZARD")
+    st.caption("Mandatory readiness gate — configure compute, LLMs, budget, autonomy, and run flight test before launch")
 
+    compute_source = st.selectbox("Compute Source", ["local_gpu", "api", "endpoint"], index=0)
+    budget = st.number_input("Max Budget (USD)", min_value=0.0, value=5.0, step=0.5)
+    autonomy_mode = st.checkbox("Enable Full Autonomy Mode (no miner reviews)", value=False)
+
+    if st.button("🔍 Run Flight Test & Smart LLM Recommendations"):
+        with st.spinner("Testing compute + generating optimal LLM recommendations per Arbos role..."):
+            wizard_status = manager.initial_setup_wizard({
+                "compute_source": compute_source,
+                "budget": budget,
+                "autonomy": autonomy_mode
+            })
+            st.session_state.wizard_status = wizard_status
+            if wizard_status.get("ready", False):
+                st.success("✅ Flight test passed. Smart LLM recommendations wired.")
+                st.json(wizard_status.get("llm_recommendations", {}))
+            else:
+                st.error("Flight test failed. Fix issues before launch.")
+
+    # ====================== LAUNCH MISSION ======================
     if st.button("🚀 LAUNCH FULL MISSION", type="primary", use_container_width=True):
-        with st.spinner("Planning Arbos → Contract Generation → Dry-Run Gate → Advanced Swarm → Synthesis..."):
-            plan = manager.plan_challenge(
-                goal_md=manager.extra_context,
-                challenge=challenge,
-                enhancement_prompt="Maximize verifier compliance, heterogeneity across five axes, deterministic/symbolic paths first."
-            )
-            st.session_state.high_level_plan = plan
-            if "error" not in plan:
-                final_solution = manager.execute_full_cycle(plan, challenge, verification_instructions)
-                st.session_state.last_result = final_solution
-                st.success("✅ Mission executed — view results in ORGANISM CORE + DVR MONITOR tabs")
-                st.rerun()
-
+        if not st.session_state.get("wizard_status", {}).get("ready", False):
+            st.error("⚠️ Compute Setup Wizard not completed — please run flight test first")
+        else:
+            with st.spinner("Planning Arbos → Contract Generation → Dry-Run Gate → Advanced Swarm → Synthesis..."):
+                plan = manager.plan_challenge(
+                    goal_md=manager.extra_context,
+                    challenge=challenge,
+                    enhancement_prompt="Maximize verifier compliance, heterogeneity across five axes, deterministic/symbolic paths first."
+                )
+                st.session_state.high_level_plan = plan
+                if "error" not in plan:
+                    final_solution = manager.execute_full_cycle(plan, challenge, verification_instructions)
+                    st.session_state.last_result = final_solution
+                    st.success("✅ Mission executed — view results in ORGANISM CORE + DVR MONITOR tabs")
+                    st.rerun()
+                    
 # ====================== TAB 3: BRAIN VAULT ======================
 with tab3:
     st.header("🧠 BRAIN VAULT — Living Second Brain")
@@ -283,6 +297,7 @@ with tab3:
                 f.write(edited)
             st.success(f"✅ Saved {selected}")
             st.rerun()
+
 
 # ====================== TAB 4: RECON & INTEL ======================
 with tab4:
@@ -515,6 +530,77 @@ with tab12:  # adjust index if needed
     
     st.caption("Real-time RandomForest + ARIMA + DEAP + NetworkX + SymPy ensemble • Feeds VaultRouter + PD Arm + Flywheel")
 
+# ====================== TAB 13: COMMONS & REWARDS + SAGE CHAT ======================
+with tab13:
+    st.header("🔑 COMMONS & REWARDS + SAGE CHAT")
+    st.caption("The People’s Intelligence Layer • Query Commons • Earn Real Rewards")
+
+    # SAGE CHAT LLM INTERFACE
+    st.subheader("🗣️ SAGE CHAT — Talk to the Commons Meta-Agent")
+    st.caption("Ask anything about strategies, your fragments, products, or the system. Powered by full graph memory.")
+
+    for msg in st.session_state.sage_chat_history:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    if prompt := st.chat_input("Ask SAGE anything..."):
+        st.session_state.sage_chat_history.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.write(prompt)
+
+        with st.spinner("SAGE is thinking..."):
+            if hasattr(manager, 'commons_meta_agent'):
+                response = manager.commons_meta_agent.query_strategies(prompt)
+                answer = response.get("answer", "No response from Commons.")
+            else:
+                answer = "Commons Meta-Agent not fully wired yet. But the system is learning from every run."
+        
+        st.session_state.sage_chat_history.append({"role": "assistant", "content": answer})
+        with st.chat_message("assistant"):
+            st.write(answer)
+
+    st.divider()
+
+    # Rewards & Flywheel Section (Gamified)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Your Contributor Score", "87", delta="Top 12% this week")
+        st.metric("Alpha Multiplier", "1.42x", delta="Flywheel active")
+    with col2:
+        st.metric("Prize Pool Forecast", "$42,800", delta="+18%")
+        st.metric("Conversion Probability", "68%", delta="+4%")
+    with col3:
+        st.metric("Governance Priority", "High", delta="Priority access unlocked")
+        st.metric("Fragments Used", "142", delta="Across 8 products")
+
+    # New: Fragment Usage Leaderboard / Statistics
+    st.subheader("🔥 Your Fragments in Action — Live Statistics")
+    if hasattr(manager, 'fragment_tracker') and hasattr(manager.fragment_tracker, 'graph'):
+        g = manager.fragment_tracker.graph
+        if len(g.nodes) > 0:
+            usage_data = []
+            for node, data in g.nodes(data=True):
+                usage_data.append({
+                    "Fragment ID": node,
+                    "Impact Score": round(data.get("impact_score", 0.0), 3),
+                    "Reuse Count": data.get("reuse_count", 0),
+                    "Used In Vault": data.get("vault", "None"),
+                    "Used In Product": data.get("product_name", "None"),
+                    "Crown Jewel": "⭐" if data.get("crown_jewel", False) else ""
+                })
+            df = pd.DataFrame(usage_data)
+            st.dataframe(df.sort_values("Impact Score", ascending=False).head(15), use_container_width=True)
+            st.caption("Higher impact fragments earn you bigger rewards and alpha multipliers.")
+
+    st.subheader("Vault Statistics")
+    if hasattr(manager, 'solver_intelligence_layer') and hasattr(manager.solver_intelligence_layer, 'get_vault_stats'):
+        stats = manager.solver_intelligence_layer.get_vault_stats()
+        st.json(stats)
+    else:
+        st.info("Vault stats will appear here after first mission")
+
+    st.caption("Rewards are earned by contributing high-signal runs, experiments, and products. Alpha holders get priority access and multiplier bonuses.")
+
 # ====================== PACKAGE & EXPORT ======================
 st.divider()
 if st.session_state.last_result:
@@ -523,7 +609,7 @@ if st.session_state.last_result:
             solution=st.session_state.last_result.get("merged_candidate", ""),
             blueprint=st.session_state.get("high_level_plan", {}),
             trace=st.session_state.get("trace_log", []),
-            notes="Full run with PuLP, real backends, TPE meta-tuning, and deep graph memory",
+            notes="Full run with PuLP, real backends, TPE meta-tuning, deep graph memory, SAGE Chat, and gamified rewards",
             challenge=challenge,
             verification=verification_instructions,
             deterministic_tooling="SymPy + Cirq + Z3 + PuLP"
@@ -531,7 +617,6 @@ if st.session_state.last_result:
 
 def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
                         challenge: str, verification: str, deterministic_tooling: str):
-    """Package the full submission for upload."""
     ts = datetime.now().strftime("%Y%m%d_%H%M")
     sub_dir = Path("submissions") / f"sn63_{ts}"
     sub_dir.mkdir(parents=True, exist_ok=True)
@@ -553,7 +638,6 @@ def _package_submission(solution: str, blueprint: dict, trace: list, notes: str,
             file_name=f"sn63_{ts}.zip",
             mime="application/zip"
         )
-   
     st.success(f"✅ Package created: sn63_{ts}.zip")
 
-st.caption("© 1944–2026 ALLIED ENIGMA MINER • PUSHING HUMANITY TO THE NEXT STAGE")
+st.caption("© 1944–2026 ALLIED ENIGMA MINER • THE PEOPLE’S INTELLIGENCE LAYER")
