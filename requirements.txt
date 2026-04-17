@@ -6,15 +6,17 @@ psutil==5.9.0
 PyYAML==6.0.1
 requests==2.32.0
 python-dotenv==1.0.1
-memvid>=0.4.2          # Smart Frame .mv2 encoding for MAU/wiki/C3A/trajectory archival
-opencv-python-headless          # Video frame synthesis (Memvid dependency)
+
+# Smart Video Archiving (MAU/wiki/C3A/trajectory .mv2 files)
+memvid>=0.4.2
+opencv-python-headless
 
 # Memory & Embeddings
 chromadb==0.5.0
 sentence-transformers==3.0.0
 faiss-cpu==1.10.0
 
-# Torch (CPU version)
+# Torch (CPU version - safe for most miners)
 torch==2.3.1+cpu
 torchvision==0.18.1+cpu
 torchaudio==2.3.1+cpu
@@ -26,21 +28,24 @@ huggingface-hub==0.23.4
 transformers==4.41.2
 tqdm==4.66.4
 
-# Graph Memory
+# Graph Memory & Analysis
 networkx>=3.3
-
-# Symbolic Math
-sympy==1.13.1
 scipy>=1.14.0
+
+# Symbolic Math & Optimization
+sympy==1.13.1
+
+# Safe Execution
 RestrictedPython>=7.0
+
+# Streamlit Enhancements
 streamlit-code-editor>=0.1.0
 
-# ====================== SPECIAL / MANUAL INSTALLS ======================
-# AutoHarness (not on PyPI)
+# ====================== OPTIONAL / MANUAL INSTALLS ======================
+# AutoHarness (if you want full external tool integration)
 # git clone https://github.com/aiming-lab/AutoHarness.git
 # cd AutoHarness
 # pip install -e .
 
-# Onyx RAG (optional remote service)
-# Run separately (usually via Docker). No Python package needed.
-# Default URL: http://localhost:8000
+# Onyx RAG (optional remote service for advanced RAG)
+# Usually run via Docker on http://localhost:8000
