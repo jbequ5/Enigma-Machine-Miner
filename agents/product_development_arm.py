@@ -1,6 +1,7 @@
-# agents/product_development_arm.py - v0.9.7 MAXIMUM SOTA Product Development Arm
+# agents/product_development_arm.py
+# v0.9.11 MAXIMUM SOTA Product Development Arm
 # Full Synthesis Arbos with real fragmented graph hunting, hardened LLM debate + self-critique,
-# verifier-first validation, adaptive temperature, and rich product creation.
+# verifier-first validation, adaptive temperature, rich product creation, and flywheel signals.
 
 import logging
 import json
@@ -17,6 +18,7 @@ class ProductDevelopmentArm:
         self.arbos = arbos_manager
         self.output_root = Path("products")
         self.output_root.mkdir(parents=True, exist_ok=True)
+        logger.info("🚀 ProductDevelopmentArm v0.9.11 MAX SOTA initialized — full graph hunting + verifier-first synthesis active")
 
     def synthesize_product(self, vault_data: List[Dict] = None, market_signals: Dict = None) -> Dict:
         """Full SOTA Synthesis Arbos — intelligently hunts the fragmented graph."""
@@ -38,17 +40,28 @@ class ProductDevelopmentArm:
         created = self._create_real_product(final, real_insights, market_signals)
 
         logger.info(f"✅ Synthesis Arbos completed: {created.get('name')} ({created.get('type')})")
+
+        # Route high-signal product back to vaults / intelligence
+        if self.arbos and hasattr(self.arbos, 'intelligence') and hasattr(self.arbos.intelligence, 'route_to_vaults'):
+            self.arbos.intelligence.route_to_vaults({
+                "insight_score": created.get("confidence", 0.75),
+                "key_takeaway": f"New product synthesized: {created.get('name')}",
+                "product_name": created.get("name"),
+                "product_type": created.get("type"),
+                "flywheel_step": "pd_arm_to_vaults"
+            })
+
         return created
 
     def _graph_hunt_best_vault_data(self) -> List[Dict]:
         """SOTA graph hunt — uses the same fragmented intelligence as the EM wiki."""
-        if not hasattr(self.arbos, 'fragment_tracker'):
+        if not hasattr(self.arbos, 'fragment_tracker') or not hasattr(self.arbos.fragment_tracker, 'query_relevant_fragments'):
             logger.warning("No fragment_tracker available — falling back to basic vault scan")
             return self._basic_vault_scan()
 
-        query = "vault_entry OR high-signal OR crown jewel OR predictive OR synthesis OR academy OR insight"
+        query = "vault_entry OR high-signal OR crown jewel OR predictive OR synthesis OR academy OR insight OR resonance OR photoelectric"
         best_fragments = self.arbos.fragment_tracker.query_relevant_fragments(
-            query=query, 
+            query=query,
             top_k=15,
             min_score=0.68
         )
@@ -70,7 +83,7 @@ class ProductDevelopmentArm:
         """Fallback basic scan."""
         insights = []
         for vault_name in ["publications", "assets", "services", "academy"]:
-            vault_dir = self.intelligence.vault_root / vault_name if hasattr(self.intelligence, 'vault_root') else Path("vaults") / vault_name
+            vault_dir = Path("vaults") / vault_name
             if not vault_dir.exists():
                 continue
             files = sorted(vault_dir.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True)[:6]
@@ -92,13 +105,10 @@ class ProductDevelopmentArm:
         temperature = 0.75 if market_signals.get('predictive_power', 0.0) > 0.7 else 0.6
 
         prompt = f"""You are Synthesis Arbos, the top-level product synthesis engine for Enigma Agentic Forge.
-
 Real graph-hunted vault insights:
 {context}
-
 Market signals → Predictive Power: {market_signals.get('predictive_power', 0.0):.3f}
-
-Generate 4 strong, distinct, immediately shippable product proposals. 
+Generate 4 strong, distinct, immediately shippable product proposals.
 Return ONLY valid JSON array."""
 
         try:
@@ -112,11 +122,9 @@ Return ONLY valid JSON array."""
         """Real structured debate with self-critique."""
         temperature = 0.55 if market_signals.get('predictive_power', 0.0) > 0.75 else 0.65
         prompt = f"""You are Debate Arbos. Critically evaluate and rank these proposals using predictive power {market_signals.get('predictive_power', 0.0):.3f}.
-
 {json.dumps(proposals, indent=2)}
-
 Return only the top 3 improved proposals as valid JSON array."""
-        
+
         try:
             raw = self.arbos.harness.call_llm(prompt, temperature=temperature, max_tokens=1100)
             return json.loads(raw) if isinstance(raw, str) else proposals[:3]
@@ -128,7 +136,6 @@ Return only the top 3 improved proposals as valid JSON array."""
         for p in proposals:
             temperature = 0.5 if market_signals.get('predictive_power', 0.0) > 0.8 else 0.6
             prompt = f"""Refine this product proposal. Make it more valuable, concrete, and aligned with predictive power {market_signals.get('predictive_power', 0.0):.3f}:
-
 {p}"""
             try:
                 raw = self.arbos.harness.call_llm(prompt, temperature=temperature, max_tokens=700)
@@ -149,22 +156,19 @@ Return only the top 3 improved proposals as valid JSON array."""
 
     def _create_real_product(self, final_product: Dict, vault_insights: List, market_signals: Dict) -> Dict:
         """Create rich, actually useful products on disk."""
-        product_name = final_product["name"].replace(" ", "_").lower()[:60]
+        product_name = final_product.get("name", "Unnamed_Product").replace(" ", "_").lower()[:60]
         product_dir = self.output_root / product_name
         product_dir.mkdir(parents=True, exist_ok=True)
 
         # Rich README
-        readme_content = f"""# {final_product["name"]}
-
+        readme_content = f"""# {final_product.get('name', 'Unnamed Product')}
 **Type**: {final_product.get("type", "kit")}
 **Generated**: {datetime.now().isoformat()}
 **Predictive Power Used**: {market_signals.get('predictive_power', 0.0):.4f}
 **Source Vaults**: {', '.join(set(i.get('vault', 'unknown') for i in vault_insights))}
-
 {final_product.get('refined_description', final_product.get('description', ''))}
 
 This product was synthesized from real high-signal graph-hunted vault insights using full Synthesis Arbos.
-
 Open-source core: Yes | Premium features available.
 """
         (product_dir / "README.md").write_text(readme_content, encoding="utf-8")
@@ -175,7 +179,7 @@ Open-source core: Yes | Premium features available.
 
         # Curriculum / Education
         if final_product.get("type") in ["curriculum", "education", "academy"]:
-            (product_dir / "curriculum.md").write_text(f"# Curriculum: {final_product['name']}\n\n## Learning Objectives\n## Modules\n## Hands-on Exercises\n\nSynthesized from real Enigma vault insights.", encoding="utf-8")
+            (product_dir / "curriculum.md").write_text(f"# Curriculum: {final_product.get('name')}\n\n## Learning Objectives\n## Modules\n## Hands-on Exercises\n\nSynthesized from real Enigma vault insights.", encoding="utf-8")
 
         # Jupyter notebook stub
         (product_dir / "notebook.ipynb").write_text('{"cells": [{"cell_type": "markdown", "source": ["# Enigma Synthesized Notebook"]}], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}', encoding="utf-8")
@@ -183,4 +187,5 @@ Open-source core: Yes | Premium features available.
         final_product["product_path"] = str(product_dir)
         final_product["files_created"] = len(list(product_dir.iterdir()))
         final_product["source_insights_count"] = len(vault_insights)
+
         return final_product
