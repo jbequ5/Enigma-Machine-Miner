@@ -1,5 +1,6 @@
-# agents/tools/compute.py - v0.9.7 MAXIMUM SOTA ComputeRouter
-# All 11 deterministic backends fully wired: PuLP, SymPy, SciPy, Z3, NetworkX, CVXPY, 
+# agents/tools/compute.py
+# v0.9.11 MAXIMUM SOTA ComputeRouter
+# All 11 deterministic backends fully wired: PuLP, SymPy, SciPy, Z3, NetworkX, CVXPY,
 # OR-Tools, Statsmodels, scikit-learn, DEAP/PyGAD, Pyomo.
 # Verifier-first fallback, graph integration, predictive awareness, vault routing on high-signal results.
 
@@ -22,8 +23,8 @@ class ComputeRouter:
         self.intelligence = None
         self.fragment_tracker = None
         self.arbos = None
-
-        logger.info("✅ ComputeRouter v0.9.7 MAX SOTA initialized — ALL 11 deterministic backends wired")
+        self.real_compute_engine = RealComputeEngine()  # Full integration
+        logger.info("✅ ComputeRouter v0.9.11 MAX SOTA initialized — ALL 11 deterministic backends wired + graph/predictive/vault integration")
 
     def set_tool_env_manager(self, manager):
         self.tool_env_manager = manager
@@ -46,55 +47,42 @@ class ComputeRouter:
     def get_preferred_backend(self, code: str) -> str:
         """Full SOTA backend routing with all 11 deterministic backends."""
         lower = code.lower()
-
         # 1. PuLP / Linear Programming
         if any(k in lower for k in ["pulp", "lp", "milp", "linearprogram", "optimize", "maximize", "minimize", "constraint", "objective", "lpproblem"]):
             return "pulp"
-
         # 2. SymPy (Symbolic)
         if any(k in lower for k in ["sympy", "solve", "integrate", "symbol", "dsolve", "lambdify", "diff", "simplify"]):
             return "sympy"
-
         # 3. SciPy (Numerical optimization / scientific)
         if any(k in lower for k in ["scipy", "optimize", "minimize", "least_squares", "curve_fit", "odeint"]):
             return "scipy"
-
         # 4. Z3 (SMT Solver)
         if any(k in lower for k in ["z3", "smt", "solver", "satisfi", "prove", "forall", "exists"]):
             return "z3"
-
         # 5. NetworkX (Graph algorithms)
         if any(k in lower for k in ["networkx", "graph", "shortest_path", "pagerank", "centrality", "nx.", "di graph", "connected"]):
             return "networkx"
-
         # 6. CVXPY (Convex optimization)
         if any(k in lower for k in ["cvxpy", "cp.", "problem", "minimize", "maximize", "constraints"]):
             return "cvxpy"
-
         # 7. OR-Tools (Google optimization)
         if any(k in lower for k in ["ortools", "cp_model", "routing", "sat", "linear_solver"]):
             return "ortools"
-
         # 8. Statsmodels (Statistical modeling)
         if any(k in lower for k in ["statsmodels", "arima", "regression", "ols", "logit", "probit"]):
             return "statsmodels"
-
         # 9. scikit-learn (ML models)
         if any(k in lower for k in ["sklearn", "randomforest", "gradientboost", "cluster", "svm", "regression"]):
             return "sklearn"
-
         # 10. DEAP / PyGAD (Evolutionary / Genetic Algorithms)
         if any(k in lower for k in ["deap", "pygad", "ga", "evolutionary", "genetic", "population", "fitness"]):
             return "deap"
-
         # 11. Pyomo (Optimization modeling)
         if any(k in lower for k in ["pyomo", "concrete", "abstract", "block", "model", "var", "objective"]):
             return "pyomo"
-
         # Quantum / Cirq fallback
         if any(k in lower for k in ["cirq", "quantum", "qubit", "circuit", "qasm"]):
             return "cirq"
-
         return "default"
 
     def execute(self, code: str, local_vars: Dict = None, approximation_mode: str = "auto") -> bool:
@@ -231,7 +219,7 @@ class ComputeRouter:
         if not success and self.oracle:
             success = self.oracle._safe_exec(code, local_vars, approximation_mode)
 
-        # === High-signal routing to Vaults + PD Arm ===
+        # === High-signal routing to Vaults + PD Arm + Flywheel ===
         if success and self.intelligence and self.predictive:
             final_score = local_vars.get("validation_score", 0.0) or local_vars.get("efs", 0.0)
             if final_score > 0.78:
@@ -244,10 +232,9 @@ class ComputeRouter:
                     "backend_used": preferred
                 }
                 self.intelligence.route_to_vaults(run_data)
-
                 if self.arbos and hasattr(self.arbos, 'pd_arm'):
                     self.arbos.pd_arm.synthesize_product(
-                        vault_data=[], 
+                        vault_data=[],
                         market_signals={"predictive_power": getattr(self.predictive, 'predictive_power', 0.0)}
                     )
 
