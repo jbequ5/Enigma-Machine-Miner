@@ -1,23 +1,25 @@
-# agents/predictive_intelligence_layer.py - v0.9.7 MAXIMUM SOTA ALGORITHMIC INTELLIGENCE LAYER
-# Full real-data driven ensemble, DEAP evolutionary tuning, ARIMA, NetworkX, SymPy, 
-# deep graph/vault integration, and closed-loop flywheel signals.
+# agents/predictive_intelligence_layer.py
+# v0.9.11 MAXIMUM SOTA ALGORITHMIC INTELLIGENCE LAYER
+# Full real-data driven ensemble, DEAP evolutionary tuning, ARIMA, NetworkX, SymPy,
+# deep graph/vault integration, 7D verifier signals, and closed-loop flywheel signals.
 
 import numpy as np
 import pandas as pd
 from datetime import datetime
 from typing import Dict, Any, List
 import logging
-
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 import statsmodels.api as sm
 import networkx as nx
 import sympy as sp
+import random
 
 try:
     from deap import base, creator, tools
     DEAP_AVAILABLE = True
 except ImportError:
     DEAP_AVAILABLE = False
+    logging.getLogger(__name__).warning("DEAP not available — evolutionary tuning disabled")
 
 logger = logging.getLogger(__name__)
 
@@ -26,20 +28,19 @@ class PredictiveIntelligenceLayer:
         self.arbos = arbos_manager
         self.rf_model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
         self.gb_model = GradientBoostingRegressor(n_estimators=80, random_state=42)
-        
+       
         self.historical_data = pd.DataFrame(columns=[
             "timestamp", "efs", "validation_score", "fidelity", "heterogeneity",
             "fragments_count", "mau_score", "freshness_avg", "c3a_confidence",
-            "theta_dynamic", "alpha_demand_impact", "run_duration"
+            "theta_dynamic", "alpha_demand_impact", "run_duration", "verifier_quality"
         ])
-        
+       
         self.predictive_power = 0.0
         self.market_demand_signal = 0.0
         self.prize_pool_forecast = 0.0
         self.conversion_forecast = 0.0
         self.demand_graph = nx.DiGraph()
-
-        logger.info("🚀 PredictiveIntelligenceLayer v0.9.7 MAX SOTA — fully expanded with real system data and graph integration.")
+        logger.info("🚀 PredictiveIntelligenceLayer v0.9.11 MAX SOTA — fully expanded with real system data, graph, and 7D signals.")
 
     def update_from_run(self, run_data: Dict) -> float:
         """Maximum real data ingestion from validator, memory, fragment tracker, and graph."""
@@ -53,17 +54,17 @@ class PredictiveIntelligenceLayer:
             "validation_score": run_data.get("validation_score", getattr(validator, 'last_score', 0.0)),
             "fidelity": getattr(validator, 'last_fidelity', run_data.get("fidelity", 0.0)),
             "heterogeneity": run_data.get("heterogeneity", self._get_real_heterogeneity()),
-            "fragments_count": len(memory_layers.get_fragments()) if memory_layers and hasattr(memory_layers, 'get_fragments') else run_data.get("fragments_count", 0),
+            "fragments_count": len(memory_layers.get_latest_fragments()) if memory_layers and hasattr(memory_layers, 'get_latest_fragments') else run_data.get("fragments_count", 0),
             "mau_score": getattr(self.arbos, 'mau_per_token', run_data.get("mau_score", 0.0)),
             "freshness_avg": fragment_tracker.get_average_freshness() if fragment_tracker and hasattr(fragment_tracker, 'get_average_freshness') else run_data.get("freshness_avg", 0.0),
             "c3a_confidence": run_data.get("c3a_confidence", getattr(validator, 'last_c3a', 0.0)),
             "theta_dynamic": run_data.get("theta_dynamic", 0.0),
             "alpha_demand_impact": run_data.get("alpha_demand_impact", 0.0),
-            "run_duration": run_data.get("duration_seconds", 0.0)
+            "run_duration": run_data.get("duration_seconds", 0.0),
+            "verifier_quality": run_data.get("verifier_quality", 0.0)  # 7D signal
         }
 
         self.historical_data = pd.concat([self.historical_data, pd.DataFrame([new_row])], ignore_index=True)
-
         # Keep only last 500 runs for performance
         if len(self.historical_data) > 500:
             self.historical_data = self.historical_data.iloc[-500:]
@@ -84,11 +85,10 @@ class PredictiveIntelligenceLayer:
 
     def _train_models(self):
         """Train ensemble on real historical data."""
-        feature_cols = ["efs", "validation_score", "fidelity", "heterogeneity", 
-                       "fragments_count", "mau_score", "freshness_avg", "c3a_confidence"]
+        feature_cols = ["efs", "validation_score", "fidelity", "heterogeneity",
+                       "fragments_count", "mau_score", "freshness_avg", "c3a_confidence", "verifier_quality"]
         X = self.historical_data[feature_cols]
         y = self.historical_data["alpha_demand_impact"]
-
         self.rf_model.fit(X, y)
         self.gb_model.fit(X, y)
 
@@ -96,19 +96,17 @@ class PredictiveIntelligenceLayer:
         """Full DEAP evolutionary hyperparameter tuning using real data."""
         if not DEAP_AVAILABLE or len(self.historical_data) < 20:
             return
-
         try:
             # Clean creator to avoid repeated run errors
             for name in ["FitnessMax", "Individual"]:
                 if name in creator.__dict__:
                     del creator.__dict__[name]
-
             creator.create("FitnessMax", base.Fitness, weights=(1.0,))
             creator.create("Individual", list, fitness=creator.FitnessMax)
 
             toolbox = base.Toolbox()
-            toolbox.register("attr_n_estimators", np.random.randint, 50, 301)
-            toolbox.register("attr_max_depth", np.random.randint, 5, 31)
+            toolbox.register("attr_n_estimators", random.randint, 50, 301)
+            toolbox.register("attr_max_depth", random.randint, 5, 31)
             toolbox.register("individual", tools.initCycle, creator.Individual,
                            (toolbox.attr_n_estimators, toolbox.attr_max_depth), n=1)
             toolbox.register("population", tools.initRepeat, list, toolbox.individual)
@@ -119,7 +117,7 @@ class PredictiveIntelligenceLayer:
                     model = RandomForestRegressor(n_estimators=int(n_est), max_depth=int(max_d),
                                                 random_state=42, n_jobs=-1)
                     X = self.historical_data[["efs", "validation_score", "fidelity", "heterogeneity",
-                                            "fragments_count", "mau_score", "freshness_avg", "c3a_confidence"]]
+                                            "fragments_count", "mau_score", "freshness_avg", "c3a_confidence", "verifier_quality"]]
                     y = self.historical_data["alpha_demand_impact"]
                     split = int(len(X) * 0.7)
                     model.fit(X.iloc[:split], y.iloc[:split])
@@ -135,26 +133,21 @@ class PredictiveIntelligenceLayer:
 
             population = toolbox.population(n=20)
             NGEN = 10
-
             for _ in range(NGEN):
                 offspring = tools.selTournament(population, len(population), tournsize=3)
                 offspring = list(map(toolbox.clone, offspring))
-
                 for child1, child2 in zip(offspring[::2], offspring[1::2]):
-                    if np.random.random() < 0.7:
+                    if random.random() < 0.7:
                         toolbox.mate(child1, child2)
                         del child1.fitness.values, child2.fitness.values
-
                 for mutant in offspring:
-                    if np.random.random() < 0.25:
+                    if random.random() < 0.25:
                         toolbox.mutate(mutant)
                         del mutant.fitness.values
-
                 invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
                 fitnesses = map(toolbox.evaluate, invalid_ind)
                 for ind, fit in zip(invalid_ind, fitnesses):
                     ind.fitness.values = fit
-
                 population[:] = offspring
 
             best_ind = tools.selBest(population, 1)[0]
@@ -165,9 +158,7 @@ class PredictiveIntelligenceLayer:
                 n_jobs=-1
             )
             self._train_models()
-
             logger.info(f"DEAP tuning completed → Best RF: n_est={int(best_ind[0])}, max_d={int(best_ind[1])}")
-
         except Exception as e:
             logger.warning(f"DEAP tuning failed (safe): {e}")
 
@@ -177,13 +168,13 @@ class PredictiveIntelligenceLayer:
             return
 
         X_latest = self.historical_data[["efs", "validation_score", "fidelity", "heterogeneity",
-                                        "fragments_count", "mau_score", "freshness_avg", "c3a_confidence"]].iloc[-1:].values
+                                        "fragments_count", "mau_score", "freshness_avg", "c3a_confidence", "verifier_quality"]].iloc[-1:].values
 
         rf_pred = float(self.rf_model.predict(X_latest)[0])
         gb_pred = float(self.gb_model.predict(X_latest)[0])
         ensemble_pred = (rf_pred + gb_pred) / 2.0
 
-        # ARIMA
+        # ARIMA forecast
         try:
             model = sm.tsa.ARIMA(self.historical_data["efs"].astype(float), order=(2,1,1))
             model_fit = model.fit(disp=False)
@@ -208,6 +199,7 @@ class PredictiveIntelligenceLayer:
             self.market_demand_signal = ensemble_pred
 
         self.conversion_forecast = min(0.98, max(0.0, self.conversion_forecast))
+
         self.predictive_power = (self.market_demand_signal * 0.45 +
                                 self.conversion_forecast * 0.35 +
                                 (self.prize_pool_forecast / 20000) * 0.2)
@@ -216,7 +208,6 @@ class PredictiveIntelligenceLayer:
         """Real-time market sensing with graph context."""
         boost = (lead_data.get("stars", 0) / 800.0) + (lead_data.get("predictive_power", 0.0) * 0.45)
         self.market_demand_signal = min(1.0, max(0.0, self.market_demand_signal + boost))
-
         return {
             "market_demand_score": round(self.market_demand_signal, 4),
             "prize_pool_forecast": round(self.prize_pool_forecast, 2),
@@ -244,7 +235,6 @@ class PredictiveIntelligenceLayer:
                 "predictive_power": self.predictive_power,
                 "flywheel_step": "predictive_to_pd_vaults"
             })
-
         if hasattr(self.arbos, 'pd_arm') and self.arbos.pd_arm:
             self.arbos.pd_arm.synthesize_product([], {
                 "market_signal": self.market_demand_signal,
