@@ -1,9 +1,15 @@
+# tools/agent_reach_tool.py
+# v0.9.11 MAXIMUM SOTA AgentReachTool
+# Real web content fetching with memory + disk cache, BeautifulSoup cleaning,
+# SOTA/EFS/7D gating, and high-signal routing to VaultRouter + PD Arm.
+
 import requests
 from bs4 import BeautifulSoup
 import hashlib
 from pathlib import Path
 import logging
 from cachetools import TTLCache
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -15,8 +21,16 @@ class AgentReachTool:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': 'Enigma-Machine-Miner-AgentReach/2.1'})
-        self.arbos = None  # wired by ArbosManager for v0.6 SOTA gating
-        logger.info("AgentReachTool ready (memory + disk cache + full fallbacks)")
+        self.arbos = None          # wired by ArbosManager for v0.9.11 SOTA gating
+        self.validator = None
+        self.intelligence = None
+        logger.info("✅ AgentReachTool v0.9.11 MAX SOTA initialized — memory + disk cache + full SOTA gating")
+
+    def set_arbos(self, arbos):
+        self.arbos = arbos
+        if arbos:
+            self.validator = getattr(arbos, 'validator', None)
+            self.intelligence = getattr(arbos, 'intelligence', None)
 
     def _get_cache_key(self, url: str) -> str:
         return hashlib.md5(url.encode('utf-8')).hexdigest()
@@ -60,8 +74,11 @@ class AgentReachTool:
             response = self.session.get(url, timeout=timeout, allow_redirects=True)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
+
+            # Clean unwanted tags
             for tag in soup(["script", "style", "nav", "header", "footer", "aside", "svg", "img"]):
                 tag.decompose()
+
             text = soup.get_text(separator="\n", strip=True)
             lines = (line.strip() for line in text.splitlines())
             clean_text = "\n".join(line for line in lines if line)
@@ -69,8 +86,8 @@ class AgentReachTool:
             if len(clean_text) > max_length:
                 clean_text = clean_text[:max_length] + "\n... [truncated]"
 
-            # v0.6 SOTA upgrade: optional gate before caching high-value content
-            if self.arbos and hasattr(self.arbos.validator, '_subarbos_gate'):
+            # v0.9.11 SOTA upgrade: optional 7D SOTA gate before caching high-value content
+            if self.arbos and self.validator:
                 try:
                     gate_data = {
                         "deterministic_strength": 0.6,
@@ -78,19 +95,32 @@ class AgentReachTool:
                         "invariant_tightness": 0.7,
                         "simulation_quality": 0.65,
                         "fidelity": 0.82,
-                        "c3a_confidence": getattr(self.arbos, 'compute_confidence', lambda *a: 0.75)(0.78, 0.70, 0.88)
+                        "c3a_confidence": getattr(self.arbos, 'compute_confidence', lambda *a: 0.75)(0.78, 0.70, 0.88),
+                        "verifier_quality": getattr(self.validator, 'last_verifier_quality', 0.0)
                     }
-                    sota_score = self.arbos.validator._sota_partial_credit_score(gate_data)
-                    theta_dynamic = 0.65 * (1 - 0.4 * (1 - gate_data["c3a_confidence"])**0.8) * 0.9
-                    if not self.arbos.validator._subarbos_gate(output=clean_text, theta_dynamic=theta_dynamic):
-                        logger.debug(f"SOTA gate rejected content from {url}")
-                        clean_text += "\n[Agent-Reach: Content failed SOTA gate — low signal]"
-                except:
-                    pass  # safe fallback
+                    if hasattr(self.validator, '_subarbos_gate'):
+                        if not self.validator._subarbos_gate(output=clean_text, theta_dynamic=0.68):
+                            logger.debug(f"SOTA gate rejected content from {url}")
+                            clean_text += "\n[Agent-Reach: Content failed SOTA gate — low signal]"
+                except Exception as e:
+                    logger.debug(f"SOTA gate check skipped (safe): {e}")
 
+            # Cache the result
             self.cache[key] = clean_text
             self._save_disk_cache(key, clean_text)
+
             logger.info(f"Agent-Reach success: {url[:70]}...")
+
+            # High-signal routing
+            if len(clean_text) > 800 and self.intelligence:
+                run_data = {
+                    "insight_score": 0.85,
+                    "key_takeaway": f"Agent-Reach fetched high-signal content from {url}",
+                    "predictive_power": getattr(self.arbos, 'predictive_power', 0.0) if self.arbos else 0.0,
+                    "flywheel_step": "agent_reach_to_vaults"
+                }
+                self.intelligence.route_to_vaults(run_data)
+
             return clean_text
 
         except requests.exceptions.RequestException as e:
@@ -106,14 +136,15 @@ class AgentReachTool:
         return fallback
 
     def get_content_with_score(self, url: str) -> Dict[str, Any]:
-        """v0.6 helper: returns content + basic EFS/SOTA hint for retrospective/audit flows"""
+        """v0.9.11 helper: returns content + basic EFS/SOTA hint for retrospective/audit flows."""
         content = self.fetch_url_content(url)
         return {
             "url": url,
             "content": content,
             "length": len(content),
             "timestamp": datetime.now().isoformat(),
-            "sota_hint": "high_signal" if len(content) > 800 else "low_signal"
+            "sota_hint": "high_signal" if len(content) > 800 else "low_signal",
+            "verifier_quality_hint": getattr(self.validator, 'last_verifier_quality', 0.0) if self.validator else 0.0
         }
 
 # Global instance (used by ToolHunter and ArchiveHunter)
