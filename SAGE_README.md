@@ -113,12 +113,11 @@ This is how we ensure the future of intelligence serves and empowers everyday pe
 As the vision takes shape, here is how we bring the SAGE to life.
 
 ## The Structure
-The shared index consists of the same vaults your local Enigma Machine instance already uses: the Solve Vault (Assets, Publications, Academy, and Services), the Business Vault (Business Development (BD) Outputs), and the Product Vault (Product Development (PD) Outputs). When you push a fragment, it enters the index using the identical structure and scoring logic your own machine applies locally. The index does not create new categories or different rules — it simply holds a discoverable, high-signal mirror of the same vaults everyone else is building. This consistency is deliberate: the gas that powers your solo runs is the same gas that powers the entire network.
 
 ```mermaid
 graph LR
 A[Local EM Instance<br/>Your Solo Solver] -->|Push High-Impact<br/>Fragment| B[Gates & Filters]
-B -->|Challenge Gate <br/>Scoring Gate<br/>Value Gate| C[Shared Index<br/>Publications · Assets · Services · Academy<br/> Business · Product]
+B -->|Challenge Gate <br/>Scoring Gate<br/>Value Gate| C[The Commons<br/>Publications · Assets · Services · Academy<br/> Business · Product]
 C -->|Query Intelligently<br/>If Contribution Score > Min| A
 A -->|BD or PD runs| F[Create BD/PD outputs]
 F -->|Score With<br/>Dedicated Rubric| C
