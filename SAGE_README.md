@@ -1,5 +1,24 @@
 # SAGE — The Shared Agentic Growth Engine
 
+**Powered by the Enigma Machine**
+
+## Why?
+
+It started with a simple but powerful idea: give everyday people a real chance to compete for prize pools on Subnet 63 and earn meaningful rewards by solving hard, verifiable problems.
+
+To make this possible, we built the **Enigma Machine** — a verifier-first, agentic solver designed from the ground up to turn complex challenges into high-quality, verifiable solutions. What began as a practical mining tool quickly revealed something far more significant: every single run naturally generates rich, structured process data — detailed insights into *how* intelligence actually works when tackling hard problems.
+
+That discovery changed the value proposition.
+
+## The Evolution
+
+From a powerful solver, SAGE was born.
+
+We realized the true breakthrough wasn’t just the solutions the Enigma Machine produced — it was the byproduct: the rich, high-signal process data generated with every run. Every fragment is automatically impact-scored by the memory graph using verifier-first metrics — EFS performance, heterogeneity, reuse frequency, contract value, and freshness — so only the highest-value knowledge is
+
+
+# SAGE — The Shared Agentic Growth Engine
+
 **Powered By The Enigma Machine**
 
 # Why?
