@@ -124,6 +124,8 @@ In practice, the full cycle runs efficiently on standard GPU hardware with predi
 
 The system continuously evolves its own brain files, constants, and strategies for future runs based on real performance data and the self-audit loop.
 
+Open the dashboard, complete the setup wizard, enter a frontier challenge, and watch the system solve it while permanently upgrading itself — with real backends, self-audit, deep graph memory, and full observability
+
 ## Quick Start
 ```bash
 pip install -r requirements.txt
