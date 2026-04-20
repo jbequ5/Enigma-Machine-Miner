@@ -8,7 +8,7 @@ Most advanced AI remains closed and controlled by a few organizations. On Subnet
 SAGE turns every Enigma Machine run into structured input for a shared intelligence system. Instead of one-off solutions, the network builds a growing, self-improving library of proven strategies that compounds over time and creates additional economic value.
 
 ## The Vision
-SAGE is a practical, community-owned intelligence layer. It captures solving data from Enigma Machine runs, improves that data through systematic self-evaluation, and converts the best outputs into usable strategies, proposals, tools, and services. We are using economic incentives to build this for the people, by the people, and to return maximum value to contributors.
+SAGE is a practical, community-owned intelligence system. It captures solving data from Enigma Machine runs, improves that data through systematic self-evaluation, and converts the best outputs into usable strategies, proposals, tools, and services. We are using economic incentives to build this for the people, by the people, and to return maximum value to contributors.
 
 ## The Three Core Layers
 
