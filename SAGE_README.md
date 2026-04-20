@@ -1,66 +1,77 @@
-# SAGE — The Shared Agentic Growth Engine
+# SAGE — Platform Architecture
 
-**Powered by the Enigma Machine**
+**Shared Agentic Growth Engine for Bittensor Subnet 63**
 
-## Why?
+## Overview
 
-It started with a simple but powerful idea. Give everyday people a real chance to compete for prize pools on Subnet 63 and earn meaningful rewards by solving hard, verifiable problems.
+SAGE is the overarching platform that turns individual Enigma Machine runs into a compounding, community-owned intelligence layer. It consists of three tightly integrated core layers that work together in a self-reinforcing flywheel:
 
-To make this possible, we built the Enigma Machine — a cutting-edge agentic solver inspired by Arbos and the Ralph loop, designed from the ground up to let regular people participate meaningfully and win.
+- **Solving Strategy Layer** — the shared, community-level repository that collects, scores, and organizes high-signal fragments from all participating Enigma Machine instances.
+- **Intelligence Layer (Synapse)** — the active meta-agent that mines patterns, runs self-audits, and continuously improves strategies and system logic.
+- **Economic Layer** — the value creation layer that turns the strongest outputs into sponsor proposals, practical tools, and services.
 
-What began as a practical democratization tool quickly revealed something far more significant. Every single run naturally generates rich, structured process data — detailed insights into how intelligence actually works when tackling hard problems.
+The entire system is designed for transparency, safety, and steady improvement. Every fragment carries full provenance so contribution can be accurately tracked and rewarded. Self-improvement is governed by explicit rules and human review gates.
 
-While the Enigma Machine solved challenges, the scored memory fragment mechanism and self-learning came together in a remarkable way. Every run started producing high-signal process data that could be automatically impact-scored, connected through the memory graph, and turned into fuel for compounding collective intelligence.
+## The Three Core Layers
 
-This useful byproduct — not the solutions themselves — became the real treasure.
+### Solving Strategy Layer
+The central, shared repository that collects, scores, and organizes high-signal fragments from every participating Enigma Machine run across the network.
 
-## The Evolution
+**How it works**:
+- Local Enigma Machine instances generate high-signal fragments during each run.
+- These fragments are automatically transmitted to the shared Solving Strategy Layer with full provenance metadata.
+- Upon arrival, fragments are selected through strict deterministic gates: they must originate from official Subnet 63 challenges or Scientist Mode experiments, pass an EFS floor, demonstrate replay match reproducibility, and show genuine refined value-added.
+- Spamming protection is enforced by rate limits per miner, duplicate detection via embedding similarity, and provenance validation.
+- Once accepted, fragments are intelligently split into self-contained units (≤50 KB) with rich metadata (task type, domain, raw EFS, refined value-added, provenance).
+- Fragments are ranked using a multi-signal system: utilization (how often reused), replay rate (how consistently they improve outcomes), and impact scoring (refined value-added beyond the fragments they depended on). ByteRover MAU-style reinforcement actively decides whether a fragment is kept, compressed, or promoted to higher layers. Cosmic Compression periodically prunes low-value fragments while promoting high-signal invariants.
 
-From a powerful solver, SAGE was born.
+**Why it works**:
+This shared layer turns raw solving traces from thousands of independent EM instances into a reliable, structured knowledge base. Full provenance and ranking ensure only the highest-signal intelligence is retained, enabling fair reward distribution and auditability.
 
-SAGE is the Shared Agentic Growth Engine — a complete decentralized platform where every Enigma Machine run, everywhere, can contribute to a growing, community-owned intelligence layer called the commons that benefits all participants.
+### Intelligence Layer (Synapse)
+The active meta-agent that processes the Solving Strategy Layer and drives continuous improvement.
 
-At the heart of the commons is Synapse — the intelligent Meta Agent and conversational interface to the commons graph. Synapse continuously performs state-of-the-art graph mining on the full commons database. Using advanced graph algorithms, it discovers hidden patterns, classifies high-signal artifacts, surfaces emergent meta-strategies, and creates entirely new reusable intelligence that no single run could ever produce on its own.
+**How it works**:
+- Performs deep graph mining to discover patterns, cross-domain connections, and emergent strategies.
+- Runs regular self-audits (daily or per-X high-signal fragments) that evaluate how well previous recommendations performed using the Advice Success Score (weighted combination of EFS lift, reuse rate, network impact, economic signal, and feedback), then proposes safe improvements to its own logic, mining rules, scoring weights, and upgrade criteria.
+- Provides a chat interface and proactive co-pilot capabilities that miners can use during runs for real-time strategy suggestions and stall assistance.
+- All changes are versioned, auditable, and subject to safety review gates.
 
-## The Solve Vault
+**Why it works**:
+Synapse turns good data into better intelligence. The self-audit loop measures real outcomes with the Advice Success Score and ensures the system learns from verified performance rather than static rules, leading to measurable gains in solution quality and efficiency over time.
 
-The Solve Vault is the primary intake and living memory of the entire commons. Every high-signal fragment from an Enigma Machine run arrives here first. The system automatically categorizes it by task type, impact-scores it using verifier-first metrics, and tags it with rich provenance. This creates a high-fidelity foundation of real solving traces — decision paths, failure modes, breakthroughs, and edge cases — that no single solution could ever capture alone.
+### Economic Layer
+The value creation layer. It begins at the local level with individual Enigma Machine outputs and is enhanced by Synapse.
 
-This is where the magic compounds. Synapse continuously performs deep graph mining across this task-specific data in the Solve Vault. It discovers hidden patterns, surfaces emergent connections, and distills them into powerful new meta-strategies and reusable intelligence that no individual run could produce on its own. These strategies are then returned safely to participating contributors through tiered access and selective encryption.
+**How it works**:
+- Takes the strongest outputs and patterns from Synapse and turns them into sponsor proposals, practical tools, curricula, or services.
+- Revenue and impact are tracked transparently.
+- Contribution scoring determines fair rewards that flow back to miners and alpha holders.
+- Business and sponsor integration is supported through data-driven insights that deliver better and faster results on their challenges and tooling for intelligent challenge design to advance their roadmap.
 
-Synapse is the direct, conversational way you interact with the entire shared intelligence. For miners, it surfaces the best strategies and fragments exactly when they need them, turning good runs into great ones and turning stall moments into breakthroughs. For PhDs and researchers, it delivers deep pattern discovery and meta-strategies that accelerate discovery across domains. For companies and sponsors, it provides actionable ecosystem insights that help design better challenges and identify high-value problems worth solving. For investors and alpha holders, it offers priority intelligence on the health, direction, and opportunities within the entire system. Synapse turns the abstract power of the commons into a genuine daily competitive edge and makes meaningful contribution essential for high success levels and value creation.
+**Why it works**:
+This layer closes the economic loop. It converts intelligence into tangible value while ensuring contributors are rewarded for the improvements they enable.
 
-When you run your local Enigma Machine and contribute, you gain the ability to query this shared intelligence through Synapse. You can pull the latest task-specific strategies, get real-time stall help, inject proven fragments to strengthen your runs, and add your own unique flavor and approach. Your improved outputs and new fragments then flow back into the Solve Vault, where Synapse mines them again. This creates a powerful reinforcing loop: raw solving data becomes task-specific intelligence, which becomes higher-level meta-strategies, which make every participating EM smarter — and the cycle compounds with every run.
+## The Flywheel
 
-## The Value Creation Engine
+Enigma Machine runs produce fragments with provenance → Solving Strategy Layer stores, ranks, and scores them → Intelligence Layer (Synapse) analyzes performance and improves strategies → Economic Layer creates value → better runs and stronger incentives → more participation and richer data.
 
-The Business Development and Product Development Vaults form the value creation engine of SAGE. Local Enigma Machines use the best strategies and artifacts from the commons to scan the real world for high-value challenges and market opportunities. Business Development puts together full proposals backed by real run data and ecosystem insights. Product Development builds tools that the market actually needs — filling real solving gaps for valuable problems, backed by data. Every new BD or PD output created by a local Enigma Machine adds its own unique flavor and strategy. These outputs are then re-scored and stored back into the commons, becoming available for further building by participating miners, highest-access members, sponsors, and alpha holders. This distributed process turns individual creativity into collective intelligence that keeps compounding — and directly drives alpha demand and long-term value for the entire ecosystem.
+Early testing shows rising EFS trends and higher solution acceptance rates over successive missions. The self-audit capability in Synapse ensures the middle layer continuously refines itself based on real outcomes. Every improvement is tracked for monetization later in the pipeline.
 
-## How Does It Actually Work?
+## Safety and Control
 
-Scoring is reliable because it is deterministic and provenance-based. Every fragment receives a raw value based on its vault type. Then a refined value-added layer calculates the incremental improvement this fragment provides beyond the fragments it depended on. The final score combines both, so a fragment is judged not just on how good it is in isolation, but on how much new value it actually adds to the commons. The math is fixed, transparent, and grounded in verifiable execution results. You can always see the full scoring breakdown for any fragment, and the system re-scores on reuse so the numbers evolve with real downstream impact.
+Self-improvement in Synapse is governed by explicit rules, human review gates for significant changes, versioned updates, and reversible tweaks. The system is designed to improve steadily while remaining transparent and auditable.
 
-The commons is protected from noise by strict, deterministic gates that every push must pass. Only fragments from official Subnet 63 challenges or Scientist Mode experiments are allowed. Every push includes a compact full-run summary that the commons re-validates: EFS must exceed the hard floor, replay match must confirm reproducibility, and the refined value-added must show genuine incremental contribution.
+**No Leakage In or Out**  
+The shared intelligence is strictly protected. Fragments can only enter through deterministic gates (official Subnet 63 challenges, EFS floor, replay match, refined value-added check, rate limits, and provenance validation). Spamming and low-quality data are blocked at intake.  
 
-To protect the community-owned intelligence, the commons uses tiered access based on contribution score and selective encryption on high-value artifacts. This ensures the shared knowledge remains secure, fair, and truly owned by those who actively build it.
+Fragments and high-value artifacts can only leave through tiered access and selective encryption: contributors must meet minimum contribution scores to unlock deeper queries or high-signal fragments. High-value artifacts remain encrypted until the contributor’s score qualifies them. All access is logged and auditable. There is no open leakage — the system is designed to keep intelligence inside the community while rewarding honest participation.
 
-Participation is required to access the full power of the commons, and this gate is what makes the system fair and motivating. To unlock deeper queries in Synapse and pull the highest-signal fragments, your own contribution score must meet a minimum threshold. That score is built from your pushes, your downstream reuse impact, and the refined value-added of your work. The more you contribute high-quality fragments that others actually use, the more you earn the right to benefit from the collective gas.
+## Integration with Enigma Machine
 
-Contributors earn real recognition:  
-- Impact tracking — every contribution you make is tracked and celebrated. Watch your impact log grow as your fragments power real deals, adopted products, and breakthroughs across the network.  
-- Badges — earn meaningful badges like “Impact Architect” and “Deal Closer” that unlock priority access and public recognition in the Hall of Contributors.  
-- Monetization — suggest a non-binding share of downstream revenue generated by your fragments — a transparent starting point for the team regarding value your contribution.
+The Enigma Machine feeds high-signal fragments directly into the shared Solving Strategy Layer. It receives improved strategies, contract templates, and co-pilot suggestions from Synapse. This tight feedback loop makes each mission both a solution attempt and a permanent upgrade to the overall system.
 
-This is how the People’s Intelligence becomes real. When you use the commons through Synapse, you are not just borrowing data — you are accessing the collective breakthroughs of the entire network, sharpened by the same scoring and gates that protect your own local vaults. When you contribute, you are not just adding to a database — you are creating gas that others will build on, that will improve future runs, products, and proposals, and that will come back to you through real rewards and recognition.
+## Execution Reality
 
-## The Vision
+In practice, the full cycle runs efficiently on standard GPU hardware with predictable latency and cost. Dry-run gates and stall detection keep wasted compute low, while the memory and tuning layers keep mission costs predictable as the system improves over time. Early testing shows consistent completion within prize-pool windows with measurable gains in solution quality per mission. All solutions will be submitted through miners run by the subnet owners.
 
-The result is a living, community-owned intelligence layer that feels smart, safe, and genuinely ours. Miners are no longer just competing for prize pools; they are co-creating a shared asset that compounds with every contribution and every reuse. SAGE is the first true value-compounding shared intelligence flywheel owned by the people — and it is evolving in real time, rewarding those who build it.
-
-We need mechanisms like the People’s Intelligence and SAGE now more than ever. In a world racing toward concentrated corporate control of intelligence, SAGE offers a different path — one where intelligence is created by the many, owned by the many, and designed to serve and empower the many. The time for shared, compounding, community-driven intelligence is here.
-
-**Welcome to SAGE**
-
-The Shared Agentic Growth Engine.
-
-A living, community-owned system where decentralized solving data is distilled and turned into practical intelligence that pushes humanity forward — together.
