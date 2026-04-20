@@ -1,27 +1,27 @@
-# THE ENIGMA MACHINE — Arbos Inspired Intelligent Solver for Subnet 63
+# THE ENIGMA MACHINE — Arbos-Inspired Intelligent Solver for Subnet 63
 
 **English-first • Verifier-first • Self-improving • Maximum Heterogeneity • Real Compute Backends**
 
 ## Overview and Connection to SAGE
 
-The Enigma Machine is the core solver at the heart of SAGE. It takes well-defined, verifiable challenges from Subnet 63 and produces solutions while generating high-signal fragments that feed the broader SAGE intelligence layer.
+The Enigma Machine is the core solver at the heart of SAGE. It takes well-defined, verifiable challenges from Subnet 63 and produces solutions while generating high-signal fragments that permanently feed the broader SAGE intelligence layer.
 
-Every run is treated as both a solution attempt and a permanent evolutionary step. High-signal outcomes are scored, fragmented, and folded into the Solving Strategy Layer with full provenance. This creates measurable compounding capability: the system does not just solve today’s challenge — it becomes better at solving tomorrow’s challenges. The fragments and lessons learned flow into Synapse for pattern mining and self-audit, and the strongest outputs eventually reach the Economic Layer for sponsor proposals and marketplace value.
+Every run is treated as both a solution attempt and a permanent evolutionary step. High-signal outcomes are scored, fragmented with full provenance, and folded into the Solving Strategy Layer. These fragments enable Synapse to discover patterns, run self-audits, and propose improvements that make the entire system measurably sharper over time. The strongest outputs eventually reach the Economic Layer for sponsor proposals and marketplace value.
 
-This tight integration is why SAGE works: the Enigma Machine is not an isolated tool. It is the data engine that makes the entire flywheel possible.
+This tight integration is why SAGE works: the Enigma Machine is not an isolated tool. It is the data engine that powers the flywheel.
 
 ## 1. Verifier-First Architecture with Living Contract
 
 Every challenge begins with a formal Verifiability Contract — the single source of truth that defines required artifacts, composability rules, dry-run success criteria, and synthesis guidance.
 
 **How it works**:
-- The contract is generated and self-critiqued during planning using deep graph search, bootstrap insights from prior runs, and the latest strategies from Synapse.
-- Orchestrator then decomposes the challenge and produces per-subtask contract slices along with executable verifier code snippets.
-- These snippets constrain every subsequent step: dry-run, swarm execution, recomposition, and final validation.
-- The contract evolves over time as Synapse’s self-audit loop identifies weak spots and proposes improvements.
+- The contract is generated and rigorously self-critiqued during planning using deep graph search, bootstrap insights from prior runs, and the latest strategies pulled from Synapse.
+- Orchestrator decomposes the challenge and produces per-subtask contract slices along with executable verifier code snippets.
+- These snippets constrain every subsequent step: intelligent dry-run, swarm execution, recomposition, and final validation.
+- The contract evolves over time as Synapse’s self-audit loop identifies weak spots and proposes targeted improvements.
 
 **Why it will work**:
-Verification is no longer a post-hoc check. It becomes a proactive constraint that dramatically raises the probability of producing solutions the subnet will actually accept and reward. Because the contract is living and tied to real performance data, it continuously hardens.
+Verification is no longer a post-hoc check. It becomes a proactive constraint that dramatically raises the probability of producing solutions the subnet will actually accept and reward. Because the contract is living and tied to real performance data, it continuously hardens, reducing false positives and wasted compute.
 
 ## 2. DVR Pipeline & Intelligent Dry Run Gate
 
@@ -29,7 +29,7 @@ The complete DVR Pipeline (Decompose → Verify → Recompose) enforces the cont
 
 **How it works**:
 - Intelligent mock generation creates high-fidelity winning mocks and adversarial variants that deliberately stress-test rules and invariants.
-- Snippet self-validation and a 7D Verifier Self-Check (edge coverage, invariant tightness, adversarial resistance, consistency safety, symbolic strength, composability tightness, and fidelity) run before any swarm compute is spent.
+- Snippet self-validation runs first, followed by a 7D Verifier Self-Check (edge coverage, invariant tightness, adversarial resistance, consistency safety, symbolic strength, composability tightness, and fidelity) before any swarm compute is spent.
 - Deterministic composability checking validates that merged subtask outputs satisfy the full contract.
 
 **Why it will work**:
@@ -41,7 +41,7 @@ Every subtask is processed by a Balanced Hybrid Worker that prefers deterministi
 
 **How it works**:
 - Confidence is calculated via a multi-signal weighted formula incorporating verifier quality, EFS projections, and historical performance on similar subtasks.
-- When the threshold is met, deterministic tools (PuLP, SciPy, SymPy, NetworkX, OR-Tools, etc.) are used for exact results.
+- When the threshold is met, deterministic tools (PuLP, SciPy, SymPy, NetworkX, OR-Tools, etc.) deliver exact results.
 - When confidence is insufficient, the system falls back gracefully while preserving exploratory capability and logging the decision for future self-audit.
 
 **Why it will work**:
@@ -61,10 +61,10 @@ It creates compounding intelligence that is both machine-readable for the miner 
 
 ## 5. Actively Scored Fragmented Memory Layer
 
-All outputs are intelligently fragmented (≤50 KB self-contained units) and written to the wiki.
+All outputs are intelligently fragmented (≤50 KB self-contained units) and written to the wiki with ongoing scoring.
 
 **How it works**:
-- Each fragment receives ongoing utilization, replay, and impact scoring.
+- Each fragment receives utilization, replay, and impact scoring.
 - Cosmic Compression periodically prunes low-value fragments while promoting high-signal invariants.
 - ByteRover MAU-style reinforcement actively decides whether a fragment is kept, compressed, or promoted to higher layers.
 
@@ -83,7 +83,7 @@ The miner becomes measurably smarter and more efficient with every mission. The 
 
 ## 7. Stall Detection & Intelligent Replanning
 
-When a dry-run fails, a swarm stalls, or performance drops, the system uses stall detection and intelligent replanning.
+When a dry-run fails, a swarm stalls, or performance drops, the system uses rich stall detection and intelligent replanning.
 
 **How it works**:
 Early detection analyzes subtask scores, EFS delta, heterogeneity, and verifier quality. Rich failure context drives replanning that decides between targeted repair or a new strategy. This happens within the same mission and feeds the self-audit loop.
@@ -112,25 +112,22 @@ In practice, the full cycle runs efficiently on standard GPU hardware with predi
 
 ## Miner Workflow — Command-Post Experience (0.9.10 Flow)
 
-1. Open the enhanced **Streamlit Command Dashboard**. The system first runs the Initial Setup Wizard, which guides you through compute source selection, LLM assignment per task type, challenge loading, budget setting, and autonomy mode choice. A flight test validates the entire configuration before any mission can launch.
+1. Open the enhanced **Streamlit Command Dashboard**. The system first runs the Initial Setup Wizard, which guides you through compute source selection, smart LLM assignment per task type (optimized for the chosen compute and task requirements), challenge loading (from local or Commons), budget setting, and autonomy mode choice. A full flight test validates the entire configuration before any mission can launch.
 
 2. Once the wizard confirms readiness, enter or select the challenge + verification instructions.
 
-3. Review and optionally edit the Planning-generated contract and enhancements.
+3. Review and optionally edit the Planning-generated contract, per-subtask verifier snippets, and enhancements.
 
-4. Launch the mission. Watch live metrics, real-time trace log, ToolHunter recommendations, stigmergic signals, and fragment health updates.
+4. Launch the mission. Watch live metrics, real-time trace log, ToolHunter recommendations, stigmergic signals, fragment health updates, and Synapse co-pilot assistance.
 
 5. During and after the run, review MP4 archives, contract evolution deltas, fragment scoring and health, pruning recommendations from the advisor, and the impact of any self-audit improvements.
 
 The system continuously evolves its own brain files, constants, and strategies for future runs based on real performance data and the self-audit loop.
 
-Open the dashboard, complete the setup wizard, enter a frontier challenge, and watch the system solve it while permanently upgrading itself — with real backends, self-audit, deep graph memory, and full observability
+Open the dashboard, complete the setup wizard, enter a frontier challenge, and watch a living cognitive organism solve it while permanently upgrading itself — with real backends, TPE meta-tuning, deep graph memory, and full observability.
 
 ## Quick Start
+
 ```bash
 pip install -r requirements.txt
 streamlit run streamlit_app.py
-
-Open the dashboard, enter a frontier challenge, and watch a living cognitive organism solve it while permanently upgrading itself — with real backends, TPE meta-tuning, deep graph memory, and full observability.
-
----
