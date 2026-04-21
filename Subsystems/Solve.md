@@ -7,78 +7,63 @@
 
 ## Abstract
 
-The Solve Subsystem is the **intake and quality-control layer** of SAGE. It is the first and most critical filter in the entire flywheel. Every output from an Enigma Machine run passes through Solve before any fragment can enter the shared Strategy Layer or contribute to Synapse’s intelligence.
+The Solve Subsystem is the intake and quality-control layer of SAGE. It is the first and most critical filter in the entire flywheel. Every output from an Enigma Machine run passes through Solve before any fragment can enter the shared Strategy Layer or contribute to Synapse’s intelligence.
 
-Solve performs three core functions:
-1. Atomizes run outputs into small, self-contained fragments with complete provenance.
-2. Applies rigorous, verifier-first gating using the EFS composite score, 7D Verifier Self-Check, and composability validation.
-3. Applies ByteRover MAU reinforcement, Cosmic Compression, and deterministic pruning so only high-signal fragments are promoted.
+**Core Scoring Rule**:  
+Final fragment score = 0.6 × Base EFS + 0.4 × Refined Value-Added.
 
-This document details the exact algorithms, equations, decision trees, attack vectors, and meta-tuning integration that make Solve the hardened foundation of the SAGE flywheel.
+This 60/40 split ensures fragments are judged on both immediate quality and predicted future impact.
 
 ## 1. Fragment Creation and Atomization
 
-At the conclusion of every Enigma Machine run, the ArbosManager invokes the fragmenter. The fragmenter walks the complete trace log, raw subtask outputs, verifier results, synthesis candidate, contract deltas, and high-signal intermediate thoughts. It decomposes the output into fragments using these strict rules:
-
-- Maximum size: 50 KB per fragment
-- One logical concept per fragment
-- Full context preserved in metadata
-- Never split a single verifier check or contract rule
-
-Each fragment is assigned a unique `fragment_id` and immediately stamped with an immutable provenance block containing:
-
-```json
-{
-  "fragment_id": "...",
-  "run_id": "...",
-  "loop": N,
-  "subtask_id": "...",
-  "miner_id": "...",
-  "timestamp": "ISO8601",
-  "origin": "arbos_component",
-  "raw_efs_components": { ... },
-  "verifier_7d": { ... },
-  "provenance_hash": "..."
-}
-```
-
-The provenance hash is computed over the entire block so any tampering is detectable downstream.
+At the conclusion of every Enigma Machine run, the ArbosManager invokes the fragmenter. The fragmenter decomposes outputs into small self-contained fragments (maximum 50 KB each). Each fragment receives a unique `fragment_id` and an immutable provenance block containing run ID, loop number, subtask ID, miner identity, timestamp, origin, raw EFS components, and 7D verifier results. The block is hashed so any tampering is detectable downstream.
 
 ## 2. Seven-Dimension Verifier Self-Check
 
-Any fragment containing executable code or a verifier snippet is passed to the DVRPipeline for an immediate 7D self-check. The seven dimensions and their tightness computations are:
+Any fragment containing executable code or a verifier snippet is passed to the DVRPipeline for an immediate 7D self-check. The seven dimensions are: edge coverage, invariant tightness, adversarial resistance, consistency safety, symbolic strength, composability tightness, and fidelity. The check executes the snippet inside the RestrictedPython sandbox via `safe_exec` and records both pass/fail and a normalized tightness score [0,1] for each dimension. Critical failures cause immediate downgrade or rejection before final scoring.
 
-- Edge coverage
-- Invariant tightness
-- Adversarial resistance
-- Consistency safety
-- Symbolic strength
-- Composability tightness
-- Fidelity
+## 3. Intelligent Fragment Scoring — 60% Base EFS + 40% Refined Value-Added
 
-The check executes the snippet inside the RestrictedPython sandbox via `safe_exec` and records both pass/fail and a normalized tightness score [0,1] for each dimension. If any single dimension fails badly the fragment is immediately downgraded or rejected before EFS scoring.
-
-## 3. EFS Scoring Formula
-
-EFS is computed with the hardened composite formula (heterogeneity deliberately excluded):
+Final fragment score:
 
 $$
-\text{EFS} = w_1 \cdot \text{validation_score} + w_2 \cdot \text{verifier_7D_average} + w_3 \cdot \text{composability_score} + w_4 \cdot \theta_\text{dynamic} + w_5 \cdot \text{refined_value_added}
+\text{Final Score} = 0.6 \times \text{Base EFS} + 0.4 \times \text{Refined Value-Added}
 $$
 
-Current default weights (stored in `tuning.md` and tuned by Synapse meta-RL):
+**Base EFS (60%)** — Immediate execution quality. Defined with the following fixed global weights (tuned by Synapse meta-RL and stored in `tuning.md`):
 
-- \( w_1 = 0.30 \) (validation_score from ValidationOracle)
-- \( w_2 = 0.175 \) (verifier_7D_average)
-- \( w_3 = 0.175 \) (composability_score from lightweight merge checker)
-- \( w_4 = 0.175 \) (\(\theta_\text{dynamic}\) from recent calibration error and variance)
-- \( w_5 = 0.175 \) (refined_value_added from Synapse historical impact model)
+$$
+\text{Base EFS} = 0.40 \cdot \text{validation_score} + 0.20 \cdot \text{verifier_7D_average} + 0.20 \cdot \text{composability_score} + 0.20 \cdot \theta_\text{dynamic}
+$$
 
-## 4. ByteRover MAU Mechanics
+**θ_dynamic** (dynamic uncertainty gate):
 
-After EFS is calculated, Solve applies ByteRover MAU reinforcement. MAU (Memory Activation Unit) is a biological-inspired mechanism that decides promotion strength through the memory pyramid.
+$$
+\theta_\text{dynamic} = 1.0 - \left( \text{calibration_error} \times 0.6 + \text{score_variance} \times 0.25 + \text{replan_rate} \times 0.15 \right)
+$$
 
-The reinforcement signal is:
+- calibration_error = average absolute difference between predicted and actual EFS over recent runs (normalized to [0,1])
+- score_variance = standard deviation of recent EFS scores (normalized)
+- replan_rate = fraction of recent runs that triggered replanning or stall recovery
+
+**Refined Value-Added (40%)** — Predicted future impact:
+
+$$
+\text{Refined Value-Added} = \alpha \cdot \text{historical_EFS_lift} + \beta \cdot \text{calibration_accuracy} + \gamma \cdot \text{reuse_multiplier}
+$$
+
+Current default coefficients (tuned by Synapse meta-RL):
+- α = 0.50 (historical_EFS_lift)
+- β = 0.30 (calibration_accuracy)
+- γ = 0.20 (reuse_multiplier)
+
+## 4. Global Re-scoring with Tolerance Check
+
+After initial scoring, every fragment is **re-scored** using the latest global weights and parameters received from Synapse. The re-scoring uses the same 60/40 formula above but with current global values. If the absolute difference between the local score and the global re-score exceeds the tolerance threshold (currently 0.08), the fragment is flagged as a potential weight-fixing or gaming attempt and is downgraded or sent for AHE review. This mechanism prevents local manipulation of weights to inflate scores.
+
+## 5. ByteRover MAU Mechanics
+
+After final scoring and global re-scoring, Solve applies ByteRover MAU reinforcement:
 
 $$
 \text{reinforcement} = \text{base} + \text{hetero_bonus}
@@ -98,27 +83,28 @@ $$
 
 High-reinforcement fragments are promoted aggressively; low-reinforcement fragments are compressed or pruned.
 
-## 5. Gating Decision Tree
+## 6. Gating Decision Tree
 
-Solve executes a deterministic decision tree:
+Solve runs this deterministic decision tree:
 
-1. Hard EFS floor check → reject if below threshold
+1. Hard final-score floor check (60/40) → reject if below threshold
 2. Replay-rate guard against fragment graph → throttle or reject near-duplicates
 3. 7D verifier critical failure check → block promotion
-4. Refined value-added gate
-5. Final MAU reinforcement decision
+4. Global re-score tolerance check → flag or downgrade if difference > 0.08
+5. Refined value-added gate (ensures positive predicted future impact)
+6. Final MAU reinforcement decision
 
 Fragments passing all gates are marked high-signal and forwarded. Failures are either minimally compressed (provenance-only) or fully pruned based on decay score.
 
-## 6. Cosmic Compression and Memory Management
+## 7. Cosmic Compression and Memory Management
 
-Low-value fragments that barely pass are sent to Cosmic Compression: a targeted LLM prompt distills the fragment to 1–3 key sentences plus provenance tags. The original is archived for audit; the compressed version is stored in long-term memory. High-value fragments bypass compression and are promoted immediately.
+Low-value fragments are sent to Cosmic Compression: a targeted LLM prompt distills the fragment to 1–3 key sentences plus provenance tags. The original is archived for audit; the compressed version is stored in long-term memory. High-value fragments bypass compression and are promoted immediately.
 
-## 7. Provenance and Contribution Tracking
+## 8. Provenance and Contribution Tracking
 
 Every surviving fragment carries a complete immutable metadata block. The block is hashed, ensuring tamper-proof attribution for downstream reward calculation and Synapse meta-RL learning.
 
-## 8. AHE — Adversarial Hardening Engine Integration
+## 9. AHE — Adversarial Hardening Engine Integration
 
 The Adversarial Hardening Engine (AHE) is Synapse’s built-in white-hat hacker. It runs a six-phase loop to attack Solve (and every other subsystem):
 
@@ -131,15 +117,13 @@ The Adversarial Hardening Engine (AHE) is Synapse’s built-in white-hat hacker.
 
 AHE forces Solve to defend against spam, gaming, poisoning, and distribution shift in real time.
 
-## 9. Meta-Tuning at EM and Synapse Levels
+## 10. Meta-Tuning at EM and Synapse Levels
 
-**Local EM level**: TPE (Tree-structured Parzen Estimator) optimizes constants such as decay_k, high_signal_threshold, and EFS weights for the specific hardware and usage pattern. TPE builds a probabilistic model of historically successful hyperparameter values and intelligently samples new candidates.
+**Local EM level**: TPE (Tree-structured Parzen Estimator) optimizes constants such as decay_k, high_signal_threshold, and the internal EFS weights for the specific hardware and usage pattern.
 
-**Global Synapse level**: The full meta-RL loop aggregates data from all participating EM instances and tunes the same weights plus neural-net hyperparameters and gating thresholds across the network.
+**Global Synapse level**: The full meta-RL loop aggregates data from all participating EM instances and tunes the 60/40 ratio, the four Base EFS weights, the three Refined Value-Added coefficients, θ_dynamic coefficients, and global re-score tolerance.
 
-Both levels share the same underlying EFS formula and calibration signals, creating natural reinforcement: local improvements feed global optimization, and global improvements are pushed back to local EMs via the distilled scoring approximation loaded at startup.
-
-This dual-level meta-tuning keeps the entire system trending toward optimal gating, scoring, and intelligence extraction over time.
+This dual-level meta-tuning keeps the entire scoring system trending toward optimal gating, anti-piggybacking protection, and intelligence extraction over time.
 
 ## Data Flow Summary
 
@@ -151,7 +135,7 @@ Solve → Economic Subsystem (weak impact signals only)
 ## Attack Vectors and Mitigations
 
 - Spam/low-effort flooding → replay-rate guard + minimum quality threshold
-- EFS gaming → multi-signal validation + AHE red-team
+- EFS gaming / weight fixing → global re-score tolerance check + AHE red-team
 - Poisoned fragments → sandboxed dry-run + 7D verifier
 - Cold-start/noisy early data → Phase 0 seed period + bootstrapped approximation
 - Distribution shift → EFS reliability score + uncertainty floor in Synapse meta-RL
@@ -160,10 +144,9 @@ All mitigations are continuously monitored and hardened by the AHE.
 
 ## Current Limitations and Planned Improvements
 
-**Current (v0.9.12+)**: Strong deterministic gating, real-time scoring, ByteRover MAU, AHE integration, dual-level meta-tuning.
-
-**Planned**: Dynamic TPE-driven EFS weight optimization inside Synapse, temporal graph edges for cross-run linking, automated fragment utility prediction for Training, optional miner-controlled hold-back.
+**Current (v0.9.12+)**: 60/40 scoring split with explicit global re-scoring tolerance, ByteRover MAU, AHE integration, dual-level meta-tuning.  
+**Planned**: Dynamic tuning of the 60/40 ratio itself, stronger temporal graph edges, automated fragment utility prediction for Training.
 
 ## Why the Solve Subsystem Matters
 
-Solve is the gatekeeper that protects the entire SAGE flywheel. By enforcing verifier-first standards and complete provenance at the very first step, it ensures every subsequent layer operates on clean, high-signal, attributable data. The combination of 7D verifier self-check, hardened EFS formula, ByteRover MAU reinforcement, deterministic decision tree, AHE adversarial hardening, and dual-level meta-tuning makes Solve a rigorously engineered foundation that continuously trends toward optimal quality control.
+Solve is the gatekeeper that protects the entire SAGE flywheel. The 60/40 scoring rule — 60% immediate quality + 40% predicted future impact — combined with global re-scoring tolerance and the full set of deterministic gates, makes Solve a rigorously intelligent foundation that continuously trends toward optimal quality control and prevents piggybacking. The combination of 7D verifier self-check, hardened EFS formula, ByteRover MAU reinforcement, deterministic decision tree, AHE adversarial hardening, and dual-level meta-tuning ensures that only high-signal, high-utility fragments advance.
