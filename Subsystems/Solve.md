@@ -26,21 +26,21 @@ Any fragment containing executable code or a verifier snippet is passed to the D
 
 Final fragment score:
 
-$$
+\[
 \text{Final Score} = 0.6 \times \text{Base EFS} + 0.4 \times \text{Refined Value-Added}
-$$
+\]
 
-**Base EFS (60%)** — Immediate execution quality. Defined with the following fixed global weights (tuned by Synapse meta-RL and stored in `tuning.md`):
+**Base EFS (60%)** — Immediate execution quality:
 
-$$
+\[
 \text{Base EFS} = 0.40 \cdot \text{validation_score} + 0.20 \cdot \text{verifier_7D_average} + 0.20 \cdot \text{composability_score} + 0.20 \cdot \theta_\text{dynamic}
-$$
+\]
 
 **θ_dynamic** (dynamic uncertainty gate):
 
-$$
+\[
 \theta_\text{dynamic} = 1.0 - \left( \text{calibration_error} \times 0.6 + \text{score_variance} \times 0.25 + \text{replan_rate} \times 0.15 \right)
-$$
+\]
 
 - calibration_error = average absolute difference between predicted and actual EFS over recent runs (normalized to [0,1])
 - score_variance = standard deviation of recent EFS scores (normalized)
@@ -48,9 +48,9 @@ $$
 
 **Refined Value-Added (40%)** — Predicted future impact:
 
-$$
+\[
 \text{Refined Value-Added} = \alpha \cdot \text{historical_EFS_lift} + \beta \cdot \text{calibration_accuracy} + \gamma \cdot \text{reuse_multiplier}
-$$
+\]
 
 Current default coefficients (tuned by Synapse meta-RL):
 - α = 0.50 (historical_EFS_lift)
@@ -59,27 +59,27 @@ Current default coefficients (tuned by Synapse meta-RL):
 
 ## 4. Global Re-scoring with Tolerance Check
 
-After initial scoring, every fragment is **re-scored** using the latest global weights and parameters received from Synapse. The re-scoring uses the same 60/40 formula above but with current global values. If the absolute difference between the local score and the global re-score exceeds the tolerance threshold (currently 0.08), the fragment is flagged as a potential weight-fixing or gaming attempt and is downgraded or sent for AHE review. This mechanism prevents local manipulation of weights to inflate scores.
+After initial scoring, every fragment is re-scored using the latest global weights and parameters received from Synapse. The re-scoring uses the same 60/40 formula above but with current global values. If the absolute difference between the local score and the global re-score exceeds the tolerance threshold (currently 0.08), the fragment is flagged as a potential weight-fixing or gaming attempt and is downgraded or sent for AHE review.
 
 ## 5. ByteRover MAU Mechanics
 
 After final scoring and global re-scoring, Solve applies ByteRover MAU reinforcement:
 
-$$
+\[
 \text{reinforcement} = \text{base} + \text{hetero_bonus}
-$$
+\]
 
 where
 
-$$
+\[
 \text{base} = \text{score} \times \text{fidelity}^{1.5} \times \text{symbolic_coverage}
-$$
+\]
 
 and
 
-$$
+\[
 \text{hetero_bonus} = 0.3 \times \text{heterogeneity_score} \times \text{score}^{1.2} \times \text{fidelity}^{1.5}
-$$
+\]
 
 High-reinforcement fragments are promoted aggressively; low-reinforcement fragments are compressed or pruned.
 
