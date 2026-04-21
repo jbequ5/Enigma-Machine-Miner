@@ -4,9 +4,9 @@
 
 ## Role in SAGE
 
-Synapse is the Intelligence Layer of SAGE — the living, self-evolving meta-agent that turns the raw output of thousands of Enigma Machine runs into continuously compounding collective intelligence. While the Solving Strategy Layer stores and ranks fragments, Synapse actively mines them, critiques its own past decisions using real outcomes, upgrades strategies and system logic, and returns measurably higher-value intelligence to every participant.
+Synapse is the Intelligence Layer of SAGE — the living, self-evolving Meta-Agent that turns the raw output of Enigma Machine runs into continuously compounding collective intelligence. While the Solve Subsystem ingests and gates fragments and the Strategy Subsystem ranks and enriches them, Synapse actively mines them, critiques its own past decisions using real outcomes, upgrades strategies and system logic, and returns measurably higher-value intelligence to every participant.
 
-Every function is engineered to make the flywheel real and unstoppable: better data produces better intelligence, which produces better runs, which produces richer data. The result is a system that gets measurably smarter with every mission, every improvement cycle, and every reuse.
+Every function is engineered to make the flywheel real and unstoppable: better data produces better intelligence, which produces better runs, which produces richer data. The Meta-Agent Synapse orchestrates the meta-RL loop across all subsystems, learning from every mission, every attack, and every upgrade to continuously reinject improvements. The result is a system that gets measurably smarter with every mission, every improvement cycle, and every reuse.
 
 ## Core Architecture
 
@@ -17,11 +17,11 @@ Synapse is built around four tightly coupled subsystems that operate as a single
 3. **Meta-RL Improvement Loop** (the crown jewel)  
 4. **Strategy Upgrading & Artifact Evolution**
 
-All subsystems operate on the same live data model: the Solving Strategy Layer’s ranked fragments, each carrying full provenance, EFS scores, refined value-added metrics, utilization/replay/impact scores, and task/domain tags.
+All subsystems operate on the same live data model: the Strategy Subsystem’s ranked fragments, each carrying full provenance, EFS scores, refined value-added metrics, utilization/replay/impact scores, and task/domain tags.
 
 ## Graph Mining & Pattern Discovery
 
-Synapse maintains a live, dynamic graph of the Solving Strategy Layer’s fragments.
+Synapse maintains a live, dynamic graph of the Strategy Subsystem’s ranked fragments.
 
 **How it works**:
 - Nodes represent fragments; edges represent reuse relationships, co-occurrence, domain overlap, and impact propagation.
@@ -73,7 +73,7 @@ The loop is grounded in real, verifiable outcomes across four complementary dime
 Synapse does not just retrieve — it actively upgrades.
 
 **How it works**:
-- High-signal patterns are generalized into new contract templates, improved synthesis debate prompts, refined heterogeneity rules, or verification snippets.
+- High-signal patterns are generalized into new contract templates, improved synthesis debate prompts, refined verification rules, or verification snippets.
 - Upgraded artifacts are versioned and encrypted.
 - Only qualifying contributors (based on contribution score) can decrypt and use them locally in their Enigma Machine runs.
 
@@ -90,15 +90,17 @@ Synapse can only propose changes to a tightly scoped, versioned editable surface
 
 Self-improvement is strictly controlled. Human review gates are required for any major change. All proposals, applied tweaks, and their measured outcomes are logged and reversible. Tiered access and selective encryption ensure high-value artifacts stay protected. Fragment-level encryption keys are derived directly from contribution proof, so only qualifying contributors can decrypt them. There is no open leakage — the system is designed to keep intelligence inside the community while rewarding honest participation.
 
-## Integration with Other Layers
+## Integration with Other Subsystems
 
-- **With Solving Strategy Layer**: Reads ranked fragments and writes improved artifacts back.
-- **With Enigma Machine**: Supplies strategies, contract templates, and co-pilot suggestions; receives fresh fragments. Every participating EM loads the latest distilled global scoring approximation at startup and begins with those weights.
-- **With Economic Layer**: Supplies the strongest patterns and proposals for monetization through the Sage Marketplace.
+- **With Strategy Subsystem**: Reads ranked fragments and writes improved artifacts back.
+- **With Solve Subsystem**: Receives fresh fragments from Enigma Machine runs. Every participating EM loads the latest distilled global scoring approximation at startup.
+- **With Economic Subsystem**: Supplies the strongest patterns and proposals for monetization and upgrade.
+- **With Training Subsystem**: Uses the curated dataset to drive the meta-RL loop and neural net updates.
+- **With Defense Subsystem**: Uses adversarial examples to harden the system and improve calibration.
 
 ## Planned Evolution – Enigma Models
 
-Once all three layers are working and stable, and Synapse has demonstrated consistent confidence through its meta-RL improvement loop, the accumulated high-signal trajectories and self-audit outcomes will be distilled into specialized Enigma models. These models will be smaller and smarter for this class of verifiable solving problems and designed to run locally on modest hardware.
+Once the subsystems are stable and Synapse has demonstrated consistent confidence through its meta-RL improvement loop, the accumulated high-signal trajectories and self-audit outcomes will be distilled into specialized Enigma models. These models will be smaller, smarter, and optimized for verifiable solving problems, designed to run locally on modest hardware.
 
 The flywheel accelerates dramatically at this stage: better fragment scoring and training-utility prediction produce cleaner, higher-quality training data, which produces stronger Enigma models, which produce even richer fragments and faster intelligence growth across the entire system. As the models improve, contribution grows, eventually reaching far more people and continuously democratizing access to state-of-the-art solving intelligence.
 
