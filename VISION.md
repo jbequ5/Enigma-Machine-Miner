@@ -8,11 +8,11 @@ Most advanced AI remains closed and controlled by a few organizations. On Bitten
 
 ## The Opportunity
 
-Every Enigma Machine run can become structured, provenance-tracked input for a shared intelligence system. Instead of one-off solutions that disappear, the network can build a growing, self-improving library of high-signal strategies, patterns, and capabilities that compounds over time and creates additional economic value for contributors and the broader ecosystem.
+Every mining run on Enigma can become structured, provenance-tracked input for a shared intelligence system. Instead of one-off solutions that disappear, the network can build a growing, self-improving library of high-signal strategies, patterns, and capabilities that compounds over time and creates additional economic value for contributors and the broader ecosystem.
 
 ## The Vision
 
-SAGE is a practical, community-owned intelligence layer built on Subnet 63. It captures solving data from Enigma Machine runs, improves that data through systematic self-evaluation and graph mining, and converts the strongest outputs into usable strategies, sponsor proposals, tools, curricula, and services.
+SAGE is a practical, community-owned intelligence layer built on Subnet 63. It captures solving data from Enigma Machine runs, improves that data through systematic self-evaluation and graph mining, and converts the strongest outputs into usable strategies, sponsor proposals, tools, curricula, services, and even fine tuned models.
 
 We use clear economic incentives and transparent provenance tracking to build this **for the people, by the people**, ensuring that honest contribution is directly rewarded and that the resulting intelligence compounds to benefit the entire community.
 
@@ -30,7 +30,7 @@ The value creation subsystem and economic capstone. It receives raw BD and PD ar
 **Training Subsystem**  
 The curated data engine that prepares high-quality input for learning and distillation. It pulls from Solve, Strategy, and Defense subsystems via the DataCurationEngine to produce a clean, versioned dataset optimized for the four meta-RL objectives (Recognition of Value, Implementation of Strategy, Prediction of Impact, and Training Utility). This dataset powers the neural net scoring head and the future Enigma model distillation pipeline.
 
-**Defense Subsystem (RedTeamVault)**  
+**Defense Subsystem**  
 The proactive hardening subsystem that attacks the entire SAGE system to discover and fix weaknesses. It enforces strict no-leakage rules: fragments can only enter through deterministic gates, high-value artifacts are protected by tiered access and selective encryption, and all access is logged and auditable. It actively defends against scoring gaming, Sybil attacks, and data leakage while continuously hardening the system. Participants can have high confidence that their contributions remain protected and that the shared intelligence stays inside the community while rewarding honest participation.
 
 ## How SAGE Works
@@ -43,17 +43,19 @@ Raw fragments are gated, mined into ranked intelligence, hardened through red-te
 **Economic Value Pipeline** (Economic + Strategy + Defense)  
 Raw BD/PD artifacts are upgraded using intelligence and adversarial insights from Strategy and Defense, then measured for real-world impact. Landed proposals collect real performance data that feeds back into the Solve Subsystem, creating a powerful closed loop.
 
+**Meta-Learning Loop** 
 The Meta-Agent Synapse orchestrates the meta-RL loop across all subsystems, learning from every mission, every attack, and every upgrade to continuously reinject improvements. Synapse provides a powerful chat interface and proactive co-pilot that miners can use during runs for real-time strategy suggestions and stall assistance. Business and sponsor integration is supported through data-driven insights and intelligent challenge design tooling.
 
-Provenance tracking ensures every fragment Synapse uses is counted toward the contributor’s impact and reward. The system is designed so that local innovation is amplified by collective intelligence while protecting against leakage.
+**Participation Incentives**
+Provenance tracking ensures every fragment Synapse uses is counted toward the contributor’s impact and reward. The system is designed so that local innovation is amplified by collective intelligence while protecting against leakage. Contribution earns you access to the intelligence, and real monetary value if your data helps create downstream revenue. SAGE is pure and transparent meritocracy. 
 
 ## Value to Participants
 
-- **Miners and Contributors**: Better runs, proactive help via the chat interface and co-pilot, visible impact through provenance tracking, and fair rewards. Every improvement is tracked for later monetization in the pipeline.
+- **Miners and Contributors**: Better runs, proactive help via the chat interface and co-pilot, visible impact through provenance tracking, and fair rewards. Efficiency through comprehensive and actionable debriefs after every run. Every improvement is tracked for later monetization in the pipeline.
 
-- **Alpha Holders**: Increased alpha value directly correlated to the real value created by SAGE — through higher solver success rates, marketplace revenue from landed proposals and upgraded tools, and new sponsor challenges that expand the subnet’s reach and attractiveness.
+- **Alpha Holders**: Increased alpha value directly correlated to the real value created by SAGE — through higher solver success rates, marketplace revenue from landed proposals and upgraded tools, outside demand for access to Synapse intelligence, and new sponsor challenges that expand the subnet’s reach and attractiveness.
 
-- **Sponsors and Partners**: Better and faster results on their challenges, plus data-driven tooling for intelligent challenge design that helps advance their roadmap and creates co-creation opportunities.
+- **Sponsors and Partners**: Better and faster results on their challenges, plus data-driven tooling for intelligent challenge design that helps accelerate their roadmap and creates co-creation opportunities. SAGE provides you with everything you need to keep your using Enigma by prepping an effective next challenge before your current one ends.
 
 ## Planned Evolution – Enigma Models
 
@@ -67,7 +69,7 @@ Self-improvement in Synapse is governed by explicit rules, human review gates fo
 
 ## Roadmap
 
-- **Phase 1 (Current focus)**: Self-audit loop, impact attribution, basic proactive suggestions, and smart stopping.  
+- **Phase 1 (Current focus)**: Meta-RL loop, impact attribution, basic proactive suggestions, and smart stopping.  
 - **Phase 2**: Full sponsor intelligence layer, marketplace operations, and landed proposals that collect real performance data.  
 - **Phase 3**: Distillation into specialized Enigma models + enhanced co-pilot capabilities.  
 - **Phase 4**: Scaled self-accelerating model with broader ecosystem integration.
@@ -76,6 +78,6 @@ Self-improvement in Synapse is governed by explicit rules, human review gates fo
 
 SAGE is built so that solving intelligence does not stay locked in closed labs or disappear after a single run. By harnessing the competitive pressure and prize pools of Subnet 63, we generate rich, verifiable solving data and compound it into shared intelligence that benefits contributors first.
 
-Local innovation is enhanced by collective breakthroughs. Honest contribution is rewarded through transparent provenance and scoring. As more participants join and Enigma models become accessible to everyone, the flywheel strengthens — turning decentralized effort into collective capability that benefits the entire community and the broader Bittensor ecosystem.
+Local innovation is enhanced by collective breakthroughs. Honest contribution is rewarded through transparent provenance and scoring. As more participants join and Enigma models become accessible to everyone, the flywheel strengthens — turning decentralized effort into collective capability, and democratizing access to continuously evolving solving intelligence. The foundation of co-owned acceleration.
 
 This is the People’s Intelligence Layer — built by the many, owned by the many, and designed so that the people who build it are the ones who win.
