@@ -99,7 +99,7 @@ Weighted Hybrid Deterministic-First Score (DFS) quantifies real versus LLM contr
 **Why it will work**:
 Subnet owners, academics, and contributors can see exactly how the system is improving over time. Transparency builds trust and enables fair reward distribution.
 
-## Smart Stopping and End-of-Run Debriefs
+## 9. Smart Stopping and End-of-Run Debriefs
 
 The system includes a Learning Saturation Detector that monitors EFS improvement rate, calibration error trend, replan cycles, red-team findings, and resource pressure. It recommends graceful early stopping when additional runtime would yield diminishing returns, maximizing learning efficiency on local hardware.
 
