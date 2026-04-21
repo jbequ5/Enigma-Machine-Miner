@@ -40,23 +40,10 @@ Each fragment is assigned a unique `fragment_id` and immediately stamped with an
   "verifier_7d": { ... },
   "provenance_hash": "..."
 }
+```
 
-The provenance hash is computed over the entire block so any tampering is detectable downstream.
-2. Seven-Dimension Verifier Self-Check
-Any fragment containing executable code or a verifier snippet is passed to the DVRPipeline for an immediate 7D self-check. The seven dimensions and their tightness computations are:
-•  Edge coverage
-•  Invariant tightness
-•  Adversarial resistance
-•  Consistency safety
-•  Symbolic strength
-•  Composability tightness
-•  Fidelity
-The check executes the snippet inside the RestrictedPython sandbox via safe_exec and records both pass/fail and a normalized tightness score [0,1] for each dimension. If any single dimension fails badly the fragment is immediately downgraded or rejected before EFS scoring.
-3. EFS Scoring Formula
-EFS is computed with the hardened composite formula (heterogeneity deliberately excluded):
-$$ \text{EFS} = w_1 \cdot \text{validation_score} + w_2 \cdot \text{verifier_7D_average} + w_3 \cdot \text{composability_score} + w_4 \cdot \theta_\text{dynamic} + w_5 \cdot \text{refined_value_added} $$
-Current default weights (stored in tuning.md and tuned by Synapse meta-RL):
-•  ( w_1 = 0.30 ) (validation_score from ValidationOracle)
+
+
 •  ( w_2 = 0.175 ) (verifier_7D_average)
 •  ( w_3 = 0.175 ) (composability_score from lightweight merge checker)
 •  ( w_4 = 0.175 ) ((\theta_\text{dynamic}) from recent calibration error and variance)
