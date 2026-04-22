@@ -1,4 +1,4 @@
-# Operations — Technical Specification
+# Operating System — Technical Specification
 
 **Deep Technical Report**  
 **SAGE — Shared Agentic Growth Engine**  
@@ -7,7 +7,7 @@
 
 ## Abstract
 
-Operations is the intelligent conductor layer of SAGE. It manages the execution of Enigma Machine (EM) instances at scale — from a single local run to a full swarm of parallel operators — while integrating the existing 0.9.10 full setup UI (wizard) as the primary entry point.
+The Operating System (OS) is the intelligent conductor layer of SAGE. It manages the execution of Enigma Machine (EM) instances at scale — from a single local run to a full swarm of parallel operators — while integrating the existing 0.9.10 full setup UI (wizard) as the primary entry point.
 
 It provides:
 - Wizard-first UX for solo miners with shared config for all instances.
@@ -33,7 +33,7 @@ The wizard can be bypassed via CLI or API:
 ```bash
 python em_operations.py --autonomous --config operations_config.json --max-instances 12
 ```
-## 2. EM Operations Orchestrator
+## 2. EM OS Orchestrator
 
 The central conductor (single process or lightweight swarm) that:
 
@@ -95,9 +95,9 @@ The Orchestrator assigns different miner input strategies to different EM instan
 
 •  Synapse meta-RL can later learn and recommend the best strategies over time.
 
-## 6. Operations Telemetry Collection
+## 6. OS Telemetry Collection
 
-Operations data is collected in a dedicated telemetry stream (JSONL files or database table) and sent to Synapse. No new 60/40-style scoring is applied.
+OS data is collected in a dedicated telemetry stream (JSONL files or database table) and sent to Synapse. No new 60/40-style scoring is applied.
 
 Telemetry Schema (each record includes):
 
@@ -166,7 +166,7 @@ EM Instances → Solve (fragments) + Operations Logger (telemetry)
 
 Solve → Strategy → Synapse
 
-Operations Logger → Synapse (learning signal)
+OS Logger → Synapse (learning signal)
 
 ## 11. Attack Vectors and Mitigations
 
@@ -182,12 +182,12 @@ All operations are logged with full provenance and can be audited by the AHE.
 
 ## 12. Meta-Tuning Interaction
 
-Synapse’s global meta-RL loop tunes both inner EM parameters and outer Operations parameters (swarm size rules, LLM 
+Synapse’s global meta-RL loop tunes both inner EM parameters and outer OS parameters (swarm size rules, LLM 
 routing policy, miner input strategy effectiveness, recovery thresholds). Local TPE tuning in each EM instance remains unchanged.
 
 This creates a clean hierarchical meta-learning system.
 
-## Why the Operations Matters
+## Why the Operating System Matters
 
-Operations turns SAGE from a single-run tool into a scalable, self-improving parallel data factory. By integrating the familiar wizard, adding compute-aware routing with intelligent downscaling, a lightweight ping-only flight test, per-instance miner input strategy assignment for A/B testing, full API support, and a dedicated telemetry feed to Synapse, it delivers SOTA operations intelligence while remaining dead-simple for a solo miner to run fully autonomously. The hierarchical learning loop (inner EM solving + outer orchestration learning) accelerates the entire SAGE flywheel faster than any individual miner could achieve alone.
+The Operating System turns SAGE from a single-run tool into a scalable, self-improving parallel data factory. By integrating the familiar wizard, adding compute-aware routing with intelligent downscaling, a lightweight ping-only flight test, per-instance miner input strategy assignment for A/B testing, full API support, and a dedicated telemetry feed to Synapse, it delivers SOTA operations intelligence while remaining dead-simple for a solo miner to run fully autonomously. The hierarchical learning loop (inner EM solving + outer orchestration learning) accelerates the entire SAGE flywheel faster than any individual miner could achieve alone.
 
