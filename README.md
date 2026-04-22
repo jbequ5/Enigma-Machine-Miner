@@ -1,6 +1,6 @@
 # SAGE — Shared Agentic Growth Engine
 
-**The Community Intelligence Layer for Bittensor Subnet 63**
+**The Community Owned Intelligence System for Bittensor Subnet 63**
 
 ## What is SAGE?
 SAGE turns every Enigma Machine run on Subnet 63 into a permanent, compounding piece of shared intelligence.
