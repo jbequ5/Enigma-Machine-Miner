@@ -19,8 +19,8 @@ Built **for the people, by the people**, using decentralized incentives to compo
 **The Solver**
 - [Enigma-Machine-Deep-Dive.md](Enigma-Machine-Deep-Dive.md) — Deep technical dive into the Enigma Machine (verifier-first design, DVR pipeline, hybrid compute, memory system, and how it feeds SAGE)
   
-**Operations — Running & Scaling SAGE**
-- [Operations.md](Operations.md) — How to run, orchestrate, and scale Enigma Machine instances (from single local run to full swarm). Includes the Operations Wizard, Smart LLM Router, flight test, and autonomous mode.
+**Operating System — Running & Scaling SAGE**
+- [Operating_System.md](Operating_System.md) — How to run, orchestrate, and scale Enigma Machine instances (from single local run to full swarm). Includes the Operations Wizard, Smart LLM Router, flight test, and autonomous mode.
   
 **Meta-Agent**
 - [SYNAPSE-Deep-Dive.md](SYNAPSE-Deep-Dive.md) — Deep-Dive on SAGE's Meta-Agent - Synapse.
