@@ -43,7 +43,7 @@ The proactive hardening subsystem that attacks the entire SAGE system to discove
 **Operations Subsystem** is not a traditional subsystem — it is the **operating system** that makes SAGE run at scale.
 
 It manages the execution of Enigma Machine instances from a single local run to a full swarm of parallel operators. Key capabilities include:
-- The Operations Wizard (built on the familiar 0.9.10 setup UI) that intelligently recommends swarm size, LLM models per task type, and performs a lightweight ping-only flight test.
+- The Operations Wizard that intelligently recommends swarm size, LLM models per task type, and performs a lightweight ping-only flight test.
 - Smart LLM Router with automatic downscaling as the swarm grows to stay within compute limits.
 - Per-instance miner input strategy assignment for A/B testing effectiveness at inserted miner points.
 - Full API and endpoint support for fully autonomous, headless operation.
@@ -100,13 +100,3 @@ SAGE is built so that solving intelligence does not stay locked in closed labs o
 Local innovation is enhanced by collective breakthroughs. Honest contribution is rewarded through transparent provenance and scoring. As more participants join and Enigma models become accessible to everyone, the flywheel strengthens — turning decentralized effort into collective capability, and democratizing access to continuously evolving solving intelligence.
 
 This is the People’s Intelligence Layer — built by the many, owned by the many, and designed so that the people who build it are the ones who win.
-
----
-
-This VISION.md is now clean, consis, and properly positions **Operations** as the operating system layer while keeping the **Intelligence Subsystem** as the central brain with its three pillars.
-
-Would you like me to:
-- Update any other doc (SAGE-Deep-Dive.md, etc.)?
-- Or start building the actual code for the Operations Orchestrator now that the documentation is aligned?
-
-Just tell me your preference and we’ll keep moving. The project is coming together very well.) that
