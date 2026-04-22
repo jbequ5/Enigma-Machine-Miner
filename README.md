@@ -1,58 +1,49 @@
 # SAGE — Shared Agentic Growth Engine
 
-**The People’s Intelligence Layer for Bittensor Subnet 63**
+**The Community Intelligence Layer for Bittensor Subnet 63**
 
-SAGE uses the Enigma Machine — a powerful verifier-first agentic solver — to turn every successful mining run on Subnet 63 into fuel for a self-improving, community-owned intelligence system.
+## What is SAGE?
+SAGE turns every Enigma Machine run on Subnet 63 into a permanent, compounding piece of shared intelligence.
 
-High-signal fragments from real solving runs are captured, rigorously scored with full provenance using the 60/40 rule, and continuously refined through the **Intelligence Subsystem**. The best intelligence is then converted into practical strategies, sponsor proposals, tools, and assets that create real economic value — all while rewarding honest contribution and eventually distilling the accumulated knowledge into smaller, specialized Enigma models that further democratize participation.
+It captures high-signal solving data, ranks and enriches it, continuously self-improves through its Intelligence Subsystem, hardens itself against weaknesses, and converts the best outputs into real economic value through proposals, tools, and services.
 
-Built **for the people, by the people**, using decentralized incentives to compound solving intelligence instead of extracting it.
+The result is a self-reinforcing flywheel where honest participation creates measurable value that flows back to contributors, alpha holders, and the broader community.
 
-### Quick Navigation
+## The Three Core Flywheels
 
-**Vision & Overview**
-- [VISION.md](VISION.md) — The big picture: opportunity, vision, flywheel, and why this matters
+### 1. The Intelligence Flywheel
+Raw solving data → high-quality fragments → ranked intelligence → continuous self-improvement → better strategies and models → even richer data.
 
-**Core Platform Architecture**
-- [SAGE-Deep-Dive.md](SAGE-Deep-Dive.md) — Full platform architecture and data flow between all subsystems
+Every run makes the system smarter. Synapse (the Meta-Agent) learns from real outcomes, improves its scoring and recommendations, and pushes better global approximations back to every Enigma Machine.
 
-**The Solver**
-- [Enigma-Machine-Deep-Dive.md](Enigma-Machine-Deep-Dive.md) — Deep technical dive into the Enigma Machine (verifier-first design, DVR pipeline, hybrid compute, memory system, and how it feeds SAGE)
-  
-**Operating System — Running & Scaling SAGE**
-- [Operating_System.md](Operating_System.md) — How to run, orchestrate, and scale Enigma Machine instances (from single local run to full swarm). Includes the Operations Wizard, Smart LLM Router, flight test, and autonomous mode.
-  
-**Meta-Agent**
-- [SYNAPSE-Deep-Dive.md](SYNAPSE-Deep-Dive.md) — Deep-Dive on SAGE's Meta-Agent - Synapse.
+### 2. The Economic Flywheel
+Intelligence → upgraded proposals and tools → marketplace revenue and landed sponsors → larger prize pools and new challenges → more participation and richer data.
 
-**Subsystem Specifications** (in the `subsystems/` folder)
+Successful outputs generate real revenue and new high-value challenges. That revenue funds bigger prize pools, attracting more miners and sponsors, which produces even more data for the Intelligence Flywheel.
 
-These deep technical reports are written to be rigorous enough to rebuild or audit each piece of the system from scratch. They are living documents that will evolve with the code.
+### 3. The Democratization Flywheel
+High-utility fragments → curated training data → distilled smaller Enigma models → accessible local solving capability for more people → more participation → richer data and faster improvement.
 
-- [Solve.md](Subsystems/Solve.md)
-- [Strategy.md](Subsystems/Strategy.md)
-- [Economics.md](Subsystems/Economics.md)
-- [Operations.md](Operations.md)
-- [Defense.md](Subsystems/Defense.md)
-- [Intelligence.md](Subsystems/Intelligence.md)
+As the system learns, it produces smaller, specialized Enigma models that run well on modest hardware. More people can participate easily, accelerating all three flywheels and spreading solving intelligence to the many instead of keeping it with the few.
 
-See the individual documents for setup instructions, how to run the Enigma Machine, contribution guidelines, and technical details.
+## Why SAGE Matters
+This is not another shared database or static knowledge repository.
 
-### Contribution & Participation
+This is a true self-reinforcing intelligence flywheel that does not exist anywhere else today.
 
-Miners, developers, researchers, and sponsors are all welcome. Every high-signal fragment you generate helps strengthen the shared intelligence. Clear contribution scoring, provenance tracking, and transparent reward mechanisms ensure that real value creation is recognized and rewarded.
+- **For miners**: Your fragments are credited with provenance. You gain access to better strategies through Synapse and earn rewards proportional to your contribution.
+- **For sponsors**: You get faster, higher-quality solutions and intelligent challenge-design tooling that advances your roadmap.
+- **For alpha holders**: Increased subnet value through higher solver success rates, marketplace revenue, and expanded participation.
+- **For the community**: Solving intelligence becomes democratized — built by the many, owned by the many, and accessible to everyone who contributes.
 
-### Why SAGE Matters
+Every honest contribution is rewarded. The system gets measurably smarter with every mission. Local innovation is enhanced by collective breakthroughs. And the value created flows back to the people who build it.
 
-In a world where most AI systems extract value for private gain, SAGE does the opposite. It harnesses the competitive pressure and prize pools of Subnet 63 to generate rich, verifiable solving data, then compounds that data into shared, self-improving intelligence that benefits contributors first.
+## Quick Start
+1. Read [VISION.md](VISION.md) for the full vision and how the flywheels connect.
+2. Read [core-mechanics.md](core-mechanics.md) for all scoring formulas and rules.
+3. Read [SAGE-Platform-Architecture.md](SAGE-Platform-Architecture.md) for the complete system overview.
+4. Explore the subsystem deep dives in the `subsystems/` folder.
 
-The result is a true flywheel: better runs produce richer data, richer data produces smarter strategies, smarter strategies produce stronger economic value, and that value creates larger incentives and better models — drawing in even more participation.
+Welcome to the People’s Intelligence Layer — built by the many, owned by the many, and designed so that the people who build it are the ones who win.
 
-This doesn’t exist anywhere else today.
-
-Built by the many. Owned by the many. Designed so the people who build it are the ones who win.
-
----
-
-**Repository Structure Note**  
-All deep subsystem reports live in the `subsystems/` folder so the root stays clean and focused on navigation. The documents are designed to be both inspirational for new users and technically rigorous enough for developers or researchers who want to understand or rebuild the system from scratch.
+**Repository:** Sage-Enigma-Bittensor
