@@ -29,11 +29,11 @@ The strict entry point that ingests raw outputs from every participating Enigma 
 - Spamming is blocked via per-miner rate limits, embedding-based duplicate detection, and provenance validation.
 - Accepted fragments are atomized into self-contained units (≤50 KB) and enriched with basic metadata.
 
-**Contribution Tracking**:
+**Contribution Tracking and Rewards**:
 Every surviving fragment is immediately credited to its contributor with immutable provenance. This transparent tracking ensures miners see their exact impact and receive fair rewards through contribution scoring.
 
 **Outputs**:
-Clean, gated fragments fed to the Strategy Subsystem and (selectively) weak impact signals to the Economic Subsystem. This provides the high-quality raw material for the entire flywheel.
+Clean, gated fragments fed to the Strategy Subsystem and (selectively) weak impact signals to the Economic Subsystem.
 
 ### Strategy Subsystem
 The central intelligence hub that mines, ranks, and enriches fragments into highly valuable shared intelligence.
@@ -52,13 +52,14 @@ The value creation and economic capstone subsystem that turns intelligence into 
 
 **How it works**:
 - Receives raw BD/PD artifacts (proposals, tools, curricula, services) from local runs.
-- Upgrades them by injecting relevant ranked intelligence from Strategy and adversarial insights from Defense.
+- Upgrades them by pulling relevant ranked intelligence from Strategy and adversarial insights from Defense.
+- The upgrade process is controlled and scripted: Synapse identifies the most relevant high-signal fragments and patterns, injects proven solving strategies, verifier rules, and economic impact data, and produces a higher-quality version.
 - Measures real-world usage, revenue, and downstream EFS impact transparently.
 - Landed proposals generate new challenges that feed back into Solve, closing the loop.
 - The Sage Marketplace serves as the authorized monetization channel.
 
-**Contribution Tracking**:
-Every upgraded artifact credits original contributors through provenance and contribution scoring. Participants see exactly how their work generated economic value and receive fair rewards.
+**Contribution Tracking and Rewards**:
+Every upgraded artifact credits original contributors through provenance and contribution scoring. Participants see exactly how their fragments helped generate economic value and receive fair rewards.
 
 **Outputs**:
 Upgraded BD/PD artifacts, landed proposals, marketplace revenue, and impact signals that strengthen the flywheel.
@@ -69,7 +70,7 @@ The underlying meta-improvement engine that powers Synapse.
 **How it works**:
 This subsystem contains three tightly coupled pillars:
 
-1. **Meta-RL Improvement Loop** — closed self-critique engine that evaluates past recommendations against four objectives (Recognition of Value, Implementation of Strategy, Prediction of Impact, Training Utility) using real downstream outcomes and calibration error.
+1. **Meta-RL Improvement Loop** — closed self-critique engine that evaluates past recommendations against four objectives using real downstream outcomes and calibration error.
 2. **Neural-Net Scoring Head** — learnable brain that takes rich fragment features and outputs predictions for the four objectives plus uncertainty estimates. Calibration error drives its continuous improvement.
 3. **Training/Distillation Pipeline** — curates high-utility data and progressively distills it into smaller, specialized Enigma models optimized for verifiable solving problems and designed to run locally on modest hardware.
 
@@ -100,6 +101,9 @@ Raw fragments are gated, mined into ranked intelligence, hardened through red-te
 Raw BD/PD artifacts are upgraded using intelligence and adversarial insights, then measured for real-world impact. Landed proposals generate new challenges that feed back into Solve.
 
 Synapse (the Meta-Agent) orchestrates the Intelligence Subsystem and continuously reinjects improvements across the platform. Controlled interfaces ensure each subsystem stays focused while contributing to the overall flywheel.
+
+## Example End-to-End Flow
+A miner runs an Enigma Machine mission on a quantum circuit optimization challenge. The Solve Subsystem receives a fragment with EFS = 0.82, passes all gates, and credits the miner. Strategy ranks it highly and enriches it with graph connections. Intelligence uses it to improve the Neural-Net Scoring Head and distill a better local model. Economic upgrades a sponsor proposal using this intelligence, lands it, and generates revenue that increases prize pools. The new challenge data flows back into Solve. Synapse surfaces the improved strategy to other miners in real time.
 
 ## Why This Flywheel Is Different
 This is a true self-reinforcing intelligence flywheel. Every Enigma Machine run feeds gated fragments into Solve. Strategy turns them into ranked intelligence. Defense hardens the system. Intelligence continuously improves itself through its three pillars. Economic converts intelligence into real value — landing proposals that collect performance data and marketplace revenue that funds larger prize pools — while feeding impact signals back.
