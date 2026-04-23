@@ -40,9 +40,10 @@ Every honest contribution is rewarded. The system gets measurably smarter with e
 
 ## Quick Start
 1. Read [VISION.md](VISION.md) for the full vision and how the flywheels connect.
-2. Read [core-mechanics.md](core-mechanics.md) for all scoring formulas and rules.
-3. Read [SAGE-Platform-Architecture.md](SAGE-Platform-Architecture.md) for the complete system overview.
-4. Explore the subsystem deep dives in the `subsystems/` folder.
+2. Read [Enigma-Machine-Deep-Dive.md](Enigma-Machine-Deep-Dive.md) for details on how the core solver works.
+3. Read [Operating_System.md](Operating_System.md) for details on how to run it.
+4. Read [SAGE-Platform-Architecture.md](SAGE-Platform-Architecture.md) for the complete system overview.
+5. Explore the subsystem deep dives in the `subsystems/` folder.
 
 Welcome to the People’s Intelligence Layer — built by the many, owned by the many, and designed so that the people who build it are the ones who win.
 
