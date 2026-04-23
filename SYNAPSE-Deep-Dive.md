@@ -4,24 +4,26 @@
 
 ## Role in SAGE
 
-Synapse is the Intelligence Layer of SAGE — the living, self-evolving Meta-Agent that turns the raw output of Enigma Machine runs into continuously compounding collective intelligence. While the Solve Subsystem ingests and gates fragments and the Strategy Subsystem ranks and enriches them, Synapse actively mines them, critiques its own past decisions using real outcomes, upgrades strategies and system logic, and returns measurably higher-value intelligence to every participant.
+Synapse is the Intelligence Layer of SAGE — the living, self-evolving Meta-Agent that turns the raw output of Enigma Machine runs into continuously compounding collective intelligence. While the Solve Subsystem ingests and gates fragments and the Strategy Subsystem ranks and enriches them, Synapse actively mines them on the global aggregated dataset, critiques its own past decisions using real outcomes, upgrades strategies and system logic, and returns measurably higher-value intelligence to every participant.
 
 Every function is engineered to make the flywheel real and unstoppable: better data produces better intelligence, which produces better runs, which produces richer data. The Meta-Agent Synapse orchestrates the meta-RL loop across all subsystems, learning from every mission, every attack, and every upgrade to continuously reinject improvements. The result is a system that gets measurably smarter with every mission, every improvement cycle, and every reuse.
+
+Synapse runs centrally in the dedicated `sage-intelligence` repository, giving it the global view required for co-pilot/chat, daily Meta-RL loops, global Strategy ranking, and all self-improvement functions while keeping local EM instances lightweight.
 
 ## Core Architecture
 
 Synapse is built around four tightly coupled subsystems that operate as a single, self-reinforcing intelligence engine:
 
-1. **Graph Mining & Pattern Discovery**  
+1. **Global Graph Mining & Pattern Discovery**  
 2. **Chat Interface & Proactive Co-Pilot**  
-3. **Meta-RL Improvement Loop** (the crown jewel)  
+3. **Meta-RL Improvement Loop** (the crown jewel, including meta-stall detection)  
 4. **Strategy Upgrading & Artifact Evolution**
 
-All subsystems operate on the same live data model: the Strategy Subsystem’s ranked fragments, each carrying full provenance, EFS scores, refined value-added metrics, utilization/replay/impact scores, and task/domain tags.
+All subsystems operate on the same live data model: the full aggregated Strategy Subsystem’s ranked fragments, each carrying full provenance, EFS scores, refined value-added metrics, utilization/replay/impact scores, and task/domain tags. Data arrives via secure feed vaults from local EM instances.
 
-## Graph Mining & Pattern Discovery
+## Global Graph Mining & Pattern Discovery
 
-Synapse maintains a live, dynamic graph of the Strategy Subsystem’s ranked fragments.
+Synapse maintains a live, dynamic global graph of the Strategy Subsystem’s ranked fragments from all participants.
 
 **How it works**:
 - Nodes represent fragments; edges represent reuse relationships, co-occurrence, domain overlap, and impact propagation.
@@ -29,6 +31,7 @@ Synapse maintains a live, dynamic graph of the Strategy Subsystem’s ranked fra
 - Community detection (Leiden) identifies clusters of related strategies.
 - Motif mining surfaces recurring successful patterns.
 - Influence propagation ranks which fragments actually move the needle on future performance.
+- Updated meta-weights for local Strategy gates are computed and pushed down.
 
 **Why it works**:
 The graph is built from real execution data with full provenance. Continuous re-ranking and pruning keep the graph focused on high-signal intelligence only, enabling Synapse to surface emergent strategies that no single run could discover.
@@ -38,8 +41,8 @@ The graph is built from real execution data with full provenance. Continuous re-
 Synapse is the primary consumer-facing access point to the entire intelligence layer.
 
 **How it works**:
-- The chat interface allows any authorized user to ask natural-language questions and receive the best available strategies, fragments, or meta-insights drawn from the live graph.
-- The Proactive Co-Pilot is truly agentic: during an active Enigma Machine run it continuously monitors key real-time metrics. When it detects a stall, EFS drop, or low heterogeneity, it surfaces context-aware suggestions with a one-click “Inject” option, complete with predicted EFS lift and provenance of the underlying fragments.
+- The chat interface allows any authorized user to ask natural-language questions and receive the best available strategies, fragments, or meta-insights drawn from the live global graph.
+- The Proactive Co-Pilot is truly agentic: during an active Enigma Machine run it continuously monitors key real-time metrics. When it detects a stall, EFS drop, or low heterogeneity, it surfaces context-aware suggestions with a one-click “Inject” option, complete with predicted EFS lift and provenance of the underlying fragments. Local Defense passes during stalls feed directly into meta-stall reflection.
 
 **Why it works**:
 It turns the abstract power of the shared intelligence into an immediate, practical daily advantage that raises success rates for every user while feeding new high-signal data back into the loop.
@@ -48,20 +51,16 @@ It turns the abstract power of the shared intelligence into an immediate, practi
 
 This is the crown jewel of Synapse — the meta-RL loop that allows the system to critique and improve its own decision-making, scoring, and predictions in a measurable, self-accelerating way.
 
-The loop runs automatically (daily or triggered per-X high-signal fragments) and operates on four parallel optimization objectives:
+The loop runs automatically (daily or triggered per high-signal fragments) and operates on four parallel optimization objectives:
 
 1. **Recognition of Value** — How accurately Synapse identifies high-signal fragments.  
 2. **Implementation of Strategy** — How well Synapse’s recommendations actually improve real runs (measured by the Advice Success Score).  
 3. **Prediction of Impact** — How accurate Synapse’s forecasts of future performance are.  
 4. **Training Utility** — How useful a fragment will be for future Enigma model distillation.
 
-**How the loop works (6-phase process)**:
-- **Phase 1 – Collect & Score Past Advice**: Every recommendation, strategy injection, or meta-tuning proposal is retrieved along with downstream results.
-- **Phase 2 – Compute Multi-Objective Scores**: A small neural-net scoring head (<80k parameters, feed-forward or graph attention) runs on rich fragment features and makes predictions for all four objectives plus uncertainty estimates. Real outcomes are compared to predictions to compute calibration errors.
-- **Phase 3 – Self-Critique**: Synapse analyzes patterns in low-scoring or poorly calibrated areas.
-- **Phase 4 – Propose Self-Tweaks**: Concrete, safe proposals are generated for both performance knobs and the neural-net head itself (weights, new features, calibration parameters).
-- **Phase 5 – Safe Application**: Low-risk tweaks auto-apply if they meet strict safety thresholds. Higher-risk changes are staged for human/governance review. All changes are versioned and reversible.
-- **Phase 6 – Log & Transparency**: Full audit trail is written and made available to contributors and governance.
+**How the loop works (7-phase process)**:
+- **Phase 1–6**: Standard collection, scoring, self-critique, proposal, safe application, and logging (as previously detailed).
+- **Phase 7 — Meta-Stall Reflection & Idea-Bank Recommendation**: When multi-signal stall detection triggers, Synapse performs structured reflection (“What would have helped the system learn faster?”) and queries learning_ideas.md for the highest-scoring matching ideas. Proposals are generated, scored by the Neural-Net Scoring Head, sandbox-tested by Defense, and gated by current tuning.md freedom level. The background scorer continuously refreshes and ranks ideas to keep the bank fresh.
 
 The neural-net scoring head is tuned directly by the calibration errors across all four objectives. This creates a closed learning loop where Synapse continuously improves both its ability to recognize value and its ability to predict future impact and training utility.
 
@@ -73,9 +72,10 @@ The loop is grounded in real, verifiable outcomes across four complementary dime
 Synapse does not just retrieve — it actively upgrades.
 
 **How it works**:
-- High-signal patterns are generalized into new contract templates, improved synthesis debate prompts, refined verification rules, or verification snippets.
+- High-signal patterns from global Strategy are generalized into new contract templates, improved synthesis debate prompts, refined verification rules, or verification snippets.
 - Upgraded artifacts are versioned and encrypted.
 - Only qualifying contributors (based on contribution score) can decrypt and use them locally in their Enigma Machine runs.
+- Raw Economic BD/PD artifacts from feed vaults are upgraded centrally using the latest global intelligence.
 
 **Why it works**:
 The upgrade process is tied directly to the meta-RL loop, so only improvements that have demonstrated real performance gains are promoted.
@@ -92,11 +92,11 @@ Self-improvement is strictly controlled. Human review gates are required for any
 
 ## Integration with Other Subsystems
 
-- **With Strategy Subsystem**: Reads ranked fragments and writes improved artifacts back.
-- **With Solve Subsystem**: Receives fresh fragments from Enigma Machine runs. Every participating EM loads the latest distilled global scoring approximation at startup.
-- **With Economic Subsystem**: Supplies the strongest patterns and proposals for monetization and upgrade.
+- **With Strategy Subsystem**: Reads ranked fragments from the global graph and writes improved artifacts and meta-weights back.
+- **With Solve Subsystem**: Receives fresh fragments from Enigma Machine runs via feed vaults. Every participating EM loads the latest distilled global scoring approximation at startup.
+- **With Economic Subsystem**: Supplies the strongest patterns and proposals for monetization and upgrade. Raw BD/PD artifacts are upgraded centrally.
 - **With Training Subsystem**: Uses the curated dataset to drive the meta-RL loop and neural net updates.
-- **With Defense Subsystem**: Uses adversarial examples to harden the system and improve calibration.
+- **With Defense Subsystem**: Uses global adversarial examples to harden the system and improve calibration. Consistent global packages are pushed down to local Defense instances.
 
 ## Planned Evolution – Enigma Models
 
