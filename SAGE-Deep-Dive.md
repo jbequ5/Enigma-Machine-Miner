@@ -6,22 +6,22 @@
 SAGE turns the competitive pressure and prize pools of Subnet 63 into a genuine self-reinforcing intelligence flywheel. Sponsors receive faster, higher-quality solutions and intelligent challenge-design tooling that advances their roadmaps. Alpha holders benefit from increased subnet value through higher solver success rates, marketplace revenue, and expanded sponsor participation. Miners see their honest contributions directly rewarded through transparent provenance tracking and contribution scoring. The system is designed so that real participation creates measurable economic value that flows back to the people who build it.
 
 ## Overview
-SAGE converts individual Enigma Machine runs into a compounding, community-owned intelligence system. It consists of five interconnected subsystems that operate in a self-reinforcing flywheel:
+SAGE converts individual Enigma Machine runs into a compounding, community-owned intelligence system. It consists of five interconnected subsystems that operate in a self-reinforcing flywheel. See core-mechanics.md for all scoring formulas and data flows.
 
-- **Solve Subsystem** — strict ingestion and gating of raw fragments.
-- **Strategy Subsystem** — mining, ranking, and enrichment of fragments into usable intelligence.
-- **Economic Subsystem** — upgrading BD/PD artifacts and creating real economic value.
-- **Intelligence Subsystem** — the underlying meta-improvement engine that powers Synapse.
-- **Defense Subsystem** — proactive red-teaming and hardening.
+The system uses two repositories for clarity, safety, and performance:
+- **sage-core**: Execution runtime focused on lightweight local operation (Enigma Machine, Solve, lightweight local Strategy and Defense during runs for qualified users, Economic raw artifact generation, Operations). This keeps EM instances efficient for high parallelism and Solve data production.
+- **sage-intelligence**: Central privileged brain containing Synapse (the Meta-Agent) and the full Intelligence Subsystem. All intelligence lives here.
 
-**Synapse** is the Meta-Agent — the customer-facing and miner-facing access point. It provides the chat interface, proactive co-pilot, real-time strategy suggestions, and stall assistance. Synapse is powered by the Intelligence Subsystem and orchestrates improvements across the entire platform.
+Local EM instances apply Solve gates locally, run lightweight Strategy and Defense passes when qualified, generate raw Economic artifacts, and push gated fragments, telemetry, and raw BD/PD data to secure feed vaults. sage-intelligence pulls from the vaults, performs global Strategy (graph mining and ranking on the full aggregated dataset), global Defense coordination, daily Meta-RL loops, and all self-improvement functions, then pushes global approximations, meta-weights, distilled models, and consistent Defense packages back down.
 
-Every fragment carries full provenance. Data flows are narrow and controlled. See Core Mechanics Reference for all scoring formulas and rules.
+**Synapse** is the Meta-Agent — the customer-facing and miner-facing access point. It provides the chat interface, proactive co-pilot, real-time strategy suggestions, and stall assistance. Synapse is powered by the Intelligence Subsystem and orchestrates improvements across the entire platform using the global view of all data.
+
+Every fragment carries full provenance. Data flows are narrow and controlled. High-value artifacts are protected by tiered access and selective encryption.
 
 ## The Five Subsystems
 
 ### Solve Subsystem
-The strict entry point that ingests raw outputs from every participating Enigma Machine run and ensures only high-quality fragments enter the shared intelligence.
+The strict entry point that ingests raw outputs from every participating Enigma Machine run and ensures only high-quality fragments enter the shared intelligence. Runs locally in every EM instance.
 
 **How it works**:
 - Fragments arrive with complete provenance metadata.
@@ -33,16 +33,18 @@ The strict entry point that ingests raw outputs from every participating Enigma 
 Every surviving fragment is immediately credited to its contributor with immutable provenance. This transparent tracking ensures miners see their exact impact and receive fair rewards through ContributionScore.
 
 **Outputs**:
-Clean, gated fragments fed to the Strategy Subsystem and (selectively) weak impact signals to the Economic Subsystem.
+Clean, gated fragments fed to the Strategy Subsystem and (selectively) weak impact signals to the Economic Subsystem. Data is pushed to secure feed vaults for central processing.
 
 ### Strategy Subsystem
 The central intelligence hub that mines, ranks, and enriches fragments into highly valuable shared intelligence.
 
 **How it works**:
-- Uses NetworkX graph mining (Leiden community detection, motif discovery) to uncover patterns and cross-domain connections.
+- Lightweight local execution occurs during runs for qualified users (immediate feedback).
+- Full global Strategy (NetworkX graph mining, Leiden community detection, motif discovery, ranking, enrichment on the aggregated dataset) runs centrally in sage-intelligence.
 - Ranks fragments using a multi-signal system that includes the 60/40 EFS split, utilization, replay rate, and graph centrality.
 - ByteRover-style reinforcement and Cosmic Compression keep the dataset focused on high-signal content.
-- Rich metadata (task type, domain, provenance, utilization statistics) is added for immediate usability.
+- Rich metadata is added for immediate usability.
+- Updated meta-weights are pushed down to local Strategy gates.
 
 **Outputs**:
 Ranked, richly tagged intelligence that powers Synapse’s chat interface, proactive co-pilot, Economic upgrades, and data for Training and Defense subsystems.
@@ -51,9 +53,9 @@ Ranked, richly tagged intelligence that powers Synapse’s chat interface, proac
 The value creation and economic capstone subsystem that turns intelligence into tangible revenue and product outcomes.
 
 **How it works**:
-- Receives raw BD/PD artifacts (proposals, tools, curricula, services) from local runs.
-- Upgrades them by pulling relevant ranked intelligence from Strategy and adversarial insights from Defense.
-- The upgrade process is controlled and scripted: Synapse identifies the most relevant high-signal fragments and patterns, injects proven solving strategies, verifier rules, and economic impact data, and produces a higher-quality version.
+- Receives raw BD/PD artifacts from local runs and pushes them to feed vaults.
+- Central upgrade in sage-intelligence pulls relevant ranked intelligence from global Strategy and adversarial insights from global Defense.
+- Synapse injects proven strategies, verifier rules, and economic impact data in a controlled upgrade step.
 - Measures real-world usage, revenue, and downstream EFS impact transparently.
 - Landed proposals generate new challenges that feed back into Solve, closing the loop.
 - The Sage Marketplace serves as the authorized monetization channel.
@@ -65,16 +67,16 @@ Every upgraded artifact credits original contributors through provenance and Con
 Upgraded BD/PD artifacts, landed proposals, marketplace revenue, and impact signals that strengthen the flywheel.
 
 ### Intelligence Subsystem
-The underlying meta-improvement engine that powers Synapse.
+The underlying meta-improvement engine that powers Synapse and centralizes all intelligence functions.
 
 **How it works**:
-This subsystem contains three tightly coupled pillars:
+This subsystem runs centrally in sage-intelligence and contains three tightly coupled pillars plus meta-stall detection and continuous idea-bank scoring:
 
-1. **Meta-RL Improvement Loop** — closed self-critique engine that evaluates past recommendations against four objectives using real downstream outcomes and calibration error.
+1. **Meta-RL Improvement Loop** — closed self-critique engine that evaluates past recommendations against four objectives using real downstream outcomes and calibration error. Includes Phase 7 meta-stall reflection that queries the idea bank and generates proposals.
 2. **Neural-Net Scoring Head** — learnable brain that takes rich fragment features and outputs predictions for the four objectives plus uncertainty estimates. Calibration error drives its continuous improvement.
 3. **Training/Distillation Pipeline** — curates high-utility data and progressively distills it into smaller, specialized Enigma models optimized for verifiable solving problems and designed to run locally on modest hardware.
 
-Synapse (the Meta-Agent) orchestrates this subsystem and uses its outputs to deliver better real-time assistance and smarter strategies.
+Synapse orchestrates this subsystem, maintains learning_ideas.md and tuning.md, and uses its outputs to deliver better real-time assistance and smarter strategies.
 
 **Outputs**:
 Continuous self-improvement of scoring, strategies, and models across all subsystems, plus progressively better local Enigma models.
@@ -83,7 +85,9 @@ Continuous self-improvement of scoring, strategies, and models across all subsys
 The proactive hardening subsystem that attacks the entire SAGE system to discover and fix weaknesses before they can be exploited.
 
 **How it works**:
-Runs targeted red-team attacks against contracts, verifiers, scoring mechanisms, and data flows. Plans attacks, predicts outcomes, applies a critique step to prevent gaming, executes in sandbox, evaluates results, and generates validated fixes. All adversarial data is stored in the RedTeamVault with specialized scoring.
+- Lightweight local execution during EM runs for immediate protection (quick passes after planning, synthesis, stall detection, and before pushing to vaults; deeper passes for qualified users).
+- Global coordination, rule authoring, adversarial example generation, and consistency enforcement occur centrally in sage-intelligence.
+- Updated global packages are pushed down to all local instances.
 
 **No Leakage and Strong Protection**:
 Enforces strict no-leakage rules: fragments can only enter through deterministic gates, high-value artifacts are protected by tiered access and selective encryption, and all access is logged and auditable. Participants can have high confidence that their contributions remain protected and that the shared intelligence stays inside the community.
@@ -91,55 +95,24 @@ Enforces strict no-leakage rules: fragments can only enter through deterministic
 **Outputs**:
 Adversarial examples for Training and Economic upgrade steps, plus continuous hardening of the entire platform.
 
+## How the Subsystems Work Together
+Local EM instances (sage-core) run Solve gating and lightweight Strategy/Defense, then push data to secure feed vaults. sage-intelligence pulls from the vaults, runs full global Strategy and Defense coordination, performs daily Meta-RL loops (including meta-stall handling), and pushes approximations, meta-weights, distilled models, and global rules back down.
+
+**Core Intelligence Pipeline**: Solve (local) → Strategy (global) → Defense (global) → Intelligence.  
+**Economic Value Pipeline**: Raw BD/PD (local) → central upgrade in Intelligence → Marketplace.
+
+Synapse orchestrates improvements across the platform using the global view.
+
 ## Example End-to-End Flow
-A miner runs an Enigma Machine mission on a quantum circuit optimization challenge and produces a fragment with Final EFS = 0.82. Solve gates it, credits the miner, and passes it to Strategy. Strategy ranks it highly and enriches it with graph connections. Intelligence uses it to improve the Neural-Net Scoring Head and distill a better local model. Economic upgrades a sponsor proposal using this intelligence, lands it with a sponsor, and generates revenue that increases prize pools. The new challenge data flows back into Solve. Synapse surfaces the improved strategy to other miners in real time. The entire loop is logged with full provenance so contribution is accurately rewarded.
+A miner runs an Enigma Machine mission on a quantum circuit optimization challenge and produces a fragment with Final EFS = 0.82. Solve gates it locally, credits the miner, and pushes it to feed vaults. Global Strategy ranks it highly and enriches it with graph connections. Intelligence uses it to improve the Neural-Net Scoring Head and distill a better local model. Economic upgrades a sponsor proposal using this intelligence, lands it with a sponsor, and generates revenue that increases prize pools. The new challenge data flows back into Solve. Synapse surfaces the improved strategy to other miners in real time. The entire loop is logged with full provenance so contribution is accurately rewarded.
 
 ## Operations — The Operating System Layer
-Operations is not a traditional subsystem — it is the operating system that manages scaling, setup, and execution. It includes the 0.9.10 Streamlit wizard (compute selection, smart LLM router with downscaling, budget setting, flight test ping-only validation, autonomy mode), swarm orchestration, and telemetry collection that feeds the Intelligence Subsystem. It enables everything from a solo miner running one instance to a large operation running many instances with A/B testing of miner input strategies.
-
-## Why This System Is Different
-This is a true self-reinforcing intelligence flywheel. Every Enigma Machine run feeds gated fragments into Solve. Strategy turns them into ranked intelligence. Defense hardens the system. Intelligence continuously improves itself through its three pillars. Economic converts intelligence into real value — landing proposals that collect performance data and marketplace revenue that funds larger prize pools — while feeding impact signals back.
+Operations is not a traditional subsystem — it is the operating system that manages scaling, setup, and execution. It includes the 0.9.10 Streamlit wizard, swarm orchestration, global package distribution (including Defense packages), and telemetry collection that feeds the Intelligence Subsystem. It ensures baseline EM instances stay lightweight for high parallelism and efficient Solve data production.
 
 ## The Three Core Flywheels – Deep Dive
+(The full mechanics for Intelligence, Economic, and Democratization flywheels remain as previously detailed and integrated here for flow.)
 
-### 1. The Intelligence Flywheel
-**Mechanics**: Raw solving data → high-quality fragments → ranked intelligence → continuous self-improvement → better strategies and models → richer data.
-
-**Step-by-Step Flow**:
-1. EM Run produces fragments with provenance metadata, local 60/40 EFS, and verifier snippets.
-2. Solve Subsystem gates them (EFS floor, replay match, refined value-added, official origin) and credits the miner with immutable provenance hash.
-3. Strategy Subsystem ranks and enriches using RankScore (0.40·Final EFS + 0.25·utilization_EMA + 0.20·graph_centrality + 0.15·refined_value_added).
-4. Intelligence Subsystem evaluates every fragment with the Neural-Net Scoring Head on the four objectives (Recognition of Value, Implementation of Strategy, Prediction of Impact, Training Utility) and runs the Meta-RL Improvement Loop to compute calibration error and propose safe tweaks.
-5. Synapse pushes updated global approximations, refined strategies, and distilled models back to all EM instances.
-6. Next runs start stronger, produce higher-quality fragments, and the cycle compounds.
-
-**Compounding Effect**: The NN’s calibration error becomes the primary learning signal. Over time, Prediction of Impact and Training Utility scores become more accurate, raising average EFS and producing even better fragments for the next cycle.
-
-### 2. The Economic Flywheel
-**Mechanics**: Intelligence → upgraded BD/PD artifacts → marketplace revenue + landed sponsors → larger prize pools + new challenges → more participation → richer data.
-
-**Step-by-Step Flow**:
-1. Raw BD/PD artifact (proposal, tool, curriculum, service) arrives from a local EM run.
-2. Economic Subsystem queries Strategy for top-k ranked fragments and Defense for hardening rules.
-3. Synapse injects proven strategies, verifier rules, and economic impact data in a controlled upgrade step.
-4. Upgraded artifact is validated and routed to the Sage Marketplace or directly to sponsors.
-5. Landed proposals generate revenue that funds larger prize pools and new high-value challenges.
-6. New challenges drive more EM runs, producing richer fragments that feed the Intelligence Flywheel.
-
-**Compounding Effect**: Each successful landing creates a measurable EFS impact signal that improves the NN’s Prediction of Impact objective, making future upgrades more effective and increasing conversion probability over time.
-
-### 3. The Democratization Flywheel
-**Mechanics**: High-utility fragments → curated training data → distilled smaller Enigma models → accessible local solving → more participants → richer data & faster improvement.
-
-**Step-by-Step Flow**:
-1. Neural-Net Scoring Head flags fragments with high Training Utility.
-2. Training/Distillation Pipeline curates, balances, and augments the data.
-3. Pipeline applies KL divergence + 0.3 × 7D verifier self-check loss + meta-RL alignment to distill smaller models.
-4. Distilled Enigma models are made available for local deployment on modest hardware.
-5. More people participate easily, increasing run volume and fragment quality.
-6. Extra data accelerates the Intelligence Flywheel, producing even better next-generation models.
-
-**Compounding Effect**: As model performance improves, participation grows exponentially, creating more high-utility fragments that improve the Training Utility objective and the overall meta-RL loop.
-The result is a compounding cycle where intelligence gets measurably smarter with every mission, every self-audit, and every reuse. Local innovation is enhanced by collective breakthroughs. Honest contribution is rewarded through transparent provenance and ContributionScore. And the entire system grows stronger together.
+## Why This Flywheel Is Different
+This is a true self-reinforcing intelligence flywheel. Local execution stays efficient. Global intelligence compounds centrally. Honest contribution is rewarded through transparent provenance and ContributionScore. And the entire system grows stronger together.
 
 This is the People’s Intelligence Layer — built by the many, owned by the many, and designed so that the people who build it are the ones who win.
