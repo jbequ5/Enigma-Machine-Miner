@@ -2,8 +2,8 @@
 
 **Deep Technical Report**  
 **SAGE — Shared Agentic Growth Engine**  
-**Version 0.9.12+ Hardened**  
-**Last Updated:** April 22, 2026
+**Version 0.9.13 Meta-Learning Upgrade**  
+**Last Updated:** April 23, 2026
 
 ## Role in SAGE
 The Intelligence Subsystem is the underlying meta-improvement engine that powers **Synapse**, the Meta-Agent of SAGE.
@@ -11,16 +11,18 @@ The Intelligence Subsystem is the underlying meta-improvement engine that powers
 - **Synapse** is the customer-facing and miner-facing Meta-Agent (chat interface, proactive co-pilot, real-time strategy suggestions).
 - The **Intelligence Subsystem** is the hidden machinery beneath Synapse. It continuously self-improves the entire SAGE platform.
 
-It is built around three tightly coupled pillars.
+It runs centrally in the dedicated `sage-intelligence` repository, consuming data from secure feed vaults (gated fragments, Strategy-enriched data, Economic PD/BD artifacts, Operations telemetry, Defense findings) and pushing global approximations, meta-weights, and distilled models back down. This keeps local EM instances lightweight and focused on efficient Solve data production.
 
-# 1. Meta-RL Improvement Loop — Deep Technical Dive
+It is built around three tightly coupled pillars plus meta-stall detection and continuous idea-bank scoring.
 
-## Role and Purpose
-The Meta-RL Improvement Loop is the core self-improvement engine of the Intelligence Subsystem. It is the mechanism that allows Synapse (the Meta-Agent) to continuously get smarter by learning from real downstream outcomes rather than static prompts or simple reflection.
+## 1. Meta-RL Improvement Loop — Deep Technical Dive
+
+### Role and Purpose
+The Meta-RL Improvement Loop is the core self-improvement engine of the Intelligence Subsystem. It allows Synapse to continuously get smarter by learning from real downstream outcomes rather than static prompts or simple reflection.
 
 It operates on four measurable objectives using calibration error from actual Enigma Machine runs as the primary learning signal. The loop runs automatically (daily or on high-signal triggers) and proposes safe, versioned tweaks that improve scoring, ranking, gating, and strategy recommendations across the entire SAGE platform.
 
-## The Four Optimization Objectives
+### The Four Optimization Objectives
 The loop optimizes four parallel objectives, each measured against real downstream performance:
 
 1. **Recognition of Value**  
@@ -37,8 +39,8 @@ The loop optimizes four parallel objectives, each measured against real downstre
 
 For each objective, the Neural-Net Scoring Head produces a prediction + uncertainty estimate. The loop then compares predictions to real outcomes to compute calibration error — the key learning signal.
 
-## The 6-Phase Loop Process
-The Meta-RL Improvement Loop follows a repeatable 6-phase process:
+### The 7-Phase Loop Process
+The Meta-RL Improvement Loop follows a repeatable 7-phase process:
 
 **Phase 1 – Collect & Score Past Advice**  
 Retrieve every previous recommendation, strategy injection, or meta-tuning proposal along with downstream real outcomes (EFS lift, reuse success, calibration error, replan count, etc.).
@@ -60,15 +62,19 @@ Generate concrete, safe proposals: weight adjustments in scoring formulas, chang
 **Phase 6 – Log & Transparency**  
 Full audit trail (before/after metrics, calibration curves, proposed vs. applied tweaks) is written to the Defense Subsystem and made available to contributors and governance.
 
-## How Calibration Error Drives Learning
+**Phase 7 — Meta-Stall Reflection & Idea-Bank Recommendation**  
+When multi-signal stall detection triggers (calibration error plateau, Advice Success Score stagnation, Training Utility flattening, etc.), Synapse performs structured reflection: “What would have helped the system learn faster/more robustly? What missing signal, objective, process, or architectural change would improve the four objectives or flywheel acceleration?”  
+It queries learning_ideas.md for the highest-scoring matching ideas, triggers immediate re-scoring of top candidates, and generates 1–3 concrete, testable proposals. All proposals are sandbox-tested by Defense, scored by the Neural-Net Scoring Head, and gated by current tuning.md freedom level.
+
+### How Calibration Error Drives Learning
 Calibration error is the difference between the NN’s predicted probability/impact and the actual observed outcome. It is the primary signal that updates the NN weights and informs the Meta-RL Loop’s self-tweaks. This makes the system learn from verified performance rather than proxy metrics.
 
-## Integration with Neural-Net Scoring Head
+### Integration with Neural-Net Scoring Head
 The NN Scoring Head is the evaluation brain that feeds the loop. It takes a ~128-dimension feature vector (60/40 EFS components, graph centrality, utilization EMA, replay rate, freshness, provenance flags, heterogeneity score for planning only, operations telemetry) and outputs predictions for the four objectives plus uncertainty estimates.
 
 The loop uses these predictions to compute calibration error, which then updates the NN itself.
 
-## How Outputs Propagate Back to the EM Level
+### How Outputs Propagate Back to the EM Level
 1. The loop produces updated global approximations (weights, thresholds, strategy templates, LLM routing maps).
 2. Synapse pushes these approximations to the Operations layer.
 3. When a new EM run starts (or the wizard runs), Operations loads the latest global approximations. The EM begins with these tuned defaults.
@@ -77,18 +83,14 @@ The loop uses these predictions to compute calibration error, which then updates
 
 This creates a hierarchical learning effect: global meta-learning improves local EM runs, and local runs provide better data for global learning.
 
-## Example Cycle
-A fragment from a quantum circuit run is evaluated by the NN. The NN predicts high Implementation of Strategy score but low Prediction of Impact calibration. The Meta-RL Loop detects the mismatch, proposes a small weight adjustment to the verifier_7D_average term, applies it safely (within 0.08 tolerance), and logs the change. All future EM runs now start with a slightly stronger verifier weight, leading to higher average EFS and better fragments in the next cycle.
+### Example Cycle
+A fragment from a quantum circuit run is evaluated by the NN. The NN predicts high Implementation of Strategy score but low Prediction of Impact calibration. The Meta-RL Loop detects the mismatch, proposes a small weight adjustment to the verifier_7D_average term, applies it safely (within 0.08 tolerance), and logs the change. All future EM runs now start with a slightly stronger verifier weight, leading to higher average EFS and better fragments in the next cycle. If a stall is detected, Phase 7 pulls from the idea bank to propose higher-order changes.
 
-## Safety, Governance, and Limitations
+### Safety, Governance, and Limitations
 - All tweaks are subject to global re-scoring tolerance (0.08) and human/governance gates for major changes.
 - All changes are versioned and fully reversible.
 - Early data may have high uncertainty; the system uses conservative defaults during the initial seed period.
 
-## Why the Meta-RL Loop Matters
-The Meta-RL Improvement Loop is what makes the Intelligence Subsystem truly intelligent. It turns raw solving data into a self-improving system that gets measurably better over time. This is the engine behind the compounding flywheels and the path to distilled local Enigma models that democratize solving intelligence.
-
-This loop, combined with the Neural-Net Scoring Head and Training/Distillation Pipeline, is what sets SAGE apart from static agent frameworks. It is the mechanism that turns every run into permanent, compounding collective capability.
 
 # 2. Neural-Net Scoring Head — Deep Technical Dive
 
@@ -275,5 +277,21 @@ In the long term, distillation turns SAGE from a powerful but centralized system
 
 This capstone completes the Intelligence Subsystem. Together with the Meta-RL Loop and Neural-Net Scoring Head, it creates a self-improving engine that compounds collective capability and democratizes solving intelligence — the ultimate flywheel multiplier for SAGE.
 
-# Why It Matters
+## Continuous Idea Generation & Scoring
+The system maintains a living backlog in learning_ideas.md. New ideas are generated via the reflective step in Phase 7. A lightweight background job (daily, throttled) re-scores stale or new ideas using sandbox replay, NN inference, and AHE checks. Scores are kept fresh so high-quality proposals are always ready when freedom levels in tuning.md are unlocked.
+
+## Governance
+All meta-learning changes are strictly governed by tuning.md progressive freedom levels. No idea is implemented until the system has earned the required level through verifiable metrics (Advice Success Score improvement, calibration error reduction, 7D verifier stability, etc.).
+
+## Integration with Other Subsystems
+- **Solve**: Receives fresh gated fragments via feed vaults.
+- **Strategy**: Consumes global ranked/enriched data and pushes meta-weights back to local Strategy gates.
+- **Economic**: Uses upgraded artifacts and impact signals; feeds Economic signals back into Meta-RL and the idea bank.
+- **Defense**: Uses global adversarial examples as hard negatives; supports meta-stall reflection.
+- **Operations**: Receives telemetry and pushes global packages (including Defense packages) to local EM instances.
+- **Synapse**: Orchestrates the entire subsystem and provides real-time co-pilot assistance using the global view.
+
+## Why the Intelligence Subsystem Matters
 The Intelligence Subsystem is the engine that makes Synapse continuously smarter and ultimately democratizes solving intelligence through accessible local Enigma models. This is what turns raw solving data into compounding collective capability that benefits the entire community.
+
+This subsystem centralizes all intelligence functions while keeping local EM instances lightweight and focused on efficient Solve data production.
