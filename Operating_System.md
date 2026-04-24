@@ -48,11 +48,16 @@ The central conductor (single process or lightweight distributed swarm) that:
 - Facilitates controlled inter-agent communication.
 - Collects and forwards rich operations telemetry to the Intelligence Subsystem.
 
+
 **Multi-Approach Planner (MAP)**  
 - Analyzes the challenge, verification contract, current compute, and latest meta-weights.
 - Generates N distinct, well-justified approach profiles (reasoning style, tool preferences, temperature, emphasis areas, risk profile).
 - Dynamically chooses N to balance exploration and resource efficiency.
 - Outputs structured JSON profiles for reproducibility and A/B analysis.
+
+**Multi-Approach Planner (MAP) Interaction with KAS**  
+Before generating N approach profiles, the planner triggers a targeted KAS hunt for meta-patterns, recent research on swarm orchestration, and high-signal specialty models/datasets that could seed new profiles. During active swarms, the planner can request lightweight cross-approach KAS refreshes. All KAS results are scored and predicted by the shared Neural-Net Scoring Head, ensuring profiles are grounded in calibrated knowledge rather than raw LLM generation. This prevents drift and maximizes swarm EFS diversity.
+
 
 ## 3. Smart LLM Router & Downscaling
 
