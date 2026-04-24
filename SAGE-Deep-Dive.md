@@ -32,6 +32,46 @@ Every fragment carries full provenance. Data flows are narrow and controlled. Hi
 **Core Intelligence Pipeline**: Solve (local gating) → Strategy (global ranking & enrichment) → Defense (global hardening) → Intelligence (Meta-RL + NN + distillation) → Synapse.  
 **Economic Value Pipeline**: Raw BD/PD (local) → central upgrade in Intelligence → Marketplace → Revenue → larger prize pools → new challenges → Solve.
 
+# SAGE System Hierarchy & Intelligent Flows
+
+This tells the story of how SAGE actually works — from the smallest worker all the way up to economic value creation and back down again. It is written to be read end-to-end so you can feel the living system, not just see a list of parts. Every layer has a clear job, clean interfaces, and explicit data/intelligence/knowledge flows.
+
+### Visual Hierarchy
+
+Level 6: Economic & Flywheel Closure ↑ Impact signals & revenue      ↓ Upgraded proposals & templates └─ Marketplace + Sponsor Value Creation
+Level 5: Synapse — Human Interface ↑ User context                  ↓ Real-time assistance & co-pilot └─ Meta-Agent (chat, proactive help, stall resolution)
+Level 4: Intelligence — Brain & Self-Improvement ↑ Calibration data & fragments  ↓ Meta-weights, distilled models, templates └─ Meta-RL Loop + NN Scoring Head + Distillation + Hyperagent
+Level 3: Core Processing & Gating ↑ Gated & ranked fragments      ↓ Improved local rules & approximations ├─ Strategy (global ranking, graph mining, enrichment) └─ Solve (local gating, provenance, 7D verifier)
+Level 2: Tactical Swarm Orchestration (Operations) ↑ Per-approach telemetry        ↓ Approach profiles + meta-weights └─ Multi-Approach Planner + Orchestrator (N profiles, controlled communication, dynamic rebalancing)
+Level 1: EM Instance Orchestration ↑ Enriched fragments + telemetry ↓ Assigned profile + templates └─ Single Enigma Machine Instance (one approach profile)
+Level 0: Atomic Workers (Real Execution) ↑ Raw fragments                 ↓ Local tools & knowledge └─ Sub-swarm Workers + KAS calls
+
+**Flow Legend**  
+**↑ Upward** = Raw data, enriched fragments, telemetry, calibration signals  
+**↓ Downward** = Meta-weights, distilled models, templates, updated strategies  
+**Cross** = Controlled message bus between parallel instances (verifier-checked insights)
+
+### How the Flows Work in Practice
+
+**Upward (Learning Path)**  
+Atomic workers produce fragments → EM instance enriches them → Solve gates → Strategy ranks & mines → Feed Vaults → Intelligence calibrates and improves. This path turns raw execution into global intelligence.
+
+**Downward (Control Path)**  
+Intelligence pushes proven improvements (meta-weights, new templates, distilled models) → Operations planner uses them for better swarms → EM instances and workers execute with stronger baselines. This path makes every run smarter than the last.
+
+**Cross-Layer**  
+Operations manages a lightweight, rate-limited message bus so strong approaches can share verifier-checked insights without collapsing into one chatty run. Targeted acquisitions happen at the right layer to avoid repetition.
+
+### Why This Hierarchy Is Powerful
+
+- **Bottom** stays lightweight → massive parallelism and high Solve data production.  
+- **Middle** provides smart coordination → systematic diversity and collaboration.  
+- **Top** drives deep self-improvement → recursive adaptation and future-proofing.  
+
+Clean interfaces (feed vaults, meta-weights, structured bus) keep everything safe, observable, and compounding. New research or breakthroughs are actively acquired, validated through calibration + shadow testing, and folded in at the right layer without breaking the system.
+
+This hierarchy turns external progress into internal compounding advantage while keeping everything verifier-first and governed
+
 ## The Five Subsystems
 
 ### Solve Subsystem
