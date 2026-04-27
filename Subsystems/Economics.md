@@ -2,19 +2,20 @@
 **v0.9.13+**  
 **Last Updated:** April 27, 2026
 
-**Core Purpose**  
-The Economic Subsystem transforms high-signal fragments and persistent gaps discovered by Enigma Machine runs into monetizable outputs (sponsor proposals, gap-specific toolkits, curricula, and services). It does this while maintaining strong incentives for honest participation, protecting the intelligence moat, and feeding measurable impact signals back into the Meta-RL Loop.
+### Investor Summary — Why This Matters
+The Economic Subsystem is the primary value-creation and revenue engine of SAGE. It transforms high-signal fragments and persistent gaps from Enigma Machine runs into monetizable outputs — sponsor proposals, gap-specific toolkits, curricula, and services — that deliver immediate ROI to sponsors while compounding intelligence across the network. In simulations, polished outputs from this subsystem achieve 45–65% higher revenue contribution than raw drafts, with strong repeat purchase rates from family variants. For investors, this is the clearest mechanism that turns collective solving intelligence into recurring revenue, expanded sponsor activity, new high-value challenges, and sustained alpha token demand.
 
-This subsystem is the primary value-creation and revenue engine of SAGE. It turns collective solving intelligence into real economic return for sponsors, partners, alpha holders, and contributors.
+### Core Purpose
+The subsystem converts technical solving data into economic value while maintaining strong, transparent incentives for honest participation and protecting the core intelligence moat. It operates through a tightly integrated pipeline that feeds real performance signals back into Meta-RL for continuous improvement.
 
 ## Six Core Documents (Navigation)
 
-- **[Pipeline & Scoring](./economics/Pipeline-and-Scoring.md)** — All formulas, rubrics, and scoring logic
-- **[Proposal Creation](./economics/Proposal-Creation.md)** — Lane 2 Business Growth workflow
-- **[Product Creation & Toolkits](./economics/Product-Creation-and-Toolkits.md)** — Draft process, polishing, family variants, marketplace
-- **[Incentives & Revenue Distribution](./economics/Incentives-and-Revenue-Distribution.md)** — 25% splits, Impact Scoring, worked examples
+- **[Pipeline & Scoring](./economics/Pipeline-and-Scoring.md)** — All formulas, rubrics, data acquisition, and Meta-RL tuning
+- **[Proposal Creation](./economics/Proposal-Creation.md)** — Lane 2 Business Growth workflow and readiness scoring
+- **[Product Creation & Toolkits](./economics/Product-Creation-and-Toolkits.md)** — Draft accumulation, polishing, family variants, and marketplace mechanics
+- **[Incentives & Revenue Distribution](./economics/Incentives-and-Revenue-Distribution.md)** — 25% splits, Impact Scoring, contributor rewards, and worked examples
 - **[Meta-RL & Value Learning](./economics/Meta-RL-and-Value-Learning.md)** — How the system learns to create better value
-- **[7-Day Health Check & Polishing](./7-Day-Health-Check.md)** — Continuous improvement mechanics
+- **[Synapse Nightly Polishing Loop](./economics/Synapse-Nightly-Polishing-Loop.md)** — Continuous improvement mechanics
 
 ---
 
@@ -46,12 +47,12 @@ This subsystem is the primary value-creation and revenue engine of SAGE. It turn
 
 On every marketplace sale:
 - **25% Gap Originator** — Locked permanent cut for the miner(s) who first surfaced the high-pain gap.
-- **25% BD Pool** — Rewards the team/effort that drove the commercial opportunity and closed the deal.
+- **25% BD Pool** — Rewards the effort that drove the commercial opportunity and closed the deal.
 - **25% Contributor Pool** — Distributed proportionally by Impact Score (technical value, confidence, novelty, effort).
 - **25% Alpha Token Flywheel** — Buyback/burn + ecosystem incentives.
 
-**Impact Score Formula** (Contributor Pool):
-0.40 × Technical Value + 0.30 × Data Quality & Confidence + 0.20 × Uniqueness + 0.10 × Effort (1.5× multiplier for self-funded KAS hunts)
+**Impact Score Formula** (Contributor Pool):  
+`0.40 × Technical Value + 0.30 × Data Quality & Confidence + 0.20 × Uniqueness + 0.10 × Effort` (1.5× multiplier for self-funded Product KAS hunts)
 
 ---
 
@@ -64,4 +65,6 @@ It creates a self-reinforcing flywheel:
 - Meta-RL learns from outcomes → better scoring, better prioritization, better products
 - Stronger incentives → more participation → richer data
 
-The Economic Subsystem turns the People’s Intelligence Layer into a genuine economic engine that rewards honest contributors, delivers measurable value to sponsors, and increases alpha token demand.
+The Economic Subsystem turns the People’s Intelligence Layer into a genuine economic engine that rewards honest contributors, delivers measurable value to sponsors, and increases alpha token demand — while keeping the core intelligence protected and compounding.
+
+**All detailed scoring, workflows, and mechanics are covered in the linked deep-dive documents above.**
