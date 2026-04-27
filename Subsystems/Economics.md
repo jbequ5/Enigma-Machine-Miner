@@ -10,7 +10,7 @@ The subsystem converts technical solving data into economic value while maintain
 
 ## Six Core Documents (Navigation)
 
-- **[Pipeline & Scoring](economics/Pipeline-and-Scoring.md)** — All formulas, rubrics, data acquisition, and Meta-RL tuning
+- **[Pipeline & Scoring](./economics/Pipeline-and-Scoring.md)** — All formulas, rubrics, data acquisition, and Meta-RL tuning
 - **[Proposal Creation](economics/Proposal-Creation.md)** — Lane 2 Business Growth workflow and readiness scoring
 - **[Product Creation & Toolkits](economics/Product-Creation-and-Toolkits.md)** — Draft accumulation, polishing, family variants, and marketplace mechanics
 - **[Incentives & Revenue Distribution](economics/Incentives-and-Revenue-Distribution.md)** — 25% splits, Impact Scoring, contributor rewards, and worked examples
