@@ -10,6 +10,16 @@ Every run is treated as both a solution attempt and a permanent evolutionary ste
 
 This tight integration is why SAGE works: the Enigma Machine is not an isolated tool. It is the ruthless data engine that powers the entire flywheel — turning every mission into compounding collective intelligence while remaining lightweight enough for high parallelism on local hardware.
 
+## Seven Core Documents (Navigation)
+
+- **[Verifier-First Architecture & Living Contract](./solve/Verifier-First-Architecture.md)** — Contract generation and enforcement
+- **[DVR Pipeline & Intelligent Dry Run Gate](./solve/DVR-Pipeline.md)** — Decompose → Verify → Recompose
+- **[Intelligent Fragment Scoring (60/40)](./solve/Fragment-Scoring.md)** — Base EFS + Refined Value-Added + global re-scoring
+- **[Stall Detection, Replanning & Recovery](./solve/Stall-Detection-Replanning.md)** — Intelligent recovery mechanisms
+- **[Fragmentation, Provenance & Memory Management](./solve/Fragmentation-Memory.md)** — Atomization, ByteRover MAU, Cosmic Compression
+- **[Meta-Tuning, Observability & Self-Improvement](./solve/Meta-Tuning-Observability.md)** — Dual-level tuning and telemetry
+- **[Miner Workflow & Command Dashboard](./solve/Miner-Workflow-Dashboard.md)** — User experience and operations integration
+
 ## 1. Verifier-First Architecture with Living Contract
 
 Every challenge begins with a formal Verifiability Contract — the single source of truth that defines required artifacts, composability rules, dry-run success criteria, and synthesis guidance.
