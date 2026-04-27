@@ -9,11 +9,11 @@ This subsystem is the primary value-creation and revenue engine of SAGE. It turn
 
 ## Six Core Documents (Navigation)
 
-- **[Pipeline & Scoring](./Pipeline-and-Scoring.md)** — All formulas, rubrics, and scoring logic
-- **[Proposal Creation](./Proposal-Creation.md)** — Lane 2 Business Growth workflow
-- **[Product Creation & Toolkits](./Product-Creation-and-Toolkits.md)** — Draft process, polishing, family variants, marketplace
-- **[Incentives & Revenue Distribution](./Incentives-and-Revenue-Distribution.md)** — 25% splits, Impact Scoring, worked examples
-- **[Meta-RL & Value Learning](./Meta-RL-and-Value-Learning.md)** — How the system learns to create better value
+- **[Pipeline & Scoring](./economics/Pipeline-and-Scoring.md)** — All formulas, rubrics, and scoring logic
+- **[Proposal Creation](./economics/Proposal-Creation.md)** — Lane 2 Business Growth workflow
+- **[Product Creation & Toolkits](./economics/Product-Creation-and-Toolkits.md)** — Draft process, polishing, family variants, marketplace
+- **[Incentives & Revenue Distribution](./economics/Incentives-and-Revenue-Distribution.md)** — 25% splits, Impact Scoring, worked examples
+- **[Meta-RL & Value Learning](./economics/Meta-RL-and-Value-Learning.md)** — How the system learns to create better value
 - **[7-Day Health Check & Polishing](./7-Day-Health-Check.md)** — Continuous improvement mechanics
 
 ---
