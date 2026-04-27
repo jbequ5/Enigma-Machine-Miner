@@ -274,7 +274,18 @@ class ValidationOracle:
         theta = self._compute_theta_dynamic(c, progress_factor)
         rubric_score = (0.3 * edge) + (0.3 * invariant) + (0.2 * 0.75) + (0.2 * fidelity)
         modulated = rubric_score * (c ** 0.3)
-        final_score = (0.45 * 0.45) + (0.55 * modulated)
+            # Existing Base EFS calculation...
+        base_efs = self._compute_base_efs(...)   # or however you currently compute it
+
+        # NEW: Refined Value-Added for current run
+        refined_value_added = self._compute_refined_value_added(
+            candidate=candidate,
+            subtask_outputs=subtask_outputs,   # pass the list of subtask outputs
+            run_baseline_efs=baseline_efs      # pass the run's baseline EFS if available
+        )
+
+        # 60/40 final score
+        final_score = 0.6 * base_efs + 0.4 * refined_value_added                                   
 
         # HONEST scoring — no artificial floor
         self.last_fidelity = fidelity
