@@ -156,7 +156,40 @@ class ValidationOracle:
             "approximation_used": approximation_used,
             "approximation_method": "general_reasoning" if approximation_used else None
         }
+    def _compute_refined_value_added(self, candidate: Any, subtask_outputs: List, 
+                                     run_baseline_efs: float = None) -> float:
+        """
+        Computes how much ADDITIONAL value this fragment created for the CURRENT solving run.
+        This is the 40% part of the 60/40 scoring rule.
+        """
+        if run_baseline_efs is None:
+            run_baseline_efs = 0.5  # safe default baseline if not provided
 
+        # 1. Incremental EFS improvement from this fragment
+        current_efs_delta = getattr(self, "last_efs", 0.0) - run_baseline_efs
+
+        # 2. Synergy with other subtasks (simple overlap / contribution measure)
+        synergy = 0.0
+        if subtask_outputs and len(subtask_outputs) > 1:
+            # Example: how much this fragment helped merged EFS
+            synergy = min(1.0, len([o for o in subtask_outputs if "synergy" in str(o).lower()]) / len(subtask_outputs))
+
+        # 3. Uncertainty / stall reduction (if available from diagnostics)
+        uncertainty_reduction = getattr(self, "last_uncertainty_reduction", 0.0)
+
+        # 4. Heterogeneity boost (optional, if you want to keep it light)
+        heterogeneity_boost = getattr(self, "last_heterogeneity_boost", 0.0)
+
+        # Combine into Refined Value-Added (normalize to reasonable range)
+        refined_value_added = (
+            current_efs_delta * 0.45 +
+            synergy * 0.25 +
+            uncertainty_reduction * 0.20 +
+            heterogeneity_boost * 0.10
+        )
+
+        # Clamp to reasonable bounds
+        return max(0.0, min(1.0, refined_value_added))
     # ===================================================================
     # CORE METRICS (all real, measured, no hardcoded constants)
     # ===================================================================
