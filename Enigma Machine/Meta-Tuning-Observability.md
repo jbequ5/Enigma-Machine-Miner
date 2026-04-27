@@ -66,3 +66,4 @@ If |Local Score - Global Re-Score| > 0.08 → flag for AHE review.
 
 **AHA Detection**  
 `AHA = (current_score - previous_score > 0.12) OR (heterogeneity_spike > 0.78)`
+
