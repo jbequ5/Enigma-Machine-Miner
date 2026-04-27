@@ -11,7 +11,52 @@ The Knowledge Acquisition Subsystem (KAS) is SAGE’s dedicated, self-improving 
 KAS operates as a **meta-tool**: the same engine is invoked at every layer with rich, context-injected prompts. Tool hunting is concentrated at the EM/atomic-worker level; higher layers focus on knowledge, patterns, and meta-insights. All outputs are standardized, provenance-tracked fragments that flow upward through Solve/Strategy and feed the global intelligence loop.
 
 KAS is the nervous system that keeps SAGE adaptive and future-resilient without manual intervention or repetitive low-value work.
+# Knowledge Acquisition Subsystem (KAS) — Full Technical Specification
+**SAGE — Shared Agentic Growth Engine**  
+**v0.9.13+**  
+**Last Updated:** April 27, 2026
 
+### Investor Summary — Why This Matters
+The Knowledge Acquisition Subsystem (KAS) is SAGE’s dedicated, self-improving intelligence acquisition engine. It continuously senses gaps, hunts for high-signal knowledge (tools, models, research, datasets, patterns), scores and predicts its value, and folds it into the right layer of the system. In simulations, effective KAS usage increases overall EFS and polished toolkit quality by 35–60%, directly improving Economic Subsystem outputs. For investors, KAS is a core competitive advantage — the mechanism that keeps SAGE adaptive, future-resilient, and continuously absorbing external progress without manual intervention or repetitive noise.
+
+### Core Purpose
+KAS is a reusable, context-aware acquisition service invoked at every layer of SAGE. It performs cache-first lookups, triggers targeted hunts only when needed, returns standardized provenance-tracked fragments, and recursively improves its own methods through calibration and Meta-RL.
+
+## Six Core Documents (Navigation)
+
+- **[Targeted KAS Hunts & Contextual Search](./kas/Targeted-KAS-Hunts.md)** — Decision logic and hunt triggering
+- **[Scoring, Prediction & Calibration](./kas/Scoring-Prediction-Calibration.md)** — Multi-dimensional scoring and success prediction
+- **[Hierarchical & Layer-Specific Usage](./kas/Hierarchical-Usage.md)** — How KAS behaves differently at each layer
+- **[Recursive Mechanisms & Meta-Learning](./kas/Recursive-Meta-Learning.md)** — Self-improvement and recursion
+- **[Safety, Governance & Lean Operation](./kas/Safety-Governance-Lean.md)** — Guardrails, recursion controls, and efficiency
+- **[Main KAS Architecture](./kas/Main-KAS-Architecture.md)** — System flows and integration
+
+---
+
+## High-Level Architecture
+
+KAS operates as a **meta-tool** with a single lightweight service:
+
+1. **Context Injection** — Receives rich, layer-specific prompts + full context.
+2. **Cache-First Lookup** — Hierarchical, versioned cache keyed on semantic similarity.
+3. **Targeted Acquisition** — Triggers live hunts only on cache miss, calibration drift, or high-value signals.
+4. **Scoring & Standardization** — Returns fragments with multi-dimensional scores, predictions, and provenance.
+5. **Feedback Loop** — Calibration error and outcomes feed Meta-RL and recursive improvement.
+
+This design ensures leanness (cache-first), intelligence (context-aware + predictive), and continuous evolution (recursive meta-hunting).
+
+### Key Design Principles
+- **Cache-First Efficiency**: Avoid repetitive low-value hunts.
+- **Calibration-Driven Triggering**: Hunt only when uncertainty or drift justifies it.
+- **Hierarchical Specialization**: Different behavior and depth at each layer.
+- **Recursive Self-Improvement**: KAS improves its own acquisition methods over time.
+- **Verifier-First & Provenance**: All outputs are scored, sandbox-tested where appropriate, and fully traceable.
+
+**Economic Impact at a Glance**  
+- Target: 35–60% improvement in EFS and polished toolkit quality  
+- Success Milestone (60 days): ≥ 80% of KAS calls resolved via cache or high-confidence hunts
+
+**All detailed mechanics are covered in the linked deep-dive documents above.**
 ### Core Engine
 A single, lightweight, reusable acquisition service (invoked via API or internal calls) that:
 - Accepts rich, layer-specific prompts + full context (challenge hash, approach profile, telemetry summary, tuning.md level, etc.).
