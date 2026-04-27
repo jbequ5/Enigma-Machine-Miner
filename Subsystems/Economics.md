@@ -10,12 +10,12 @@ The subsystem converts technical solving data into economic value while maintain
 
 ## Six Core Documents (Navigation)
 
-- **[Pipeline & Scoring](../economics/Pipeline-and-Scoring.md)** — All formulas, rubrics, data acquisition, and Meta-RL tuning
+- **[Pipeline & Scoring](../economics/Data-Pipeline-and-Scoring.md)** — All formulas, rubrics, data acquisition, and Meta-RL tuning
 - **[Proposal Creation](../economics/Proposal-Creation.md)** — Lane 2 Business Growth workflow and readiness scoring
-- **[Product Creation & Toolkits](../economics/Product-Creation-and-Toolkits.md)** — Draft accumulation, polishing, family variants, and marketplace mechanics
+- **[Product Creation & Toolkits](../economics/Product-Creation.md)** — Draft accumulation, polishing, family variants, and marketplace mechanics
 - **[Incentives & Revenue Distribution](../economics/Incentives-and-Revenue-Distribution.md)** — 25% splits, Impact Scoring, contributor rewards, and worked examples
 - **[Meta-RL & Value Learning](../economics/Meta-RL-and-Value-Learning.md)** — How the system learns to create better value
-- **[Synapse Nightly Polishing Loop](../economics/Synapse-Nightly-Polishing-Loop.md)** — Continuous improvement mechanics
+- **[Synapse Nightly Polishing Loop](../economics/Synapse-Nightly-Update.md)** — Continuous improvement mechanics
 
 ---
 
