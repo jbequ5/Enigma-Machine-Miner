@@ -1,8 +1,3 @@
-# tools/archive_hunter.py
-# v0.9.11 MAXIMUM SOTA ArchiveHunter — Hybrid Genome/Paper Ingestion
-# Ingest EvoAgent / Sakana / arXiv / llms.txt archives → MAU atomization → reinforcement → 
-# stigmergy write to memory, FragmentTracker, VaultRouter, and Wiki. Full SOTA/EFS/7D wiring.
-
 import json
 import logging
 from pathlib import Path
@@ -15,13 +10,15 @@ from agents.tools.readyai_tool import readyai_tool
 logger = logging.getLogger(__name__)
 
 class ArchiveHunter:
+    """SOTA ArchiveHunter — hybrid genome/paper ingestion with MAU atomization, reinforcement, stigmergy write, and full SAGE routing."""
+
     def __init__(self, oracle: ValidationOracle):
         self.oracle = oracle
-        self.arbos = None  # wired by ArbosManager
+        self.arbos = None
         self.fragment_tracker = None
         self.intelligence = None
         self.pd_arm = None
-        logger.info("✅ ArchiveHunter v0.9.11 MAX SOTA initialized — full hybrid genome/paper ingestion with MAU atomization")
+        logger.info("✅ ArchiveHunter v0.9.13+ SOTA initialized — full hybrid genome/paper ingestion with MAU atomization")
 
     def set_arbos(self, arbos):
         self.arbos = arbos
