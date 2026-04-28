@@ -1,8 +1,3 @@
-# agents/fragment_tracker.py
-# v0.9.11 SOTA FragmentTracker + NetworkX Graph Intelligence
-# Persistent fragment metadata with ByteRover MAU, freshness, heterogeneity,
-# vault routing, predictive signals, and tight integration with PD Arm / BusinessDev.
-
 import json
 import logging
 from datetime import datetime, date
@@ -14,9 +9,8 @@ import math
 logger = logging.getLogger(__name__)
 
 class FragmentTracker:
-    """v0.9.11 SOTA Persistent Fragment Tracker with NetworkX graph intelligence.
-    Supports ByteRover MAU scoring, vault routing, predictive signals,
-    heterogeneity, and deep integration with PD Arm, BusinessDev, and Grail."""
+    """SOTA Persistent Fragment Tracker with NetworkX graph intelligence.
+    Full ByteRover MAU scoring, cosmic compression, provenance, vault routing, and SAGE integration."""
 
     def __init__(self):
         self.graph = nx.DiGraph()
@@ -30,7 +24,7 @@ class FragmentTracker:
                 self.graph = nx.node_link_graph(data.get("graph", {"nodes": [], "links": []}))
                 logger.info(f"FragmentTracker loaded {len(self.graph.nodes)} fragments from disk")
             except Exception as e:
-                logger.warning(f"FragmentTracker load failed: {e}")
+                logger.warning(f"FragmentTracker load failed (safe): {e}")
                 self.graph = nx.DiGraph()
 
     def _save(self):
@@ -41,7 +35,7 @@ class FragmentTracker:
     def record_fragment(self, frag_id: str, initial_mau: float = 0.75,
                         challenge_id: str = "unknown", subtask_id: str = "unknown",
                         content_preview: str = "", heterogeneity: float = 0.72):
-        """Record a new fragment with full metadata."""
+        """Record a new fragment with full metadata for SAGE subsystems."""
         self.graph.add_node(frag_id,
                             initial_mau=initial_mau,
                             reuse_in_high_efs=0,
@@ -112,7 +106,6 @@ class FragmentTracker:
                         "vault_routed": data.get("vault_routed", False)
                     })
 
-        # Sort by impact score
         results = sorted(results, key=lambda x: x["impact_score"], reverse=True)
         return results[:top_k]
 
@@ -159,7 +152,6 @@ class FragmentTracker:
             elif final_score > 0.82 and not data.get('in_grail', False):
                 to_promote.append(node)
 
-        # Execute
         if to_prune:
             self.graph.remove_nodes_from(to_prune)
 
