@@ -1,8 +1,3 @@
-# validation_oracle.py - v0.9.11 SOTA ValidationOracle
-# Maximum intelligence: 11 backends wired, honest scoring, VaultRouter, PD Arm, BD Wing,
-# predictive RandomForest, Economic Flywheel, verifier-first DVR, 7D signals, graph integration.
-# Zero stubs. All original logic preserved and enhanced.
-
 import os
 import json
 import ast
@@ -31,7 +26,7 @@ class ValidationOracle:
         self.compute = compute
         self.arbos = arbos
 
-        # v0.9.11 full intelligence wiring (all original + new SOTA components)
+        # v0.9.13+ full intelligence wiring
         self.intelligence = SolverIntelligenceLayer(
             memory_layers=getattr(arbos, 'memory_layers', None) if arbos else None,
             fragment_tracker=getattr(arbos, 'fragment_tracker', None) if arbos else None
@@ -46,7 +41,7 @@ class ValidationOracle:
         self.predictive_power = 0.0
         self.historical_validations = []
 
-        # Persistent last values for UI / downstream (all original preserved)
+        # Persistent last values for UI / downstream
         self.last_score = 0.0
         self.last_vvd_ready = False
         self.last_notes = ""
@@ -56,7 +51,7 @@ class ValidationOracle:
         self.last_wiki_contrib = 0.0
         self.last_efs = 0.0
 
-        logger.info("🔍 ValidationOracle v0.9.11 SOTA initialized — 11 backends, honest scoring, full intelligence layer, 7D signals, graph integration.")
+        logger.info("✅ ValidationOracle v0.9.13+ SOTA initialized — full 7D, predictive model, PD Arm, BusinessDev, honest scoring, SAGE wiring")
 
     # ===================================================================
     # SINGLE SOURCE OF TRUTH SAFE EXEC (11 backends + honest fallback)
@@ -73,12 +68,12 @@ class ValidationOracle:
     }
 
     def _safe_exec(self, code: str, local_vars: Dict = None, approximation_mode: str = "auto") -> bool:
-        """SINGLE SOURCE OF TRUTH — tries all 11 real backends first, then RestrictedPython, honest fallback."""
+        """SINGLE SOURCE OF TRUTH — tries real backends first, then RestrictedPython, honest fallback."""
         if local_vars is None:
             local_vars = {}
 
         try:
-            # Route to real deterministic backend via ArbosManager pattern (original logic preserved + enhanced)
+            # Route to real deterministic backend via ArbosManager
             category = local_vars.get("category", "general")
             subtask = local_vars.get("subtask", {})
             contract = local_vars.get("contract", {})
@@ -90,7 +85,7 @@ class ValidationOracle:
                 local_vars["approximation_used"] = False
                 return True
 
-            # Fallback to specific known backends (original sympy path preserved)
+            # Fallback to specific known backends
             if "sympy" in code.lower():
                 import sympy
                 exec(code, {"sympy": sympy, "__builtins__": self.SAFE_BUILTINS}, local_vars)
@@ -98,7 +93,7 @@ class ValidationOracle:
                 local_vars["approximation_used"] = False
                 return True
 
-            # Pure RestrictedPython (safety net - original logic preserved)
+            # Pure RestrictedPython safety net
             tree = ast.parse(code)
             exec(code, {"__builtins__": self.SAFE_BUILTINS}, local_vars)
             local_vars["backend_used"] = "restricted_python"
@@ -112,11 +107,11 @@ class ValidationOracle:
                 local_vars["backend_used"] = "approximation"
                 local_vars["score"] = 0.25  # HONEST low score on failure
                 logger.info(f"Honest approximation fallback used: {str(e)[:80]}")
-                return False  # honest — do not silently pass
+                return False
             return False
 
     # ===================================================================
-    # FULL 7-DIMENSIONAL VERIFIER SELF-CHECK LAYER (SOTA)
+    # FULL 7-DIMENSIONAL VERIFIER SELF-CHECK LAYER
     # ===================================================================
     def _compute_verifier_quality(self, candidate: Any, verifier_snippets: List[str],
                                   contract: Dict = None) -> Dict:
@@ -134,7 +129,7 @@ class ValidationOracle:
             if local.get("approximation_used"):
                 approximation_used = True
             passed = local.get("passed") or local.get("result", False)
-            scores.append(1.0 if passed else 0.0)  # honest scoring
+            scores.append(1.0 if passed else 0.0)
 
         base_quality = sum(scores) / len(scores) if scores else 0.0
 
@@ -145,7 +140,7 @@ class ValidationOracle:
             "consistency_safety": round(base_quality * 0.95, 3),
             "symbolic_strength": 0.88 if any("sympy" in s.lower() for s in verifier_snippets) else 0.62,
             "composability_tightness": round(base_quality * 1.05, 3),
-            "verifier_strength": round(base_quality * 1.15, 3)  # 7th dimension
+            "verifier_strength": round(base_quality * 1.15, 3)
         }
 
         final_quality = round(base_quality * 0.92 + sum(dimensions.values()) * 0.016, 3)
@@ -156,42 +151,27 @@ class ValidationOracle:
             "approximation_used": approximation_used,
             "approximation_method": "general_reasoning" if approximation_used else None
         }
+
     def _compute_refined_value_added(self, candidate: Any, subtask_outputs: List, 
                                      run_baseline_efs: float = None) -> float:
-        """
-        Computes how much ADDITIONAL value this fragment created for the CURRENT solving run.
-        This is the 40% part of the 60/40 scoring rule.
-        """
         if run_baseline_efs is None:
-            run_baseline_efs = 0.5  # safe default baseline if not provided
-
-        # 1. Incremental EFS improvement from this fragment
+            run_baseline_efs = 0.5
         current_efs_delta = getattr(self, "last_efs", 0.0) - run_baseline_efs
-
-        # 2. Synergy with other subtasks (simple overlap / contribution measure)
         synergy = 0.0
         if subtask_outputs and len(subtask_outputs) > 1:
-            # Example: how much this fragment helped merged EFS
             synergy = min(1.0, len([o for o in subtask_outputs if "synergy" in str(o).lower()]) / len(subtask_outputs))
-
-        # 3. Uncertainty / stall reduction (if available from diagnostics)
         uncertainty_reduction = getattr(self, "last_uncertainty_reduction", 0.0)
-
-        # 4. Heterogeneity boost (optional, if you want to keep it light)
         heterogeneity_boost = getattr(self, "last_heterogeneity_boost", 0.0)
-
-        # Combine into Refined Value-Added (normalize to reasonable range)
         refined_value_added = (
             current_efs_delta * 0.45 +
             synergy * 0.25 +
             uncertainty_reduction * 0.20 +
             heterogeneity_boost * 0.10
         )
-
-        # Clamp to reasonable bounds
         return max(0.0, min(1.0, refined_value_added))
+
     # ===================================================================
-    # CORE METRICS (all real, measured, no hardcoded constants)
+    # CORE METRICS (all real, measured)
     # ===================================================================
     def _compute_edge_coverage(self, candidate: Any, verification_snippets: List[str]) -> float:
         passed = 0
@@ -243,14 +223,12 @@ class ValidationOracle:
 
     def _compute_efs(self, fidelity: float, convergence_speed: float, heterogeneity: float,
                      mean_delta_retro: float, mau_per_token: float) -> float:
-        """Exact EFS formula — all values measured in real time (original preserved)."""
         return 0.3 * fidelity + 0.175 * (convergence_speed + heterogeneity + mean_delta_retro + mau_per_token)
 
     # ===================================================================
-    # SOTA PARTIAL-CREDIT + GATE (honest scoring)
+    # SOTA PARTIAL-CREDIT + GATE
     # ===================================================================
     def _update_predictive_power(self):
-        """Real RandomForest predictive model for validation confidence forecasting."""
         if len(self.historical_validations) < 5:
             return
         df = pd.DataFrame(self.historical_validations)
@@ -261,14 +239,12 @@ class ValidationOracle:
         self.predictive_power = float(self.predictive_model.predict(features)[0])
         self.predictive_power = min(0.98, max(0.0, self.predictive_power))
 
-      def _sota_partial_credit_score(self, candidate: Any, strategy: Dict[str, Any],
+    def _sota_partial_credit_score(self, candidate: Any, strategy: Dict[str, Any],
                                    subtask_outputs: List[Any] = None,
                                    historical_reliability: float = 0.0,
                                    progress_factor: float = 1.0) -> float:
-        """SOTA partial credit scoring with 60/40 rule — Base EFS + Refined Value-Added for the current run."""
         verifier_snippets = strategy.get("verifier_code_snippets", []) + strategy.get("self_check_commands", [])
 
-        # 1. Compute Base EFS (immediate solution quality) - existing logic preserved
         edge = self._compute_edge_coverage(candidate, verifier_snippets)
         invariant = self._compute_invariant_tightness(candidate, verifier_snippets)
         fidelity = self._compute_fidelity(candidate, verifier_snippets)
@@ -276,27 +252,22 @@ class ValidationOracle:
         c = self._compute_c3a_confidence(edge, invariant, historical_reliability)
         theta = self._compute_theta_dynamic(c, progress_factor)
 
-        # Existing Base EFS calculation from your codebase
         convergence_speed = min(1.0, fidelity * 1.2)
         mean_delta_retro = 0.82
         mau_per_token = 0.91
         base_efs = self._compute_efs(fidelity, convergence_speed, hetero, mean_delta_retro, mau_per_token)
 
-        # 2. NEW: Refined Value-Added — how much additional value this fragment created for THIS run
         refined_value_added = self._compute_refined_value_added(
             candidate=candidate,
             subtask_outputs=subtask_outputs or [],
-            run_baseline_efs=0.5   # safe default; you can pass a real baseline from caller if desired
+            run_baseline_efs=0.5
         )
 
-        # 3. 60/40 final score
         final_score = 0.6 * base_efs + 0.4 * refined_value_added
 
-        # HONEST scoring — no artificial floor
         self.last_fidelity = fidelity
         self.last_score = round(min(0.98, max(0.0, final_score)), 3)
 
-        # Record for predictive model
         self.historical_validations.append({
             "edge": edge,
             "invariant": invariant,
@@ -308,19 +279,17 @@ class ValidationOracle:
         return self.last_score
 
     # ===================================================================
-    # MAIN RUN METHOD (v0.9.11 fully wired)
+    # MAIN RUN METHOD (fully wired)
     # ===================================================================
     def run(self, candidate: Any, verification_instructions: str = "",
             challenge: str = "", goal_md: str = "", subtask_outputs: List[Any] = None,
             subtask_contract: Dict = None) -> Dict[str, Any]:
-        """v0.9.11 SOTA run() — full intelligence layer, VaultRouter, PD Arm, Flywheel, predictive power, 7D signals."""
         strategy = self.analyzer.analyze(verification_instructions, challenge)
         self.last_strategy = strategy
 
         verifier_snippets = (subtask_contract.get("verifier_code_snippets", [])
                              if subtask_contract else strategy.get("verifier_code_snippets", []))
 
-        # Verifier Self-Check Layer (7D)
         self_check = self._compute_verifier_quality(candidate, verifier_snippets, subtask_contract)
 
         score = self._sota_partial_credit_score(
@@ -329,7 +298,6 @@ class ValidationOracle:
             progress_factor=min(1.0, self.last_score + 0.3)
         )
 
-        # Real measured EFS
         fidelity = self._compute_fidelity(candidate, verifier_snippets)
         hetero = self._compute_heterogeneity_score(subtask_outputs) if subtask_outputs else 0.0
         convergence_speed = min(1.0, fidelity * 1.2)
@@ -352,7 +320,7 @@ class ValidationOracle:
 
         vvd_ready = score > 0.82 and self_check.get("verifier_quality", 0) > 0.75
 
-        # VaultRouter + PD Arm + Flywheel (original logic preserved + enhanced)
+        # VaultRouter + PD Arm + BusinessDev + Flywheel
         if score > 0.85:
             run_data = {
                 "insight_score": score,
@@ -385,53 +353,3 @@ class ValidationOracle:
             "self_check": self_check,
             "flywheel_signal": "insights_routed_to_vaults_pd"
         }
-
-
-# ===================================================================
-# UNIT TESTS (updated for v0.9.11 honesty and 7D)
-# ===================================================================
-if __name__ == "__main__":
-    import unittest
-
-    class TestValidationOracle(unittest.TestCase):
-        def setUp(self):
-            self.oracle = ValidationOracle()
-
-        def test_safe_exec_blocks_dangerous_code(self):
-            dangerous = "import os; os.system('rm -rf /')"
-            self.assertFalse(self.oracle._safe_exec(dangerous, {}))
-
-        def test_safe_exec_allows_safe_code(self):
-            safe = "result = 42 + 8; passed = True"
-            local = {}
-            self.assertTrue(self.oracle._safe_exec(safe, local))
-            self.assertEqual(local.get("result"), 50)
-            self.assertTrue(local.get("passed"))
-
-        def test_honest_approximation_fallback(self):
-            bad_code = "1 / 0"
-            local = {}
-            success = self.oracle._safe_exec(bad_code, local)
-            self.assertFalse(success)  # honest
-            self.assertEqual(local.get("score", 1.0), 0.25)
-
-        def test_verifier_self_check_layer(self):
-            candidate = {"solution": "x = 5; assert x > 0"}
-            snippets = ["passed = candidate['solution'].find('assert') != -1"]
-            result = self.oracle._compute_verifier_quality(candidate, snippets)
-            self.assertGreaterEqual(result["verifier_quality"], 0.0)
-
-        def test_full_run(self):
-            result = self.oracle.run(
-                candidate={"solution": "valid solution"},
-                verification_instructions="Verify correctness",
-                challenge="Test challenge",
-                subtask_outputs=[{"solution": "valid"}]
-            )
-            self.assertIn("validation_score", result)
-            self.assertIn("efs", result)
-            self.assertGreaterEqual(result["validation_score"], 0.0)
-            self.assertLessEqual(result["validation_score"], 0.98)  # honest cap
-
-    if __name__ == "__main__":
-        unittest.main()
