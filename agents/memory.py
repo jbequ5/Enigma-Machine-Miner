@@ -1,8 +1,3 @@
-# agents/memory.py
-# v0.9.11 MAXIMUM SOTA LongTermMemory + MemoryLayers + ByteRover MAU Pyramid
-# Fully verifier-first, EFS/c/θ/heterogeneity/contract-aware, SOTA-gated, Grail-integrated,
-# graph-aware, predictive-integrated, vault-routing ready, and fully expanded.
-
 from pathlib import Path
 import chromadb
 from chromadb.utils import embedding_functions
@@ -18,9 +13,7 @@ from scipy.stats import gaussian_kde
 logger = logging.getLogger(__name__)
 
 class LongTermMemory:
-    """v0.9.11 SOTA — Verifier-first, reinforcement-aware, freshness-aware ChromaDB backend.
-    Hybrid scoring (vector similarity + MAU/EFS impact), metadata filtering, staleness decay,
-    batch operations, and direct support for PatternEvolutionArbos + Scientist Mode + Vaults."""
+    """SOTA LongTermMemory — ChromaDB backend with rich reinforcement, freshness, and hybrid scoring."""
 
     def __init__(self, db_path: str = "memory_db", embedding_model: str = "all-MiniLM-L6-v2"):
         self.client = chromadb.PersistentClient(path=db_path)
@@ -31,10 +24,10 @@ class LongTermMemory:
             embedding_function=self.embedding_fn,
             metadata={"hnsw:space": "cosine", "hnsw:construction_ef": 200, "hnsw:M": 32}
         )
-        logger.info(f"✅ LongTermMemory v0.9.11 initialized with {embedding_model} embeddings")
+        logger.info(f"✅ LongTermMemory initialized with {embedding_model} embeddings")
 
     def add(self, text: str, metadata: Dict = None):
-        """SOTA add with rich enriched metadata, reinforcement scoring, and deterministic ID."""
+        """Add with enriched metadata for SAGE subsystems."""
         if metadata is None:
             metadata = {}
        
@@ -63,25 +56,18 @@ class LongTermMemory:
                 metadatas=[enriched_meta],
                 ids=[doc_id]
             )
-            logger.debug(f"LongTermMemory added fragment | reinforcement {reinforcement:.3f} | freshness {freshness:.3f}")
         except Exception as e:
-            logger.warning(f"LongTermMemory add failed (retrying with timestamp ID): {e}")
-            try:
-                fallback_id = f"doc_fallback_{datetime.datetime.now().timestamp()}"
-                self.collection.add(documents=[text], metadatas=[enriched_meta], ids=[fallback_id])
-            except Exception as fallback_e:
-                logger.error(f"LongTermMemory fallback add failed: {fallback_e}")
+            logger.warning(f"LongTermMemory add failed (safe fallback): {e}")
+            fallback_id = f"doc_fallback_{datetime.datetime.now().timestamp()}"
+            self.collection.add(documents=[text], metadatas=[enriched_meta], ids=[fallback_id])
 
     def query(self, query_text: str, n_results: int = 8,
               where: Optional[Dict] = None,
               min_reinforcement: float = 0.0,
               min_freshness: float = 0.0) -> List[Dict]:
-        """SOTA hybrid query with metadata filtering and combined scoring."""
+        """Hybrid query with metadata filtering and combined scoring."""
         try:
-            query_params = {
-                "query_texts": [query_text],
-                "n_results": n_results,
-            }
+            query_params = {"query_texts": [query_text], "n_results": n_results}
             if where:
                 query_params["where"] = where
            
@@ -107,7 +93,6 @@ class LongTermMemory:
                         "reinforcement": meta.get("reinforcement", 0.0)
                     })
            
-            # Sort by combined_score descending
             output.sort(key=lambda x: x["combined_score"], reverse=True)
             return output[:n_results]
            
@@ -116,28 +101,14 @@ class LongTermMemory:
             return []
 
     def get_high_reinforcement_fragments(self, min_reinforcement: float = 0.75, limit: int = 15) -> List[Dict]:
-        """Direct helper for PatternEvolutionArbos and Scientist Mode."""
-        return self.query(
-            query_text="",
-            n_results=limit,
-            where={"reinforcement": {"$gte": min_reinforcement}}
-        )
+        return self.query("", n_results=limit, where={"reinforcement": {"$gte": min_reinforcement}})
 
     def get_fresh_fragments(self, min_freshness: float = 0.6, limit: int = 10) -> List[Dict]:
-        """Helper for knowledge acquisition freshness checks."""
-        return self.query(
-            query_text="",
-            n_results=limit,
-            where={"freshness": {"$gte": min_freshness}}
-        )
+        return self.query("", n_results=limit, where={"freshness": {"$gte": min_freshness}})
 
     def delete_old_fragments(self, days_old: int = 120):
-        """Staleness cleanup — recommended to run periodically."""
-        try:
-            logger.info(f"🧹 Staleness cleanup recommended: fragments older than {days_old} days")
-            # In production: query by timestamp and delete matching IDs
-        except Exception as e:
-            logger.debug(f"Staleness cleanup skipped (safe): {e}")
+        logger.info(f"🧹 Staleness cleanup recommended: fragments older than {days_old} days")
+        # Production implementation would query by timestamp and delete
 
     def get_fragment_count(self) -> int:
         try:
@@ -146,7 +117,6 @@ class LongTermMemory:
             return 0
 
     def clear(self):
-        """Emergency clear — use with caution."""
         try:
             self.client.delete_collection("enigma_memory")
             self.collection = self.client.get_or_create_collection(
@@ -160,28 +130,24 @@ class LongTermMemory:
 
 
 class MemoryLayers:
-    """v0.9.11 SOTA — Three-layer memory system with ByteRover MAU Pyramid + full graph intelligence.
-    Fully wired for ToolHunter, PatternEvolutionArbos, Scientist Mode, Vaults, Predictive, and PD Arm."""
+    """SOTA MemoryLayers — ByteRover MAU Pyramid + fragmented graph + full SAGE integration."""
 
     def __init__(self):
-        self.long_term = LongTermMemory() # Layer 3: Persistent vector DB
-        self.short_term: List[Dict] = [] # Layer 1: Recent raw trajectories
-        self.long_term_summaries: List[Dict] = [] # Layer 2: Compressed summaries
+        self.long_term = LongTermMemory()
+        self.short_term: List[Dict] = []
+        self.long_term_summaries: List[Dict] = []
         self.tool_proposals: List[str] = []
        
-        # ByteRover MAU Pyramid settings
         self.byterover_mau_enabled = True
         self.mau_reinforcement_weight = 1.0
-        self.decay_k = 0.085 # tunable via Scientist Mode
+        self.decay_k = 0.085
         self.heterogeneity_boost = 1.15
-        self.arbos = None # wired from ArbosManager
+        self.arbos = None
        
-        # Fragmented Memory Graph (unified with FragmentTracker)
         self.fragment_graph = nx.DiGraph()
         self.fragment_id_counter = 0
-        self.impact_scores = {} # fragment_id -> impact history
+        self.impact_scores = {}
 
-    # ====================== CORE MEMORY OPERATIONS ======================
     def add(self, text: str, metadata: Dict = None):
         if metadata is None:
             metadata = {}
@@ -201,14 +167,12 @@ class MemoryLayers:
         if len(self.short_term) > 40:
             self.compress_to_long_term()
        
-        # ByteRover MAU promotion with SOTA gate
         if self.byterover_mau_enabled and metadata.get("local_score", 0.5) > 0.65:
             self.promote_high_signal(text, metadata)
         else:
             self.long_term.add(text, metadata)
 
     def promote_high_signal(self, text: str, metadata: Dict):
-        """SOTA-gated high-signal promotion using verifier + heterogeneity signals."""
         if not self.byterover_mau_enabled:
             return
        
@@ -216,16 +180,15 @@ class MemoryLayers:
        
         if reinforcement > 0.78 and self.arbos and hasattr(self.arbos, 'validator'):
             try:
-                # Use 7D verifier gate if available
-                if hasattr(self.arbos.validator, '_verifier_self_check_layer_7d'):
-                    seven_d = self.arbos.validator._verifier_self_check_layer_7d(text, [])
+                if hasattr(self.arbos.validator, '_compute_verifier_quality'):
+                    seven_d = self.arbos.validator._compute_verifier_quality(text, [])
                     if seven_d.get("verifier_quality", 0) > 0.68:
                         metadata["permanent"] = True
                         metadata["mau_reinforcement"] = reinforcement
                         self.long_term.add(text, metadata)
                         logger.info(f"✅ ByteRover MAU promoted high-signal fragment (reinforcement: {reinforcement:.3f})")
                     else:
-                        logger.debug("High-signal MAU rejected by 7D SOTA gate")
+                        logger.debug("High-signal MAU rejected by 7D gate")
                 else:
                     self.long_term.add(text, metadata)
             except Exception as e:
@@ -235,7 +198,6 @@ class MemoryLayers:
             self.long_term.add(text, metadata)
 
     def _compute_mau_reinforcement(self, text: str, metadata: Dict) -> float:
-        """SOTA reinforcement calculation with multiple signals."""
         validation_score = metadata.get("local_score", 0.5)
         fidelity = metadata.get("fidelity", 0.8)
         heterogeneity = metadata.get("heterogeneity_score", 0.7)
@@ -247,9 +209,7 @@ class MemoryLayers:
         reinforcement = (validation_score ** 1.2) * (fidelity ** 1.5) * heterogeneity * symbolic_bonus * freshness * c3a
         return min(1.0, reinforcement * self.mau_reinforcement_weight)
 
-    # ====================== v0.9.5 MISSING HELPERS (FULL SOTA IMPLEMENTATION) ======================
     def record_deep_hunt_success(self, metrics: Dict):
-        """Track deep ToolHunter hunt successes for tuning and EFS feedback."""
         fragment = {
             "type": "deep_hunt_success",
             "metrics": metrics,
@@ -258,10 +218,8 @@ class MemoryLayers:
             "novelty_score": metrics.get("novelty_score", 0.0)
         }
         self.add(json.dumps(fragment), {"type": "deep_hunt_success", "local_score": 0.92})
-        logger.info(f"🔍 Deep hunt success recorded — {metrics.get('new_fragments', 0)} fragments | novelty {metrics.get('novelty_score', 0):.3f}")
 
     def record_pattern_evolution_score(self, module_score: float):
-        """Record PatternEvolutionArbos 'is it working' module-level score for pruning advisor."""
         fragment = {
             "type": "pattern_evolution_module_score",
             "score": module_score,
@@ -269,48 +227,22 @@ class MemoryLayers:
             "impact_score": module_score
         }
         self.add(json.dumps(fragment), {"type": "pattern_evolution_module_score", "local_score": module_score})
-        logger.info(f"🧬 PatternEvolutionArbos module score recorded: {module_score:.3f}")
 
     def detect_small_discovery_gaps(self, recent_run_data: Dict) -> List[Dict]:
-        """SOTA gap detection for post-run DOUBLE_CLICK recommendations."""
         gaps = []
         efs = recent_run_data.get("efs", 0.0)
         score = recent_run_data.get("final_score", 0.0)
         hetero = recent_run_data.get("heterogeneity_score", 0.72)
        
         if efs < 0.72:
-            gaps.append({
-                "target": "decay_k",
-                "effect": "long_term_retention",
-                "domain": "memory_system",
-                "description": "Low EFS trend detected — tune memory retention constants",
-                "predicted_uplift": 0.12,
-                "reason": f"EFS {efs:.3f} below threshold"
-            })
-       
+            gaps.append({"target": "decay_k", "effect": "long_term_retention", "domain": "memory_system", "predicted_uplift": 0.12, "reason": f"EFS {efs:.3f} below threshold"})
         if score < 0.78:
-            gaps.append({
-                "target": "invariant_tightness",
-                "effect": "verifier_quality",
-                "domain": "verification_pipeline",
-                "description": "Low verification quality — strengthen contract invariants",
-                "predicted_uplift": 0.15,
-                "reason": f"Validation score {score:.3f} below threshold"
-            })
-       
+            gaps.append({"target": "invariant_tightness", "effect": "verifier_quality", "domain": "verification_pipeline", "predicted_uplift": 0.15, "reason": f"Validation score {score:.3f} below threshold"})
         if hetero < 0.60:
-            gaps.append({
-                "target": "exploration_rate",
-                "effect": "heterogeneity",
-                "domain": "swarm_diversity",
-                "description": "Heterogeneity collapse — boost swarm exploration",
-                "predicted_uplift": 0.10,
-                "reason": f"Heterogeneity {hetero:.3f} below threshold"
-            })
+            gaps.append({"target": "exploration_rate", "effect": "heterogeneity", "domain": "swarm_diversity", "predicted_uplift": 0.10, "reason": f"Heterogeneity {hetero:.3f} below threshold"})
        
         return gaps[:3]
 
-    # ====================== FRAGMENTED MEMORY GRAPH SUPPORT ======================
     def _generate_fragment_id(self) -> str:
         self.fragment_id_counter += 1
         return f"frag_{self.fragment_id_counter}"
@@ -319,7 +251,6 @@ class MemoryLayers:
         fid = entry["fragment_id"]
         self.fragment_graph.add_node(fid, **entry)
        
-        # Connect to similar recent fragments
         for existing in self.short_term[-10:]:
             if existing["fragment_id"] != fid:
                 similarity = self._compute_text_similarity(entry["text"], existing["text"])
@@ -327,7 +258,6 @@ class MemoryLayers:
                     self.fragment_graph.add_edge(fid, existing["fragment_id"], weight=similarity)
 
     def _compute_text_similarity(self, text1: str, text2: str) -> float:
-        """Simple but effective cosine-like similarity for graph edges."""
         words1 = set(text1.lower().split())
         words2 = set(text2.lower().split())
         if not words1 or not words2:
@@ -339,7 +269,6 @@ class MemoryLayers:
         return self.fragment_graph.copy()
 
     def find_similar_fragments(self, query_text: str, top_k: int = 5) -> List[Dict]:
-        """Find similar fragments using graph + similarity."""
         candidates = []
         for node, data in self.fragment_graph.nodes(data=True):
             sim = self._compute_text_similarity(query_text, data.get("text", ""))
@@ -348,15 +277,11 @@ class MemoryLayers:
         candidates.sort(key=lambda x: x["similarity"], reverse=True)
         return candidates[:top_k]
 
-    # ====================== COMPRESSION & PRUNING ======================
     def compress_low_value_fragment(self, node: str, decayed_score: float):
-        """v0.9.5 Per-fragment compression with provenance only."""
         if decayed_score >= 0.42:
             return
-        compress_prompt = f"""Distill this low-signal fragment to 1–3 key sentences + provenance tags only.
-Fragment content:
-{node[:2000]}
-Return ONLY the distilled summary. No extra text."""
+        # LLM compression (wired to arbos harness if available)
+        compress_prompt = f"""Distill this low-signal fragment to 1–3 key sentences + provenance tags only.\nFragment content:\n{node[:2000]}\nReturn ONLY the distilled summary."""
         try:
             if self.arbos and hasattr(self.arbos, 'harness'):
                 distilled = self.arbos.harness.call_llm(compress_prompt, temperature=0.2, max_tokens=300)
@@ -367,12 +292,10 @@ Return ONLY the distilled summary. No extra text."""
                         fragment={"id": "compressed", "content": distilled, "type": "compressed"},
                         metadata={"original_score": round(decayed_score, 4), "compressed": True}
                     )
-                logger.info(f"✅ Per-fragment compression applied (score {decayed_score:.3f})")
         except Exception as e:
             logger.debug(f"Compression skipped (safe): {e}")
 
     def compress_low_value(self, current_score: float = 0.0):
-        """SOTA-aware pruning with tunable threshold and cosmic compression readiness."""
         threshold = 0.38 if self.byterover_mau_enabled else 0.45
         self.short_term = [entry for entry in self.short_term
                           if entry.get("metadata", {}).get("local_score", 0.5) > threshold]
@@ -396,7 +319,6 @@ Return ONLY the distilled summary. No extra text."""
         self.long_term_summaries.append(summary_entry)
         self.long_term.add(summary_text, {"type": "compressed_summary"})
 
-    # ====================== QUERY & CONTEXT ======================
     def get_total_context_tokens(self) -> int:
         total = sum(len(entry["text"]) // 4 for entry in self.short_term)
         total += sum(len(entry.get("summary", "")) // 4 for entry in self.long_term_summaries)
@@ -420,11 +342,9 @@ Return ONLY the distilled summary. No extra text."""
         return context
 
     def get_latest_fragments(self) -> List[Dict]:
-        """Return most recent ToolHunter + pattern fragments for PatternEvolutionArbos."""
         return self.short_term[-10:] + [s for s in self.long_term_summaries if "pattern" in str(s).lower()]
 
     def get_domain_gap_severity(self, domains: List[str]) -> float:
-        """Gap severity for targeted hunts (0-1)."""
         severity = 0.0
         for domain in domains:
             if any(d in str(domain).lower() for d in ["quantum", "fusion", "plasma", "stabilizer"]):
@@ -438,6 +358,7 @@ Return ONLY the distilled summary. No extra text."""
         for p in proposals:
             self.add(f"TOOL PROPOSAL: {p}", {"type": "tool_proposal", "local_score": 0.75})
 
-# Global instances (will be properly wired from ArbosManager)
+
+# Global instances (wired from ArbosManager)
 memory = LongTermMemory()
 memory_layers = MemoryLayers()
