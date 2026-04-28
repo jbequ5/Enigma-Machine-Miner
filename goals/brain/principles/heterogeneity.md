@@ -1,36 +1,35 @@
-# HETEROGENEITY_PRINCIPLE (Maximize Across 5+ Axes) — v1.0
+# HETEROGENEITY_PRINCIPLE (Maximize Across 5+ Axes) — v1.1
 
-Reference: [[../shared_core.md|Shared Core]]
+**Core Statement**  
+Heterogeneity is a primary planning and orchestration directive. On every decision — planning, decomposition, hypothesis generation, tool paths, and adaptation — the solver must actively maximize useful difference across all axes while strictly preserving verifier-first constraints and symbolic fidelity.
 
-**Core Mandate**: Heterogeneity is a primary scoring dimension alongside ValidationOracle score and EFS.  
-We actively maximize useful difference across axes on every decision while preserving verifier-first constraints.
+**Rationale**  
+Useful heterogeneity drives discovery, prevents premature convergence, and enables the solver to explore a wider solution space. It is the mechanism that keeps the EM solver from falling into repetitive or low-novelty regimes.
 
-**Core 5 Axes**
-1. Agent style & perspective diversity  
-2. Hypothesis framing & conceptual angle  
-3. Tool path & compute substrate variety  
-4. Graph & memory substrate diversity  
-5. Symbolic vs heuristic approach balance  
+**Verification Prompt (for solver self-check)**  
+"Does this plan, decomposition, or adaptation actively maximize heterogeneity across all axes? Does it preserve verifier-first constraints and symbolic fidelity? Would adopting this path increase or decrease overall diversity of approaches while maintaining or improving ValidationOracle and EFS?"
 
-**v1.0 Embodiment-Driven Axes (New)**
-- Structural diversity from Neurogenesis spawns  
-- Novelty diversity from Microbiome injections  
-- Hardware-state diversity from Vagus feedback  
+**Compliance Scoring**  
+Heterogeneity Compliance Score (0–1) is used **only** for planning quality assessment and Meta-RL reflection. It has **zero weight** in EFS, Refined Value-Added, RankScore, or any scoring formula.
 
-**Operational Rules**
-- In Planning Arbos: Force diverse decomposition and hypothesis sets.
-- In Sub-Arbos / ToolHunter: Penalize similar approaches; reward novel paths that still pass verifier-first checks and SOTA gating.
-- In Adaptation & re_adapt: When stale regime is detected, prioritize actions that restore heterogeneity (new avenue plans, guided diversity, symbiosis scanning, embodiment activation).
-- In MARL credit: Heterogeneity acts as a strong positive multiplier. Down-weight solutions that reduce overall diversity even if they score well on fidelity.
-- In Wiki Strategy: Maintain cross-field synthesis and avoid clustering similar concepts/subtasks.
-- In Compression & Meta-Tuning: Favor deltas that increase heterogeneity; flag and prune low-heterogeneity patterns unless they deliver exceptional ValidationOracle or EFS lift.
-- In Pattern Surfacing: RPS and PPS actively contribute multi-scale heterogeneity signals.
+**Core Axes (guidelines the solver dynamically specializes per challenge)**
+- Agent style & perspective diversity
+- Hypothesis framing & conceptual angle
+- Tool path & compute substrate variety
+- Graph & memory substrate diversity
+- Symbolic vs heuristic approach balance
+- Embodiment-driven axes: structural diversity (Neurogenesis), novelty diversity (Microbiome), hardware-state diversity (Vagus)
 
-**Measurement**
-Use the 5-axis breakdown from heterogeneity_weights.json, plus embodiment and pattern-surfacing bonuses.  
-Target: Keep heterogeneity_score > 0.70 on average.  
-Stale regime = prolonged low heterogeneity + low ValidationOracle or EFS.
+**Evolution Triggers**
+- After any run with high EFS lift or novel invariants.
+- When Meta-RL Phase 7 detects a heterogeneity stall or prolonged low-diversity regime in planning.
+- When AHE flags clustering, repetitive patterns, or missed diversity opportunities.
+- When the solver identifies a new axis or better way to encourage diversity of approaches.
 
-**Evolution Rule**: Only promote or retain patterns that measurably increase heterogeneity while preserving verifier-first constraints and SOTA replay testing.  
-Low-heterogeneity paths are aggressively pruned unless they deliver exceptional ValidationOracle or EFS lift.  
-Active embodiment modules and RPS/PPS patterns add bonus heterogeneity credit.
+**Evolution Rule**  
+The solver may propose edits to this principle or the definition of axes. All proposals must be sandbox-tested by AHE, scored by the Neural-Net Scoring Head, and applied safely via Meta-RL (global re-scoring tolerance ≤ 0.08). Changes are versioned and fully traceable.
+
+**Operational Expectation**  
+In planning and adaptation: force diverse decomposition and hypothesis sets.  
+In Sub-Arbos / ToolHunter: penalize similar approaches and reward novel paths that still pass verifier-first checks.  
+In Wiki Strategy and compression: maintain cross-field synthesis and avoid clustering similar concepts.
