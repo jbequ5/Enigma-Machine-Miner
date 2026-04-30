@@ -1,5 +1,5 @@
 
-# SAGE Intelligence Subsystem: Continuously Learning Teacher + Focused Strategy Distillation
+# SAGE: Continuously Learning Teacher + Focused Strategy Distillation
 
 **v0.9.13 MAXIMUM SOTA — Final Locked Version**  
 **April 30, 2026**
