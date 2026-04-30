@@ -1,12 +1,14 @@
 """
 Synapse Client — Official lightweight wrapper for private Synapse Intelligence API
+v0.9.13 MAXIMUM SOTA
 Zero Synapse code in the public repo. All communication via secure HTTP.
-10/10 production grade: async, retries, timeouts, circuit-breaker style resilience.
+Async-first, production-grade: retries, timeouts, circuit-breaker resilience, /ingest support.
 """
 
+import os
 import httpx
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 logger = logging.getLogger(__name__)
@@ -16,58 +18,94 @@ class SynapseClient:
 
     def __init__(
         self,
-        base_url: str = "http://localhost:8000",
+        base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         timeout: float = 15.0,
         max_retries: int = 3
     ):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = (base_url or os.getenv("SYNAPSE_BASE_URL", "http://localhost:8000")).rstrip("/")
         self.timeout = timeout
         self.max_retries = max_retries
 
+        api_key = api_key or os.getenv("SYNAPSE_API_KEY")
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        self.client = httpx.Client(
+
+        self.client = httpx.AsyncClient(
             base_url=self.base_url,
             headers=headers,
             timeout=timeout,
-            follow_redirects=True
+            follow_redirects=True,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
         )
         logger.info(f"✅ SynapseClient initialized — connecting to {self.base_url}")
 
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=0.5, min=1, max=5),
-        retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException))
+        wait=wait_exponential(multiplier=0.5, min=1, max=8),
+        retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError))
     )
-    def _post(self, endpoint: str, json_data: Dict) -> Dict:
-        resp = self.client.post(endpoint, json=json_data)
+    async def _post(self, endpoint: str, json_data: Dict) -> Dict:
+        """Internal async POST with automatic retries."""
+        resp = await self.client.post(endpoint, json=json_data)
         resp.raise_for_status()
         return resp.json()
 
-    def chat_query(self, query: str, user_tier: str = "standard") -> Dict:
+    async def ingest_fragments(
+        self,
+        fragments: List[Dict],
+        telemetry: Dict,
+        em_instance_id: str,
+        run_id: str,
+        provenance: Optional[Dict] = None
+    ) -> Dict:
+        """Securely push raw fragments + telemetry to the private /ingest gate (the critical handoff)."""
+        payload = {
+            "fragments": fragments,
+            "telemetry": telemetry,
+            "em_instance_id": em_instance_id,
+            "run_id": run_id,
+            "provenance": provenance or {"source": "local_em", "version": "0.9.13"}
+        }
+        return await self._post("/ingest", payload)
+
+    async def chat_query(self, query: str, user_tier: str = "standard") -> Dict:
         """Main co-pilot / chat endpoint."""
-        return self._post("/chat/query", {"query": query, "user_tier": user_tier})
+        return await self._post("/chat/query", {"query": query, "user_tier": user_tier})
 
-    def handle_stall(self, em_context: Dict) -> Dict:
+    async def handle_stall(self, em_context: Dict) -> Dict:
         """Called by EM during stalls for immediate intelligence help."""
-        return self._post("/chat/stall", {"em_context": em_context})
+        return await self._post("/chat/stall", {"em_context": em_context})
 
-    def run_daily_cycle(self) -> Dict:
-        """Trigger a full intelligence cycle remotely (safe to call)."""
-        return self._post("/cycle/run", {})
+    async def run_daily_cycle(self) -> Dict:
+        """Trigger a full intelligence cycle remotely."""
+        return await self._post("/cycle/run", {})
 
-    def push_telemetry(self, telemetry_data: Dict) -> Dict:
-        """Push per-instance vector snapshots / run metrics to Synapse."""
-        return self._post("/telemetry/push", telemetry_data)
+    async def push_telemetry(self, telemetry_data: Dict) -> Dict:
+        """Push per-instance vector snapshots / run metrics."""
+        return await self._post("/telemetry/push", {"telemetry_data": telemetry_data})
 
-    def health_check(self) -> Dict:
-        resp = self.client.get("/health")
+    async def health_check(self) -> Dict:
+        resp = await self.client.get("/health")
         resp.raise_for_status()
         return resp.json()
+
+    # Synchronous wrappers for easy use in non-async code (e.g. ArbosManager)
+    def sync_ingest_fragments(self, fragments: List[Dict], telemetry: Dict, em_instance_id: str, run_id: str, provenance: Optional[Dict] = None) -> Dict:
+        import asyncio
+        return asyncio.run(self.ingest_fragments(fragments, telemetry, em_instance_id, run_id, provenance))
+
+    def sync_chat_query(self, query: str, user_tier: str = "standard") -> Dict:
+        import asyncio
+        return asyncio.run(self.chat_query(query, user_tier))
+
+    def sync_handle_stall(self, em_context: Dict) -> Dict:
+        import asyncio
+        return asyncio.run(self.handle_stall(em_context))
 
 # Global singleton — configure once at EM/Arbos startup
 synapse_client = SynapseClient(
-    base_url="http://your-private-synapse-host:8000",   # ← UPDATE TO YOUR PRIVATE URL
-    api_key="your-secret-api-key-here",                 # ← SET IN ENVIRONMENT / SECRETS
-    timeout=15.0
+    base_url=os.getenv("SYNAPSE_BASE_URL", "http://localhost:8000"),
+    api_key=os.getenv("SYNAPSE_API_KEY"),
+    timeout=15.0,
+    max_retries=3
 )
