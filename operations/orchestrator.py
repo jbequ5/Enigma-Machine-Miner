@@ -8,6 +8,7 @@ from .config import OperationsConfig
 from .performance_tracker import PerformanceTracker
 from .router import SmartLLMRouter
 from .telemetry import TelemetryCollector
+from .meta_rl import MetaRL
 
 def birth_gate_check(fragment: Dict, config: OperationsConfig) -> bool:
     """Strict birth gate — only high-quality fragments survive."""
@@ -23,21 +24,18 @@ class SwarmOrchestrator:
         self.router = router
         self.telemetry = TelemetryCollector(tracker)
         self.stop_event = threading.Event()
-        self.yield_history = []   # for real-time trajectory monitoring
+        self.yield_history = []
 
     def launch(self, challenge_metadata: Dict, loadout: Dict, profiles: List[Dict]) -> str:
-        """Full production launch with complete smart stopping and telemetry."""
         run_id = f"swarm_{datetime.now().isoformat()}"
         self.stop_event.clear()
         self.yield_history = []
 
         self.telemetry.record_swarm_start(run_id, challenge_metadata, loadout, profiles)
 
-        # Start real-time monitoring thread for smart stopping
         monitor_thread = threading.Thread(target=self._monitor_yield, args=(run_id,), daemon=True)
         monitor_thread.start()
 
-        # Launch concurrent EM instances
         with concurrent.futures.ThreadPoolExecutor(max_workers=loadout.get("instances", 2)) as executor:
             futures = []
             for profile in profiles:
@@ -51,48 +49,39 @@ class SwarmOrchestrator:
         return run_id
 
     def _run_em_instance(self, run_id: str, profile: Dict, loadout: Dict):
-        """Real EM instance simulation with birth gate + telemetry recording."""
-        time.sleep(0.3)  # realistic work
-
-        # Simulate a fragment being produced
+        time.sleep(0.3)
         fragment = {
             "efs": 0.78,
             "refined_value_added": 0.72,
             "profile_id": profile["id"],
             "yield_contribution": 0.85
         }
-
         if birth_gate_check(fragment, self.config):
-            # Record the high-quality fragment
             self.telemetry.record_fragment(run_id, profile["id"], fragment)
-            # Update yield history for smart stopping
             self.yield_history.append(fragment["yield_contribution"])
 
     def _monitor_yield(self, run_id: str):
-        """Real-time smart stopping monitoring based on Fragment Yield."""
+        meta_rl = MetaRL()
+        weights = meta_rl.weights
         start_time = time.time()
         while not self.stop_event.is_set():
             time.sleep(2.0)
-
             current_yield = self._get_current_yield()
             if not self.yield_history:
                 continue
 
-            # 1. Stall detection
             if len(self.yield_history) > 5:
                 recent_delta = self.yield_history[-1] - self.yield_history[-5]
-                if recent_delta < -0.05:
+                if recent_delta < -0.05 * weights["orchestrator_recovery_sensitivity"]:
                     print(f"[{run_id}] Smart stop: Fragment Yield stall detected")
                     self.stop_event.set()
                     break
 
-            # 2. Target achievement
             if current_yield >= 0.92:
                 print(f"[{run_id}] Smart stop: Target Fragment Yield achieved")
                 self.stop_event.set()
                 break
 
-            # 3. Diminishing returns
             if len(self.yield_history) > 10:
                 recent_avg = sum(self.yield_history[-5:]) / 5
                 older_avg = sum(self.yield_history[-10:-5]) / 5
@@ -101,7 +90,6 @@ class SwarmOrchestrator:
                     self.stop_event.set()
                     break
 
-            # 4. Time budget (example: 5 minutes for demo; configurable in production)
             if time.time() - start_time > 300:
                 print(f"[{run_id}] Smart stop: Time budget reached")
                 self.stop_event.set()
@@ -111,10 +99,8 @@ class SwarmOrchestrator:
         return sum(self.yield_history) / len(self.yield_history) if self.yield_history else 0.0
 
     def stop(self):
-        """Graceful stop with partial fragment save."""
         self.stop_event.set()
         print("Graceful shutdown initiated — saving partial high-value fragments...")
-        # Record save/resume session state
         self.telemetry.record_save_resume(
             challenge_id="current",
             profile_id="all",
@@ -122,6 +108,5 @@ class SwarmOrchestrator:
         )
 
     def resume_profile(self, challenge_id: str, profile_id: str) -> bool:
-        """Check for existing profile session."""
         session = self.tracker.get_profile_session(challenge_id, profile_id)
         return bool(session)
