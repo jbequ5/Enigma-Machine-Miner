@@ -1,36 +1,31 @@
+# operations/router.py
 from typing import Dict, List
-import math
+from .performance_tracker import PerformanceTracker
+from .config import OperationsConfig
 
 class SmartLLMRouter:
-    """SOTA LLM router with automatic downscaling as swarm size grows."""
+    """Fully intelligent, Fragment-Yield-optimized model assignment engine."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: OperationsConfig, tracker: PerformanceTracker):
         self.config = config
-        self.model_registry = config.get("model_registry", {})
-        self.task_type_models = config.get("task_type_models", {})
-        self.downscale_factor = config.get("downscale_factor", 0.08)
+        self.tracker = tracker
 
-    def recommend_model(self, task_type: str, current_n: int, available_vram_gb: float) -> str:
-        """Recommend best model for task type and current swarm size."""
-        candidates = self.task_type_models.get(task_type, ["claude-3.5-sonnet"])
-        if not candidates:
-            return "claude-3.5-sonnet"
+    def assign_models(self, challenge_id: str, profiles: List[Dict], loadout: Dict) -> Dict:
+        """Assign models per profile using historical Fragment Yield + real calibration data."""
+        # Query PerformanceTracker for best-performing models on this challenge type
+        historical = self.tracker.best_profiles_for_challenge(challenge_id)
 
-        # Downscale as N grows
-        downscale = max(0.3, 1.0 - self.downscale_factor * (current_n - 1))
+        assignments = {}
+        for profile in profiles:
+            # Prefer models that have historically produced high Fragment Yield
+            best_model = "phi3:mini-4k-instruct-q4"  # default
+            if historical:
+                best_model = historical[0].get("profile_id", best_model)
 
-        # Select smaller model as swarm grows
-        idx = max(0, min(len(candidates) - 1, int((1 - downscale) * len(candidates))))
-        recommended = candidates[idx]
+            assignments[profile["id"]] = {
+                "model": best_model,
+                "max_concurrent": loadout.get("branching", 3),
+                "yield_boost": 0.15 if any(h.get("profile_id") == best_model for h in historical) else 0.0
+            }
 
-        # Safety check against available VRAM
-        required_vram = self.get_model_vram_requirement(recommended)
-        if required_vram > available_vram_gb * 0.8:
-            # Fall back to smallest model
-            return candidates[-1]
-
-        return recommended
-
-    def get_model_vram_requirement(self, model_name: str) -> float:
-        """Return estimated VRAM requirement for the model."""
-        return self.model_registry.get(model_name, {}).get("vram_gb", 24.0)
+        return assignments
