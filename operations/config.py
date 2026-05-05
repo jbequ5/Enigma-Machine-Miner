@@ -1,19 +1,29 @@
 import json
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Dict, Any
 
-CONFIG_PATH = Path("operations_config.json")
+@dataclass
+class OperationsConfig:
+    data_dir: Path = Path("data/operations")
+    model_registry_path: Path = Path("data/models/registry.json")
+    max_concurrent_llm_calls: int = 8
+    vrambudget_gb: float = 5.5
+    temperature_default: float = 0.7
+    birth_gate_min_efs: float = 0.65
+    birth_gate_min_refined_value: float = 0.55
 
-def load_config() -> Dict[str, Any]:
-    """Load shared wizard config. Raises if missing."""
-    if not CONFIG_PATH.exists():
-        raise FileNotFoundError(
-            "operations_config.json not found. Run the 0.9.10 wizard first or provide --config."
-        )
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    @classmethod
+    def load(cls, path: str = "operations_config.json") -> "OperationsConfig":
+        p = Path(path)
+        if p.exists():
+            with open(p) as f:
+                data = json.load(f)
+            return cls(**data)
+        cfg = cls()
+        cfg.data_dir.mkdir(parents=True, exist_ok=True)
+        return cfg
 
-def save_config(config: Dict[str, Any]) -> None:
-    """Save shared config."""
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
+    def save(self, path: str = "operations_config.json"):
+        with open(path, "w") as f:
+            json.dump(self.__dict__, f, indent=2, default=str)
