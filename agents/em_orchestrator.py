@@ -25,7 +25,6 @@ class EMOrchestrator:
         """Launch 1–N EM instances while respecting global compute_budget."""
         self._append_trace("orchestrator_launch_start", f"Launching {num_instances} EM instances for {challenge_id}", compute_budget=compute_budget)
 
-        # Global budget check
         available = self._get_available_budget()
         if not self._can_fit_instances(compute_budget, num_instances, available):
             return [{"status": "budget_exceeded", "reason": "Insufficient hardware for requested instances"}]
@@ -36,7 +35,7 @@ class EMOrchestrator:
                 challenge_id=f"{challenge_id}_inst_{i}",
                 compute_budget=compute_budget,
                 goal_context=goal_context,
-                enable_wizard_gate=False  # always headless for orchestrated runs
+                enable_wizard_gate=False
             )
             result = instance.launch()
             with self.instance_lock:
@@ -69,15 +68,14 @@ class EMOrchestrator:
         return {"status": "shutdown_complete", "instances_closed": "all"}
 
     def _get_available_budget(self) -> Dict:
-        """Real-time hardware availability from ResourceMonitor."""
-        return {
-            "gpu_count": self.resource_monitor.get_gpu_count() if hasattr(self.resource_monitor, 'get_gpu_count') else 0,
-            "cpu_cores": self.resource_monitor.get_cpu_cores() if hasattr(self.resource_monitor, 'get_cpu_cores') else 16,
-            "total_ram_gb": self.resource_monitor.get_total_ram_gb() if hasattr(self.resource_monitor, 'get_total_ram_gb') else 64
-        }
+        """Real-time hardware availability with safe fallbacks."""
+        gpu_count = getattr(self.resource_monitor, 'get_gpu_count', lambda: 0)()
+        cpu_cores = getattr(self.resource_monitor, 'get_cpu_cores', lambda: 16)()
+        total_ram_gb = getattr(self.resource_monitor, 'get_total_ram_gb', lambda: 64)()
+        return {"gpu_count": gpu_count, "cpu_cores": cpu_cores, "total_ram_gb": total_ram_gb}
 
     def _can_fit_instances(self, per_instance_budget: Dict, num_instances: int, available: Dict) -> bool:
-        """Strict budget feasibility check before launch."""
+        """Strict budget feasibility check."""
         required_gpu = (per_instance_budget.get("gpu_count", 0) or 0) * num_instances
         required_cpu = (per_instance_budget.get("cpu_cores", 8) or 8) * num_instances
         required_ram = (per_instance_budget.get("total_ram_gb", 32) or 32) * num_instances
