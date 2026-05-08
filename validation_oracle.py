@@ -5,7 +5,8 @@ import logging
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+
 from sklearn.ensemble import RandomForestRegressor
 from verification_analyzer import VerificationAnalyzer
 from goals.brain_loader import load_toggle
@@ -14,6 +15,8 @@ from agents.product_development_arm import ProductDevelopmentArm
 from agents.business_dev import BusinessDev
 from agents.tools.compute import RealComputeEngine
 from agents.fragment_tracker import FragmentTracker
+from solve_fragment_scoring import SolveFragmentScoringModule  # Production 60/40 scorer
+
 from RestrictedPython import safe_globals, utility_builtins
 from RestrictedPython.Eval import default_guarded_getattr
 from RestrictedPython.Guards import safe_write, guarded_iter, guarded_unpack
@@ -36,6 +39,9 @@ class ValidationOracle:
         self.real_compute_engine = RealComputeEngine()
         self.fragment_tracker = FragmentTracker() if hasattr(arbos, 'fragment_tracker') else FragmentTracker()
 
+        # NEW: Production 60/40 Intelligent Fragment Scoring Module (exact spec)
+        self.scoring_module = SolveFragmentScoringModule()
+
         # Real predictive RandomForest for validation confidence forecasting
         self.predictive_model = RandomForestRegressor(n_estimators=50, random_state=42)
         self.predictive_power = 0.0
@@ -51,7 +57,7 @@ class ValidationOracle:
         self.last_wiki_contrib = 0.0
         self.last_efs = 0.0
 
-        logger.info("✅ ValidationOracle v0.9.13+ SOTA initialized — full 7D, predictive model, PD Arm, BusinessDev, honest scoring, SAGE wiring")
+        logger.info("✅ ValidationOracle v0.9.15+ SOTA initialized — 60/40 scoring, SolveFragmentScoringModule, heterogeneity removed from EFS")
 
     # ===================================================================
     # SINGLE SOURCE OF TRUTH SAFE EXEC (11 backends + honest fallback)
@@ -154,6 +160,7 @@ class ValidationOracle:
 
     def _compute_refined_value_added(self, candidate: Any, subtask_outputs: List, 
                                      run_baseline_efs: float = None) -> float:
+        """Updated Refined Value-Added — heterogeneity_boost removed (planning-only signal)."""
         if run_baseline_efs is None:
             run_baseline_efs = 0.5
         current_efs_delta = getattr(self, "last_efs", 0.0) - run_baseline_efs
@@ -161,12 +168,10 @@ class ValidationOracle:
         if subtask_outputs and len(subtask_outputs) > 1:
             synergy = min(1.0, len([o for o in subtask_outputs if "synergy" in str(o).lower()]) / len(subtask_outputs))
         uncertainty_reduction = getattr(self, "last_uncertainty_reduction", 0.0)
-        heterogeneity_boost = getattr(self, "last_heterogeneity_boost", 0.0)
         refined_value_added = (
             current_efs_delta * 0.45 +
-            synergy * 0.25 +
-            uncertainty_reduction * 0.20 +
-            heterogeneity_boost * 0.10
+            synergy * 0.35 +                # increased weight to compensate for removed heterogeneity
+            uncertainty_reduction * 0.20
         )
         return max(0.0, min(1.0, refined_value_added))
 
@@ -202,6 +207,7 @@ class ValidationOracle:
         return max_score
 
     def _compute_heterogeneity_score(self, subtask_outputs: List[Any]) -> float:
+        """Kept for planning / swarm diversity only — NEVER used in EFS scoring."""
         if len(subtask_outputs) < 2:
             return 0.0
         diversity = 0.0
@@ -221,12 +227,62 @@ class ValidationOracle:
     def _compute_theta_dynamic(self, c: float, progress_factor: float = 1.0) -> float:
         return 0.65 * (1 - 0.4 * (1 - c)**0.8) * progress_factor
 
-    def _compute_efs(self, fidelity: float, convergence_speed: float, heterogeneity: float,
-                     mean_delta_retro: float, mau_per_token: float) -> float:
-        return 0.3 * fidelity + 0.175 * (convergence_speed + heterogeneity + mean_delta_retro + mau_per_token)
+    # ===================================================================
+    # NEW PRODUCTION EFS COMPUTATION (60/40 rule — heterogeneity removed)
+    # ===================================================================
+    def _compute_efs(self, fidelity: float, convergence_speed: float,
+                     mean_delta_retro: float, mau_per_token: float,
+                     seven_d_scores: Optional[Dict[str, float]] = None,
+                     refined_components: Optional[Dict[str, float]] = None,
+                     calibration_c: float = 1.0,
+                     content: str = "",
+                     creator_id: str = "validation_oracle",
+                     em_instance_id: str = "") -> float:
+        """PRODUCTION EFS — exact 60/40 rule from Intelligent Fragment Scoring spec.
+        Heterogeneity is completely removed from scoring (planning-only signal)."""
+        # Prepare 7D scores (fallback)
+        if seven_d_scores is None:
+            seven_d_scores = {
+                "edge_coverage": 0.8,
+                "invariant_tightness": fidelity,
+                "adversarial_resistance": convergence_speed,
+                "calibration_quality": calibration_c,
+                "composability": 0.85,
+                "robustness_to_noise": mean_delta_retro,
+                "predictive_power": mau_per_token
+            }
+
+        # Prepare refined components (fallback)
+        if refined_components is None:
+            refined_components = {
+                "n": convergence_speed,
+                "r": 0.9,
+                "m": mean_delta_retro,
+                "c": calibration_c,
+                "p_noise": 0.0
+            }
+
+        # Full production scoring via SolveFragmentScoringModule
+        fragment = self.scoring_module.score_fragment(
+            content=content,
+            creator_id=creator_id,
+            em_instance_id=em_instance_id,
+            seven_d_scores=seven_d_scores,
+            refined_components=refined_components,
+            calibration_c=calibration_c
+        )
+
+        return fragment.final_impact_score  # 0.6 * base_efs + 0.4 * refined_value_added
+
+    # DEPRECATED legacy method
+    def _legacy_compute_efs(self, fidelity: float, convergence_speed: float, heterogeneity: float,
+                            mean_delta_retro: float, mau_per_token: float) -> float:
+        """DEPRECATED — heterogeneity removed from EFS scoring. Do not use in new code."""
+        logger.warning("DEPRECATED _legacy_compute_efs called — heterogeneity has been removed from EFS")
+        return 0.3 * fidelity + 0.175 * (convergence_speed + mean_delta_retro + mau_per_token)
 
     # ===================================================================
-    # SOTA PARTIAL-CREDIT + GATE
+    # SOTA PARTIAL-CREDIT + GATE (now uses new 60/40 scoring)
     # ===================================================================
     def _update_predictive_power(self):
         if len(self.historical_validations) < 5:
@@ -248,22 +304,28 @@ class ValidationOracle:
         edge = self._compute_edge_coverage(candidate, verifier_snippets)
         invariant = self._compute_invariant_tightness(candidate, verifier_snippets)
         fidelity = self._compute_fidelity(candidate, verifier_snippets)
-        hetero = self._compute_heterogeneity_score(subtask_outputs) if subtask_outputs else 0.0
         c = self._compute_c3a_confidence(edge, invariant, historical_reliability)
         theta = self._compute_theta_dynamic(c, progress_factor)
 
         convergence_speed = min(1.0, fidelity * 1.2)
         mean_delta_retro = 0.82
         mau_per_token = 0.91
-        base_efs = self._compute_efs(fidelity, convergence_speed, hetero, mean_delta_retro, mau_per_token)
 
-        refined_value_added = self._compute_refined_value_added(
-            candidate=candidate,
-            subtask_outputs=subtask_outputs or [],
-            run_baseline_efs=0.5
+        # NEW: Production 60/40 scoring (heterogeneity removed)
+        refined_components = {
+            "n": convergence_speed,
+            "r": 0.9,
+            "m": mean_delta_retro,
+            "c": 1.0,
+            "p_noise": 0.0
+        }
+        final_score = self._compute_efs(
+            fidelity=fidelity,
+            convergence_speed=convergence_speed,
+            mean_delta_retro=mean_delta_retro,
+            mau_per_token=mau_per_token,
+            refined_components=refined_components
         )
-
-        final_score = 0.6 * base_efs + 0.4 * refined_value_added
 
         self.last_fidelity = fidelity
         self.last_score = round(min(0.98, max(0.0, final_score)), 3)
@@ -279,7 +341,7 @@ class ValidationOracle:
         return self.last_score
 
     # ===================================================================
-    # MAIN RUN METHOD (fully wired)
+    # MAIN RUN METHOD (fully wired, uses new scoring)
     # ===================================================================
     def run(self, candidate: Any, verification_instructions: str = "",
             challenge: str = "", goal_md: str = "", subtask_outputs: List[Any] = None,
@@ -299,11 +361,10 @@ class ValidationOracle:
         )
 
         fidelity = self._compute_fidelity(candidate, verifier_snippets)
-        hetero = self._compute_heterogeneity_score(subtask_outputs) if subtask_outputs else 0.0
         convergence_speed = min(1.0, fidelity * 1.2)
         mean_delta_retro = 0.82
         mau_per_token = 0.91
-        efs = self._compute_efs(fidelity, convergence_speed, hetero, mean_delta_retro, mau_per_token)
+        efs = self._compute_efs(fidelity, convergence_speed, mean_delta_retro, mau_per_token)
 
         c = self._compute_c3a_confidence(
             self._compute_edge_coverage(candidate, verifier_snippets),
