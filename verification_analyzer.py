@@ -8,11 +8,12 @@ from typing import Dict, Any, List
 logger = logging.getLogger(__name__)
 
 class VerificationAnalyzer:
-    """SOTA VerificationAnalyzer — single source of truth for challenge analysis, verifier-first contract creation, 7D signals, and deterministic-first hints."""
+    """SOTA VerificationAnalyzer — single source of truth for challenge analysis, verifier-first contract creation, 7D signals, and deterministic-first hints.
+    Fully aligned with 60/40 scoring, EFS Lift, enriched refined_value_added, and 0.9.15 meta-assessment."""
 
     def __init__(self, goal_file: str = "goals/killer_base.md"):
         self.goal_content = self._load_goal(goal_file)
-        logger.info(f"✅ VerificationAnalyzer v0.9.13+ SOTA initialized — goal file: {goal_file}")
+        logger.info(f"✅ VerificationAnalyzer v0.9.15+ SOTA initialized — goal file: {goal_file}")
 
     def _load_goal(self, path: str) -> str:
         try:
@@ -22,7 +23,7 @@ class VerificationAnalyzer:
             return ""
 
     def analyze(self, verification_instructions: str = "", challenge: str = "") -> Dict[str, Any]:
-        """Full SOTA analysis: extracts code, tools, difficulty, and generates machine-readable verifiability contract."""
+        """Full SOTA analysis: extracts code, tools, difficulty, and generates machine-readable verifiability contract aligned with exact 60/40 scoring."""
         full_text = f"{self.goal_content}\n{verification_instructions}\n{challenge}"
         text_lower = full_text.lower()
 
@@ -100,17 +101,19 @@ class VerificationAnalyzer:
         if any(k in text_lower for k in ["resonance", "photoelectric", "microtubule", "kruse", "pattern", "invariant cluster", "fractal"]):
             strategy["pattern_surfacing_hints"].append("multi_scale_pattern_opportunity")
 
-        # 7. Generate full verifiability spec
+        # 7. Generate full verifiability spec (updated for exact 60/40 scoring + EFS Lift)
         strategy["verifiability_spec"] = self._generate_verifiability_spec(challenge, verification_instructions)
 
-        # 8. Populate 7D verifier quality signals
+        # 8. Populate 7D verifier quality signals (aligned with new scoring)
         strategy["verifier_quality_signals"] = {
             "edge_coverage_target": 0.75,
             "invariant_tightness_target": 0.70,
             "fidelity_target": 0.78,
             "c3a_confidence_target": 0.78,
             "theta_dynamic_gate": "passed",
-            "efs_target": 0.65
+            "final_impact_hard_floor": 0.82,          # from SolveFragmentScoringModule
+            "efs_target": 0.65,                       # base reference (final_impact_score is the real gate)
+            "efs_lift_target": 0.12                   # 0.9.15 meta-assessment
         }
 
         logger.info(f"VerificationAnalyzer completed — difficulty: {strategy['difficulty_level']}, verifier snippets: {len(strategy['verifier_code_snippets'])}, deterministic first: {strategy['requires_deterministic_first']}")
@@ -118,9 +121,9 @@ class VerificationAnalyzer:
         return strategy
 
     def _generate_verifiability_spec(self, challenge: str, instructions: str) -> Dict[str, Any]:
-        """PhD-rigorous, machine-readable contract generated from every challenge."""
+        """PhD-rigorous, machine-readable contract aligned with exact 60/40 scoring, refined_value_added, and EFS Lift."""
         return {
-            "version": "1.1",
+            "version": "1.2",
             "challenge_summary": challenge[:600],
             "artifacts_required": [],
             "composability_rules": [
@@ -135,17 +138,21 @@ class VerificationAnalyzer:
                 "fidelity": ">= 0.78",
                 "c3a_confidence": ">= 0.78",
                 "theta_dynamic_gate": "passed",
-                "EFS": ">= 0.65",
+                "final_impact_score": ">= 0.82",      # exact hard floor from SolveFragmentScoringModule
+                "refined_value_added_contribution": ">= 0.25",  # encourages high-value fragments
+                "actual_efs_lift": ">= 0.12",         # 0.9.15 meta-assessment
                 "minimum_artifacts_covered": ">= 90%"
             },
-            "learning_mandate": "Every dry-run and swarm outcome MUST write full trace (spec + grades + failures + real_delta) to wiki/trajectories for mycelial evolution",
-            "heterogeneity_mandate": "Subtasks must explore all five axes (symbolic, numeric, linguistic, edge-case, invariant-tight)",
+            "scoring_rule": "60/40 Base EFS + Refined Value-Added (exact SolveFragmentScoringModule formulas)",
+            "learning_mandate": "Every dry-run and swarm outcome MUST write full trace (spec + grades + failures + real_delta + efs_lift) to wiki/trajectories for mycelial evolution",
+            "heterogeneity_mandate": "Subtasks must explore all five axes (symbolic, numeric, linguistic, edge-case, invariant-tight) — planning signal only",
             "verifier_quality_signals": {
                 "edge_coverage_target": 0.75,
                 "invariant_tightness_target": 0.70,
                 "fidelity_target": 0.78,
                 "c3a_confidence_target": 0.78,
                 "theta_dynamic_gate": "passed",
-                "efs_target": 0.65
+                "final_impact_hard_floor": 0.82,
+                "efs_lift_target": 0.12
             }
         }
