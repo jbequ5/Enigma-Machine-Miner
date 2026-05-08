@@ -116,3 +116,29 @@ $$
             execute_decision(decision)
         else:
             log_rejected_decision(decision)
+
+## 6. Safety & Governance Gates
+1. **Automated Gate**  
+   - Projected EFS lift > `LIFT_THRESHOLD`  
+   - No regression on 30-day validation set (`validation_efs_delta >= -0.01`)  
+   - Change magnitude < 25% of current system
+
+2. **Human Review Gate**  
+   - Any decision that affects >10% of total fragments  
+   - Any new objective addition  
+   - Any expert replacement (not just addition)
+
+3. **Rollback**  
+   - Every change is versioned (`expert_vX.Y`, `objectives_vX.Y`)  
+   - One-click rollback via `synapse.rollback_change(version_id)`
+
+## 7. Output & Logging
+- Full JSON decision log written to `synapse/self_assessment_log/YYYY-MM-DD.json`
+- Summary sent to human dashboard and BusinessDev trigger
+- Provenance record for every decision
+
+## 8. Metrics to Track (Self-Improvement of the Self-Assessment)
+- Number of new experts created per week
+- Average EFS lift from new experts (target > 0.15)
+- Calibration error reduction after objective changes
+- Meta-stability score (frequency of changes)
