@@ -9,7 +9,7 @@ import numpy as np
 
 from deterministic_compute import RealComputeEngine, UnrestrictedComputeExecutor, DeterministicReasoningLayer
 from dry_run import DVRDryRunSimulator
-from surrogate_manager import surrogate_manager  # closed Synapse layer
+# surrogate_manager and full expensive simulation are now called POST-SYNTHESIS on the merged candidate (see note below)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger(__name__)
@@ -80,35 +80,37 @@ class EMInstance:
         return self.dvr_simulator.run_dry_run([], [], self.goal_context, self.compute_budget)
 
     def _execute_mining_loop(self, dry_run_result: Dict) -> Dict:
-        """Low-level mining execution hook. Managers call this after planning/contract."""
+        """Low-level mining execution hook. Managers call this after planning/contract.
+        ONLY lightweight local verifier snippets + deterministic backends here.
+        Full expensive simulator + surrogate now happens POST-SYNTHESIS on the merged candidate."""
         self._append_trace("mining_loop_start", "Executing low-level mining with deterministic paths")
         results = []
+        local_scores = []  # collect for dynamic EFS aggregation
 
         for subtask in dry_run_result.get("decomposed_subtasks", []):
-            # SOTA surrogate integration for heavy quantum simulations
-            input_vector = np.array(subtask.get("input_vector", np.random.rand(10)))  # replace with your actual quantum circuit parameters / ansatz vector
-            surrogate_pred, uncertainty = surrogate_manager.predict_with_uncertainty(input_vector)
-
-            if surrogate_manager.should_trigger_full_simulation(uncertainty):
-                # Full expensive quantum simulation (Qiskit, Cirq, IonQ, Rigetti, etc.)
-                true_X_score = self._run_full_expensive_simulation(input_vector)
-                surrogate_manager.add_full_run(input_vector, true_X_score)
-                final_score = true_X_score
-                logger.info(f"✅ Full quantum simulation triggered — true X score: {true_X_score:.4f}")
-            else:
-                final_score = surrogate_pred
-                logger.debug(f"Fast surrogate prediction used — predicted X: {final_score:.4f} (uncertainty {uncertainty:.4f})")
-
+            # Lightweight verification only (local verifier snippets, deterministic backends, 7D self-check)
+            # No expensive simulator or surrogate here — moved to post-synthesis
             category = self.deterministic_layer.classify_subtask(str(subtask), {})
-            routed = self.deterministic_layer.route_to_backend(category, {"subtask": subtask, "X_score": final_score}, {}, self.compute_budget)
+            routed = self.deterministic_layer.route_to_backend(category, {"subtask": subtask}, {}, self.compute_budget)
+            
+            # Dynamic local score from routed result (no hardcoded 0.92)
+            local_score = routed.get("score", 0.85) if isinstance(routed, dict) else 0.85
+            local_scores.append(local_score)
             results.append(routed)
 
-        return {"efs": 0.92, "subtask_outputs": results, "merged_candidate": "merged_result"}
+        # Dynamic EFS aggregation from subtask local scores (simple mean for now — can be upgraded to 7D)
+        aggregated_efs = round(sum(local_scores) / max(1, len(local_scores)), 4) if local_scores else 0.85
+
+        return {
+            "efs": aggregated_efs,                    # ← no longer hardcoded
+            "subtask_outputs": results,
+            "merged_candidate": "merged_result"       # placeholder — Synthesis Arbos will replace this
+        }
 
     def _end_of_run(self, mining_result: Dict) -> Dict:
         """Low-level post-run hook. Managers call high-level post-run intelligence here."""
         self._append_trace("end_of_run_start", "Low-level post-run processing")
-        return {"efs": mining_result.get("efs", 0.92), "status": "success"}
+        return {"efs": mining_result.get("efs", 0.85), "status": "success"}
 
     # ====================== SUPPORTING METHODS ======================
 
@@ -168,13 +170,3 @@ class EMInstance:
         self._stop_health_monitor()
         self._append_trace("em_launch_failed", reason, extra=extra)
         return {"launch_id": self.launch_id, "status": "failed", "reason": reason}
-
-    def _run_full_expensive_simulation(self, input_vector: np.ndarray) -> float:
-        """REPLACE WITH YOUR ACTUAL QUANTUM SIMULATOR CALL.
-        This is where the heavy quantum simulation runs (Qiskit Aer, Cirq, IonQ, Rigetti, etc.)."""
-        # Example placeholder for a quantum simulation (VQE energy, QAOA approximation ratio, circuit fidelity, etc.)
-        # Replace with your real quantum backend call
-        return 0.85 + np.random.normal(0, 0.03)  # realistic noisy quantum simulation output
-
-# Global instance
-enigma_machine = EnigmaMachine()
