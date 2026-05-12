@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional
 
 from deterministic_compute import RealComputeEngine, UnrestrictedComputeExecutor, DeterministicReasoningLayer
 from dry_run import DVRDryRunSimulator
+from surrogate_manager import surrogate_manager  # closed Synapse layer
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger(__name__)
@@ -80,10 +81,26 @@ class EMInstance:
         """Low-level mining execution hook. Managers call this after planning/contract."""
         self._append_trace("mining_loop_start", "Executing low-level mining with deterministic paths")
         results = []
+
         for subtask in dry_run_result.get("decomposed_subtasks", []):
+            # New: SOTA surrogate integration for heavy-simulation problems
+            input_vector = np.array(subtask.get("input_vector", np.random.rand(10)))  # replace with your actual vector
+            surrogate_pred, uncertainty = surrogate_manager.predict_with_uncertainty(input_vector)
+
+            if surrogate_manager.should_trigger_full_simulation(uncertainty):
+                # Full expensive simulation (your simulator call)
+                true_X_score = self._run_full_expensive_simulation(input_vector)
+                surrogate_manager.add_full_run(input_vector, true_X_score)
+                final_score = true_X_score
+                logger.info(f"✅ Full simulation triggered — true X score: {true_X_score:.4f}")
+            else:
+                final_score = surrogate_pred
+                logger.debug(f"Fast surrogate prediction used — predicted X: {final_score:.4f} (uncertainty {uncertainty:.4f})")
+
             category = self.deterministic_layer.classify_subtask(str(subtask), {})
-            routed = self.deterministic_layer.route_to_backend(category, {"subtask": subtask}, {}, self.compute_budget)
+            routed = self.deterministic_layer.route_to_backend(category, {"subtask": subtask, "X_score": final_score}, {}, self.compute_budget)
             results.append(routed)
+
         return {"efs": 0.92, "subtask_outputs": results, "merged_candidate": "merged_result"}
 
     def _end_of_run(self, mining_result: Dict) -> Dict:
@@ -149,3 +166,9 @@ class EMInstance:
         self._stop_health_monitor()
         self._append_trace("em_launch_failed", reason, extra=extra)
         return {"launch_id": self.launch_id, "status": "failed", "reason": reason}
+
+    def _run_full_expensive_simulation(self, input_vector: np.ndarray) -> float:
+        """REPLACE WITH YOUR ACTUAL SIMULATOR CALL (CFD, FEA, routing engine, etc.).
+        This is where the heavy simulation runs."""
+        # Placeholder — replace with your real simulator
+        return 0.85 + np.random.normal(0, 0.03)
