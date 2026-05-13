@@ -2,6 +2,7 @@
 # SAGE v0.9.14+ — Intelligent Operating System (IOS)
 # Central brain: flight test → model routing → intelligent swarm orchestration
 # Fully wired to upgraded flight_test, router, orchestrator, managers, and Synapse
+# NOW FETCHES CHALLENGES + DENSE VERIFICATION SPECS FROM PRIVATE SYNAPSE ONLY
 
 import json
 import logging
@@ -9,7 +10,7 @@ import asyncio
 import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, HTTPException
 from datetime import datetime
 
 from operations.flight_test import CalibrationFlightTest
@@ -36,9 +37,19 @@ flight_test = CalibrationFlightTest(config=config, tracker=tracker)
 router = SmartLLMRouter(config=config, tracker=tracker)
 orchestrator = SwarmOrchestrator(config=config, tracker=tracker, router=router)
 
+@app.get("/list_challenges")
+async def list_challenges():
+    """Return all active challenges + dense verification specs from PRIVATE Synapse (authoritative source)."""
+    try:
+        response = synapse_client.sync_get_challenges()
+        return {"challenges": response.get("challenges", []), "count": len(response.get("challenges", []))}
+    except Exception as e:
+        logger.error(f"Failed to fetch challenges from Synapse: {e}")
+        raise HTTPException(status_code=500, detail="Could not retrieve challenges from private Synapse")
+
 @app.post("/start_swarm")
 async def start_swarm(
-    challenge: str,
+    challenge_id: str,                          # ← Now required: ID from challenge.md in private Synapse
     enhancement_prompt: str = "",
     use_agent_mode: bool = True,
     compute_source: str = "local_gpu",
@@ -46,27 +57,41 @@ async def start_swarm(
     max_instances_override: Optional[int] = None,
     background_tasks: BackgroundTasks = None
 ) -> Dict[str, Any]:
-    """Main IOS endpoint — full intelligent pipeline."""
-    logger.info(f"🚀 IOS starting swarm — Challenge: {challenge[:80]}...")
+    """Main IOS endpoint — full intelligent pipeline using authoritative challenge from private Synapse."""
+    logger.info(f"🚀 IOS starting swarm — Challenge ID: {challenge_id}")
 
-    # 1. Full intelligent calibration flight test (real benchmarking + EFS Lift)
+    # 1. Fetch full challenge + dense verification spec from PRIVATE Synapse
+    try:
+        challenge_data = synapse_client.sync_get_challenge_by_id(challenge_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch challenge {challenge_id} from Synapse: {e}")
+        raise HTTPException(status_code=404, detail=f"Challenge {challenge_id} not found in private Synapse")
+
+    challenge = challenge_data.get("description", "")
+    verification_spec = challenge_data.get("verification_spec", "")   # ← Dense spec now guaranteed
+
+    logger.info(f"✅ Loaded from private Synapse: {challenge_data.get('title', 'Unknown')} | "
+                f"Verification spec length: {len(verification_spec)} characters")
+
+    # 2. Full intelligent calibration flight test (real benchmarking + EFS Lift)
     flight_result = await flight_test.run_full_calibration(
         challenge=challenge,
         compute_source=compute_source
     )
 
-    # 2. Build optimal loadout and profiles from flight test
+    # 3. Build optimal loadout and profiles from flight test
     recommended_instances = flight_result.get("recommended", {}).get("instances", 3)
     num_instances = max_instances_override if max_instances_override is not None else recommended_instances
 
     # Use MAP for context-aware profiles (already inside flight test, but we can enrich)
     challenge_metadata = {
-        "id": challenge[:60],
+        "id": challenge_id,
         "challenge": challenge,
-        "enhancement_prompt": enhancement_prompt
+        "enhancement_prompt": enhancement_prompt,
+        "verification_spec": verification_spec   # ← Passed downstream
     }
 
-    # 3. Intelligent model assignment per profile
+    # 4. Intelligent model assignment per profile
     profiles = flight_result.get("profiles_used", [])  # or generate fresh if needed
     if not profiles:
         profiles = [{"id": f"profile_{i}", "type": "general"} for i in range(num_instances)]
@@ -78,7 +103,7 @@ async def start_swarm(
         challenge_metadata=challenge_metadata
     )
 
-    # 4. Build loadout for orchestrator
+    # 5. Build loadout for orchestrator
     loadout = {
         "instances": num_instances,
         "branching": flight_result.get("recommended", {}).get("branching", 3),
@@ -87,7 +112,7 @@ async def start_swarm(
         "max_budget": max_budget
     }
 
-    # 5. Launch the full intelligent swarm via orchestrator
+    # 6. Launch the full intelligent swarm via orchestrator
     run_id = orchestrator.launch(
         challenge_metadata=challenge_metadata,
         loadout=loadout,
@@ -107,6 +132,7 @@ async def start_swarm(
                 manager.run,
                 challenge=challenge,
                 enhancement_prompt=enhancement_prompt,
+                verification_spec=verification_spec,   # ← Full dense spec passed to managers & core
                 em_instance_id=f"instance_{i}_{int(time.time())}",
                 compute_source=compute_source,
                 max_budget=max_budget
@@ -122,6 +148,9 @@ async def start_swarm(
         "actual_instances_launched": num_instances,
         "profiles_used": len(profiles),
         "model_assignments": len(model_assignments),
+        "challenge_id": challenge_id,
+        "challenge_title": challenge_data.get("title", "Unknown"),
+        "verification_spec_included": bool(verification_spec),
         "timestamp": datetime.now().isoformat()
     }
 
