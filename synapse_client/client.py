@@ -89,6 +89,26 @@ class SynapseClient:
         resp.raise_for_status()
         return resp.json()
 
+# synapse_client.py (add these two methods at the bottom of the class)
+
+    async def get_challenges(self) -> List[Dict]:
+        """Fetch the authoritative list of active challenges + dense verification specs from private Synapse."""
+        return await self._post("/get_challenges", {})
+
+    async def get_challenge_by_id(self, challenge_id: str) -> Dict:
+        """Fetch a single challenge (with full dense verification spec) by ID."""
+        return await self._post("/get_challenge", {"challenge_id": challenge_id})
+
+    # Synchronous wrappers for EM managers
+    def sync_get_challenges(self) -> List[Dict]:
+        import asyncio
+        return asyncio.run(self.get_challenges())
+
+    def sync_get_challenge_by_id(self, challenge_id: str) -> Dict:
+        import asyncio
+        return asyncio.run(self.get_challenge_by_id(challenge_id))    
+
+    
     # Synchronous wrappers for easy use in non-async code (e.g. ArbosManager)
     def sync_ingest_fragments(self, fragments: List[Dict], telemetry: Dict, em_instance_id: str, run_id: str, provenance: Optional[Dict] = None) -> Dict:
         import asyncio
