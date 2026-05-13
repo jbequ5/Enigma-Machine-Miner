@@ -279,7 +279,7 @@ def __init__(self, goal_file: str = "goals/killer_base.md"):
     logger.info("✅ v0.9.11 ArbosManager __init__ completed — full wiring done")
             
     # ====================== MODEL REGISTRY (v5.1.3 - Cleaned) ======================
-def _load_model_registry(self) -> Dict:
+    def _load_model_registry(self) -> Dict:
         """EXACT legacy method + maximum intelligence upgrades.
         Loads or creates model registry with intelligent defaults aligned with 60/40 scoring and 0.9.15 meta-assessment."""
         registry_path = Path("config/model_registry.json")
