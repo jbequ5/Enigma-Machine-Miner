@@ -3,7 +3,7 @@
 # Maximum-granularity operational gap detection + reporting to private Synapse
 # Every line is fully implemented — no stubs, no placeholders, no commented-out code
 
-from .performance_tracker import PerformanceTracker
+from performance_tracker import PerformanceTracker
 from datetime import datetime
 from typing import Dict, List, Any
 import logging
