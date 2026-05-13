@@ -1,8 +1,11 @@
 # human_arbos_manager.py
 # Human-facing EM Instance — full solving loop with IOS + SynapseClient integration
+# NOW SUPPORTS dense verification_spec from private Synapse challenge.md
 
 import json
 import logging
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -22,12 +25,20 @@ class HumanArbosManager(CoreArbosManager):
         super().__init__()
         logger.info("✅ HumanArbosManager initialized — full EM loop + SynapseClient ready")
 
-    def run(self, challenge: str, enhancement_prompt: str = "", em_instance_id: str = None) -> Dict[str, Any]:
+    def run(
+        self,
+        challenge: str,
+        enhancement_prompt: str = "",
+        verification_spec: str = "",   # ← New: dense verification spec from private Synapse challenge.md
+        em_instance_id: str = None
+    ) -> Dict[str, Any]:
         """Main entry point called by IOS. Executes complete EM solving loop."""
         if em_instance_id is None:
             em_instance_id = f"em_{int(time.time())}"
 
         logger.info(f"🚀 HumanArbosManager.run() — Challenge: {challenge[:100]}... | Instance: {em_instance_id}")
+        if verification_spec:
+            logger.info(f"📋 Dense verification spec received from Synapse — length: {len(verification_spec)} characters")
 
         # 1. Upgraded wizard (flight test, compute validation, LLM routing)
         wizard_status = self.initial_setup_wizard({
@@ -40,21 +51,25 @@ class HumanArbosManager(CoreArbosManager):
             logger.error(f"Wizard failed: {wizard_status.get('issues')}")
             return {"error": "Setup wizard failed", "details": wizard_status}
 
-        # 2. Generate verifiability contract
-        contract_result = self.generate_verifiability_contract(challenge, enhancement_prompt)
+        # 2. Generate verifiability contract (now receives dense verification_spec)
+        contract_result = self.generate_verifiability_contract(
+            challenge, enhancement_prompt, verification_spec=verification_spec
+        )
 
-        # 3. Plan the challenge (includes KAS hunt)
+        # 3. Plan the challenge (includes KAS hunt + verification_spec)
         plan = self.plan_challenge(
             goal_md=self.extra_context,
             challenge=challenge,
-            enhancement_prompt=enhancement_prompt
+            enhancement_prompt=enhancement_prompt,
+            verification_spec=verification_spec
         )
 
         # 4. Full orchestration (swarm → symbiosis → synthesis → validation)
         result = self.orchestrate_subarbos(
             task=challenge,
             goal_md=self.extra_context,
-            orchestrator_input=plan
+            orchestrator_input=plan,
+            verification_spec=verification_spec
         )
 
         # 5. End-of-run processing (fragments, scoring, KAS, gaps, BusinessDev, cosmic compression)
