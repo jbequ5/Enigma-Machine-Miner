@@ -1,10 +1,12 @@
 # agent_arbos_manager.py
 # Lean, headless, autonomous Enigma Machine instance for IOS swarm / agent use
 # No wizard prompts, no interactive UI — pure JSON in/out + full SynapseClient integration
+# NOW SUPPORTS dense verification_spec from private Synapse challenge.md
 
 import json
 import logging
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable
 
@@ -29,6 +31,7 @@ class AgentArbosManager(CoreArbosManager):
         self,
         challenge: str,
         enhancement_prompt: str = "",
+        verification_spec: str = "",   # ← New: dense verification spec from private Synapse challenge.md
         em_instance_id: Optional[str] = None,
         compute_source: str = "local_gpu",
         max_budget: Optional[float] = None,
@@ -40,6 +43,8 @@ class AgentArbosManager(CoreArbosManager):
             em_instance_id = f"agent_em_{int(time.time())}"
 
         logger.info(f"🚀 AgentArbosManager.run() — Challenge: {challenge[:100]}... | Instance: {em_instance_id}")
+        if verification_spec:
+            logger.info(f"📋 Dense verification spec received from Synapse — length: {len(verification_spec)} characters")
 
         # 1. Setup wizard (runs silently for safety/validation)
         wizard_status = self.initial_setup_wizard({
@@ -52,8 +57,10 @@ class AgentArbosManager(CoreArbosManager):
             logger.error(f"Agent setup failed: {wizard_status.get('issues')}")
             return {"error": "Setup failed", "details": wizard_status}
 
-        # 2. Generate verifiability contract
-        contract_result = self.generate_verifiability_contract(challenge, enhancement_prompt)
+        # 2. Generate verifiability contract (now receives dense verification_spec)
+        contract_result = self.generate_verifiability_contract(
+            challenge, enhancement_prompt, verification_spec=verification_spec
+        )
 
         # Optional PhD-level decision: review/edit contract
         if self.decision_callback:
@@ -61,6 +68,7 @@ class AgentArbosManager(CoreArbosManager):
                 "stage": "contract_review",
                 "contract": contract_result,
                 "challenge": challenge,
+                "verification_spec": verification_spec,
                 "context": decision_context or {}
             })
             if decision.get("action") == "edit":
@@ -70,7 +78,8 @@ class AgentArbosManager(CoreArbosManager):
         plan = self.plan_challenge(
             goal_md=self.extra_context,
             challenge=challenge,
-            enhancement_prompt=enhancement_prompt
+            enhancement_prompt=enhancement_prompt,
+            verification_spec=verification_spec
         )
 
         # Optional PhD-level decision: approve/modify plan
@@ -78,6 +87,7 @@ class AgentArbosManager(CoreArbosManager):
             decision = self.decision_callback({
                 "stage": "plan_review",
                 "plan": plan,
+                "verification_spec": verification_spec,
                 "context": decision_context or {}
             })
             if decision.get("action") == "modify":
@@ -87,7 +97,8 @@ class AgentArbosManager(CoreArbosManager):
         result = self.orchestrate_subarbos(
             task=challenge,
             goal_md=self.extra_context,
-            orchestrator_input=plan
+            orchestrator_input=plan,
+            verification_spec=verification_spec
         )
 
         # 5. End-of-run processing (fragments, scoring, KAS, gaps, BusinessDev, cosmic compression)
