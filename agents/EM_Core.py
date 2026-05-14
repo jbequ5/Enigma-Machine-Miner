@@ -279,9 +279,33 @@ def __init__(self, goal_file: str = "goals/killer_base.md"):
     logger.info("✅ v0.9.11 ArbosManager __init__ completed — full wiring done")
 
 # grok Skeleton 
+# core_arbos_manager.py
+# SAGE v0.9.14+ — Core Enigma Machine (EM) Instance
+# Monolithic reference for HumanArbosManager and AgentArbosManager
+# Locked fragment lifecycle + surrogate-expert layer + targeted KAS + full IOS integration
 
-    # core_arbos_manager.py
+import json
+import logging
+import time
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+import numpy as np
 
+from solve_fragment_scoring import SolveFragmentScoringModule
+from validation_oracle import ValidationOracle
+from synapse_client import synapse_client
+
+logger = logging.getLogger(__name__)
+
+class CoreArbosManager:
+    def __init__(self):
+        self.fragment_tracker = []  # Temporary storage for birth-gate-passed fragments
+        self.scoring_module = SolveFragmentScoringModule()
+        self.validator = ValidationOracle()
+        self.extra_context = ""
+        self.previous_loop_efs = 0.0
+        self.em_instance_id = None
+        logger.info("✅ CoreArbosManager initialized — locked fragment lifecycle + surrogate layer active")
 
     def _create_fragment(self, stage: str, decision_data: Dict, impact_metrics: Dict = None) -> Dict:
         """Generate fragment from ANY stage. Birth gate + uncertainty calibration applied immediately."""
@@ -377,8 +401,6 @@ def __init__(self, goal_file: str = "goals/killer_base.md"):
         # Placeholder for KAS call — returns insight for surrogate/MOPE strategy
         return {"surrogate_strategy": "multi_fidelity", "recommended_kernel": "matern"}
 
-# end of grok skeleton
-
     # Legacy helper methods from old ArbosManager (kept for full compatibility)
     def _run_flight_test(self): pass
     def initial_setup_wizard(self, inputs): pass
@@ -386,6 +408,9 @@ def __init__(self, goal_file: str = "goals/killer_base.md"):
     def _validate_compute_source(self, source: str) -> bool: pass
     def _estimate_run_cost(self, max_budget: float) -> float: pass
     def _load_model_registry(self) -> Dict: pass
+
+# end of grok skeleton
+
 
     # Additional legacy methods can be added here as needed
     
