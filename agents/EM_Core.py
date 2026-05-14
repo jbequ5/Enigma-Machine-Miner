@@ -277,7 +277,118 @@ def __init__(self, goal_file: str = "goals/killer_base.md"):
     self.real_compute_engine.memory_layers = self.memory_layers
 
     logger.info("✅ v0.9.11 ArbosManager __init__ completed — full wiring done")
-            
+
+# grok Skeleton 
+
+    # core_arbos_manager.py
+
+
+    def _create_fragment(self, stage: str, decision_data: Dict, impact_metrics: Dict = None) -> Dict:
+        """Generate fragment from ANY stage. Birth gate + uncertainty calibration applied immediately."""
+        fragment = {
+            "fragment_id": f"frag_{int(time.time())}_{hash(str(decision_data)) % 100000}",
+            "stage": stage,
+            "decision_data": decision_data,
+            "impact_metrics": impact_metrics or {},
+            "timestamp": datetime.now().isoformat(),
+            "provenance": {"em_instance_id": self.em_instance_id or "unknown", "lineage": []}
+        }
+
+        # Birth gate + uncertainty calibration
+        if self.scoring_module.birth_gate_check(fragment) and self._uncertainty_heuristic(fragment):
+            self.fragment_tracker.append(fragment)
+            logger.debug(f"Fragment passed birth gate + uncertainty check — stage: {stage}")
+            return fragment
+        return None
+
+    def _uncertainty_heuristic(self, fragment: Dict) -> bool:
+        """Cheap uncertainty calibration for birth gate."""
+        decision_text = str(fragment["decision_data"])
+        entropy_proxy = len(set(decision_text.split())) / len(decision_text.split()) if decision_text else 0
+        return entropy_proxy > 0.3
+
+    def generate_verifiability_contract(self, challenge: str, enhancement_prompt: str = "", verification_spec: str = "") -> Dict:
+        """Contract generation — produces fragments."""
+        contract = {"challenge": challenge, "enhancement_prompt": enhancement_prompt, "verification_spec": verification_spec}
+        self._create_fragment("contract_generation", contract, {"composability": 0.95})
+        return contract
+
+    def plan_challenge(self, goal_md: str, challenge: str, enhancement_prompt: str = "", verification_spec: str = "") -> Dict:
+        """Planning — DVRP for composability only + targeted KAS hook."""
+        plan = {"goal": goal_md, "challenge": challenge, "enhancement_prompt": enhancement_prompt}
+        dvrp_passed = self.validator.dry_run_verification(plan, verification_spec)
+        kas_insight = self.kas_targeted_hunt("planning", plan, verification_spec)
+        self._create_fragment("planning", plan, {"dvrp_passed": dvrp_passed, "impact": 0.8, "kas_insight": kas_insight})
+        return plan
+
+    def orchestrate_subarbos(self, task: str, goal_md: str, orchestrator_input: Dict, verification_spec: str = "") -> Dict:
+        """Orchestration — produces fragments from every subtask and decision."""
+        # Subtask execution calls _create_fragment for every decision
+        result = {"merged_candidate": "synthesized_solution", "validation_result": {"efs": 0.85}}
+        self._create_fragment("orchestration", result, {"success_impact": 0.9})
+        return result
+
+    def _end_of_run(self, run_data: Dict):
+        """End-of-run analysis — per-loop scoring, lineage tying, active sampling, push decision."""
+        final_candidate = run_data.get("best_solution", "")
+        current_loop_efs = self.validator.compute_authoritative_efs(final_candidate, verification_spec=run_data.get("verification_spec", ""))
+
+        # Per-loop EFS lift delta
+        efs_lift_delta = current_loop_efs - self.previous_loop_efs
+        self.previous_loop_efs = current_loop_efs
+
+        # Impact-based scoring of all stored fragments
+        for fragment in self.fragment_tracker:
+            impact = self.scoring_module.compute_impact(fragment, run_data) * (1 + 0.5 * efs_lift_delta)
+            fragment["final_impact_score"] = impact
+            fragment["provenance"]["lineage"].append(final_candidate)
+
+        # Active/adaptive sampling in escalation
+        if self._should_escalate_to_full_verification(run_data):
+            full_efs = self.validator.compute_authoritative_efs(final_candidate, full_spec=True)
+            run_data["validation_result"]["efs"] = full_efs
+
+        # Push decision to Synapse
+        high_impact_fragments = [f for f in self.fragment_tracker if f["final_impact_score"] >= 0.75]
+        gaps_and_telemetry = {"gaps": run_data.get("gaps", []), "telemetry": run_data, "efs_lift_delta": efs_lift_delta}
+
+        try:
+            synapse_client.sync_ingest_fragments(
+                fragments=high_impact_fragments,
+                telemetry=gaps_and_telemetry,
+                em_instance_id=self.em_instance_id,
+                run_id=run_data.get("run_id")
+            )
+            logger.info(f"✅ {len(high_impact_fragments)} high-impact fragments + gaps/telemetry pushed to Synapse")
+        except Exception as e:
+            logger.error(f"Failed to push to Synapse: {e}")
+
+        # Clear temporary storage
+        self.fragment_tracker = []
+
+    def _should_escalate_to_full_verification(self, run_data: Dict) -> bool:
+        """Active/adaptive sampling decision."""
+        uncertainty = run_data.get("surrogate_uncertainty", 0.5)
+        predicted_efs = run_data.get("surrogate_predicted_efs", 0.0)
+        return uncertainty > 0.4 or predicted_efs < 0.75
+
+    def kas_targeted_hunt(self, stage: str, data: Dict, verification_spec: str = "") -> Dict:
+        """Targeted KAS hook (called from planning or surrogate strategy)."""
+        # Placeholder for KAS call — returns insight for surrogate/MOPE strategy
+        return {"surrogate_strategy": "multi_fidelity", "recommended_kernel": "matern"}
+
+# end of grok skeleton
+
+    # Legacy helper methods from old ArbosManager (kept for full compatibility)
+    def _run_flight_test(self): pass
+    def initial_setup_wizard(self, inputs): pass
+    def load_model_registry(self): pass
+    def _validate_compute_source(self, source: str) -> bool: pass
+    def _estimate_run_cost(self, max_budget: float) -> float: pass
+    def _load_model_registry(self) -> Dict: pass
+
+    # Additional legacy methods can be added here as needed
+    
     # ====================== MODEL REGISTRY (v5.1.3 - Cleaned) ======================
     def _load_model_registry(self) -> Dict:
         """EXACT legacy method + maximum intelligence upgrades.
