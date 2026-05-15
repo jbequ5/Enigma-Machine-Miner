@@ -1,3 +1,167 @@
+    def generate_verifiability_contract(self, task: str, goal_md: str = "", verification_spec: str = "") -> Dict:
+        """v0.9.15 — Top-tier Verifiability Contract generator with Full SAGE Commons + Encryption + Wizard Gate
+        + Physics Backbone (PINO/Neural Operator Bank + MoDE + TeamComposer).
+        Strict structure, high quality, 7D verifier snippets, Commons strategy pull, strong self-critique,
+        and precise initial team composition + verifier checklist to ensure the DVRP pipeline has a solid
+        physics-aware foundation. All original logic fully preserved and enhanced with cross-version synergy."""
+
+        # ====================== v0.9.10 WIZARD READINESS GATE ======================
+        # Enforce wizard completion before contract generation (critical for 7D quality)
+        wizard_status = getattr(self, "_last_wizard_status", None)
+        if not wizard_status or not wizard_status.get("ready", False):
+            logger.warning("Contract generation called before wizard completion — forcing re-validation")
+            wizard_status = self.initial_setup_wizard({"compute_source": getattr(self, "compute_source", "local_gpu")})
+            self._last_wizard_status = wizard_status
+            if not wizard_status.get("ready", False):
+                self._append_trace("contract_wizard_gate_failed", "Wizard readiness gate failed")
+                return {"error": "Setup wizard readiness gate failed", "issues": wizard_status.get("issues", [])}
+        # ===========================================================================
+
+        # Strict base template we control — original logic preserved
+        base_contract = {
+            "version": "1.2",
+            "challenge_summary": task[:600],
+            "artifacts_required": [],
+            "composability_rules": [
+                "All artifacts must be independently verifiable by the oracle",
+                "No internal contradictions between subtask outputs",
+                "Final merged candidate must be a single coherent executable solution",
+                "Every artifact must contribute to at least one dry_run_success_criteria"
+            ],
+            "dry_run_success_criteria": {
+                "edge_coverage": ">= 0.75",
+                "invariant_tightness": ">= 0.70",
+                "fidelity": ">= 0.78",
+                "c3a_confidence": ">= 0.78",
+                "EFS": ">= 0.65",
+                "minimum_artifacts_covered": ">= 90%"
+            },
+            "synthesis_guidance": "",
+            "learning_mandate": "Every run must write full stigmergic trace, heterogeneity breakdown, decision journal entry, and ByteRover promotion decision."
+        }
+
+        # v0.9.10+ Pull latest contract strategies from SAGE Commons meta-agent
+        commons_strategies = {}
+        if hasattr(self, "commons_meta_agent") and getattr(self, "enable_commons_pull", True):
+            commons_strategies = self.commons_meta_agent.query_strategies(
+                task_type="contract_generation", 
+                domain=self._extract_domain_from_challenge(task),
+                limit=4
+            )
+            if commons_strategies:
+                logger.info(f"Pulling {len(commons_strategies)} contract strategies from SAGE Commons")
+
+        prompt = f"""You are Orchestrator Arbos — formal contract writer for the SN63 DVRP pipeline.
+GOAL CONTEXT:
+{goal_md[:4000]}
+CHALLENGE:
+{task}
+
+Commons strategies (use if relevant):
+{json.dumps(commons_strategies, indent=2) if commons_strategies else "None"}
+
+Create a high-quality, precise Verifiability Contract.
+Return ONLY valid JSON using this exact structure. Do not add or remove top-level keys.
+Focus especially on:
+- artifacts_required: Be concrete, measurable, and comprehensive (minimum 3-5 artifacts)
+- composability_rules: Add 3-6 specific, actionable rules for this challenge
+- synthesis_guidance: Clear, detailed instructions for Synthesis Arbos on how to merge
+After creating the contract, critique it internally for completeness and feasibility."""
+
+        model_config = self.load_model_registry(role="planner")
+        raw = self.harness.call_llm(prompt, temperature=0.32, max_tokens=1600, model_config=model_config)
+       
+        llm_output = self._safe_parse_json(raw)
+
+        # Merge and enforce structure — original logic preserved
+        final_contract = {**base_contract, **llm_output}
+
+        # Quality enforcement gates — original logic preserved + enhanced
+        if len(final_contract.get("artifacts_required", [])) < 3:
+            logger.warning("Contract had too few artifacts — adding minimum viable set")
+            final_contract["artifacts_required"] = list(dict.fromkeys(
+                final_contract.get("artifacts_required", []) +
+                ["core_solution", "verification_evidence", "edge_case_results", "performance_metrics"]
+            ))[:6]
+
+        if len(final_contract.get("composability_rules", [])) < 5:
+            final_contract["composability_rules"].extend([
+                "All outputs must be mergeable without loss of verifier coverage",
+                "Maintain deterministic behavior where possible"
+            ])
+
+        # 7D Verifier Snippet Generation + Self-Check (v0.9.9 hardening)
+        if "verifier_code_snippets" not in final_contract:
+            final_contract["verifier_code_snippets"] = self._generate_7d_verifier_snippets(
+                final_contract["artifacts_required"], task
+            )
+
+        # Self-critique pass — original logic preserved
+        critique_prompt = f"Critique this contract for gaps or weaknesses:\n{json.dumps(final_contract, indent=2)}"
+        critique_raw = self.harness.call_llm(critique_prompt, temperature=0.3, max_tokens=800, model_config=model_config)
+        critique = self._safe_parse_json(critique_raw)
+        if isinstance(critique, dict) and "improvements" in critique:
+            final_contract["self_critique"] = critique.get("improvements", [])
+
+        # v0.9.11 Encryption readiness flag for high-signal artifacts
+        final_contract["encryption_ready"] = hasattr(self, "encryption") and self.encryption is not None
+
+        logger.info(f"✅ High-quality Verifiability Contract generated — {len(final_contract['artifacts_required'])} artifacts | Rules: {len(final_contract['composability_rules'])}")
+
+        # ====================== v0.9.15 PHYSICS BACKBONE INTEGRATION ======================
+        # After contract is fully built, generate precise initial team composition + verifier checklist
+        # This gives planning/orchestration the exact recipe needed for the entire pipeline.
+        team_recipe = self._get_team_composition(task, {
+            "goal_md": goal_md,
+            "verification_spec": verification_spec,
+            "verifiability_contract": final_contract
+        })
+
+        # Enrich the contract with full planning/orchestration details (spec-compliant)
+        final_contract["team_composition"] = team_recipe.get("recipe", {})
+        final_contract["verifier_checklist"] = team_recipe.get("verifier_checklist", [])
+        final_contract["shadow_test_results"] = team_recipe.get("shadow_results", {})
+        final_contract["team_composition_id"] = team_recipe.get("team_composition_id")
+        final_contract["physics_guidance"] = {
+            "recommended_engines": team_recipe.get("recipe", {}).get("engines", []),
+            "mode_specialists": team_recipe.get("recipe", {}).get("mode_specialists", []),
+            "gating_strategy": team_recipe.get("recipe", {}).get("gating_strategy", "domain_signal_weighted")
+        }
+
+        # === SOTA BUSINESSDEV EARLY SENSING (gap-based lead intelligence) ===
+        if hasattr(self, '_trigger_business_dev_intelligently'):
+            self._trigger_business_dev_intelligently(
+                context=f"Contract generation phase — detected gaps in {task[:100]}",
+                force=False
+            )
+
+        # NEW: Create fragment from this decision (locked fragment lifecycle + full v0.9.15 physics metadata)
+        self._create_fragment("contract_generation", final_contract, {
+            "composability": 0.95,
+            "self_critique_quality": len(critique.get("improvements", [])),
+            "commons_strategies_used": len(commons_strategies),
+            "encryption_ready": final_contract["encryption_ready"],
+            "artifact_count": len(final_contract.get("artifacts_required", [])),
+            # v0.9.15 physics fields
+            "team_composition": final_contract.get("team_composition_id"),
+            "bank_engines_used": final_contract.get("physics_guidance", {}).get("recommended_engines"),
+            "verifier_checklist_results": final_contract.get("verifier_checklist"),
+            "physics_residuals": {},  # populated downstream by bank engines
+            "uncertainty_map": {}     # populated downstream by surrogate manager
+        })
+
+        return {
+            "contract_generated": True,
+            "final_verifiability_contract": final_contract,
+            "self_critique": critique,
+            "commons_strategies_used": len(commons_strategies),
+            "encryption_ready": final_contract["encryption_ready"],
+            # v0.9.15 enriched fields for downstream planning/orchestration
+            "team_composition": final_contract.get("team_composition"),
+            "verifier_checklist": final_contract.get("verifier_checklist"),
+            "shadow_test_results": final_contract.get("shadow_test_results")
+        }
+
 import json
 import logging
 import time
