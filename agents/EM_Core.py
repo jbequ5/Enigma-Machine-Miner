@@ -1,3 +1,241 @@
+# grok Skeleton 
+# core_arbos_manager.py
+# SAGE v0.9.14+ — Core Enigma Machine (EM) Instance
+# Monolithic reference for HumanArbosManager and AgentArbosManager
+# Locked fragment lifecycle + surrogate-expert layer + targeted KAS + full IOS integration
+
+import json
+import logging
+import time
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+import numpy as np
+
+from solve_fragment_scoring import SolveFragmentScoringModule
+from validation_oracle import ValidationOracle
+from synapse_client import synapse_client
+
+logger = logging.getLogger(__name__)
+
+class CoreArbosManager:
+    def __init__(self):
+        self.fragment_tracker = []  # Temporary storage for birth-gate-passed fragments
+        self.scoring_module = SolveFragmentScoringModule()
+        self.validator = ValidationOracle()
+        self.extra_context = ""
+        self.previous_loop_efs = 0.0
+        self.em_instance_id = None
+        logger.info("✅ CoreArbosManager initialized — locked fragment lifecycle + surrogate layer active")
+
+    def _create_fragment(self, stage: str, decision_data: Dict, impact_metrics: Dict = None) -> Dict:
+        """Generate fragment from ANY stage. Birth gate + uncertainty calibration applied immediately."""
+        fragment = {
+            "fragment_id": f"frag_{int(time.time())}_{hash(str(decision_data)) % 100000}",
+            "stage": stage,
+            "decision_data": decision_data,
+            "impact_metrics": impact_metrics or {},
+            "timestamp": datetime.now().isoformat(),
+            "provenance": {"em_instance_id": self.em_instance_id or "unknown", "lineage": []}
+        }
+
+        # Birth gate + uncertainty calibration
+        if self.scoring_module.birth_gate_check(fragment) and self._uncertainty_heuristic(fragment):
+            self.fragment_tracker.append(fragment)
+            logger.debug(f"Fragment passed birth gate + uncertainty check — stage: {stage}")
+            return fragment
+        return None
+
+    def _uncertainty_heuristic(self, fragment: Dict) -> bool:
+        """Cheap uncertainty calibration for birth gate."""
+        decision_text = str(fragment["decision_data"])
+        entropy_proxy = len(set(decision_text.split())) / len(decision_text.split()) if decision_text else 0
+        return entropy_proxy > 0.3
+
+    def generate_verifiability_contract(self, challenge: str, enhancement_prompt: str = "", verification_spec: str = "") -> Dict:
+        """Contract generation — produces fragments."""
+        contract = {"challenge": challenge, "enhancement_prompt": enhancement_prompt, "verification_spec": verification_spec}
+        self._create_fragment("contract_generation", contract, {"composability": 0.95})
+        return contract
+
+    def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu", verification_spec: str = "") -> Dict[str, Any]:
+        """Best-version Planning Arbos — Full Continuous Intelligence + SAGE Commons Integration.
+        Pre-contract ToolHunter hunt + Knowledge Bootstrap + Deterministic Reasoning Layer +
+        Commons meta-strategy pull + encryption readiness + BusinessDev early sensing + locked fragment lifecycle.
+        LLM-driven plan generation is the core decision point. No simplifications."""
+
+        self.set_compute_source(compute_mode)
+     
+        if not challenge or len(challenge.strip()) < 10:
+            return {"error": "Challenge too short"}
+
+        # Wizard readiness gate (critical enforcement)
+        wizard_status = getattr(self, "_last_wizard_status", None)
+        if not wizard_status or not wizard_status.get("ready", False):
+            wizard_status = self.initial_setup_wizard({"compute_source": compute_mode})
+            self._last_wizard_status = wizard_status
+            if not wizard_status.get("ready", False):
+                return {"error": "Setup wizard readiness gate failed", "issues": wizard_status.get("issues", [])}
+
+        # Pre-contract knowledge bootstrap + Commons pull
+        domain = self._extract_domain_from_challenge(challenge)
+        if getattr(self, "enable_continuous_knowledge_acquisition", True):
+            hunt_result = self.tool_hunter.hunt_for_all_compute_tools(priority_domains=[domain])
+            self.memory_layers.record_deep_hunt_success({
+                "new_fragments": hunt_result.get("new_fragments", 0), 
+                "phase": "pre_contract"
+            })
+            bootstrap_fragments = self.pattern_evolution_arbos.evolve_from_new_knowledge(
+                self.tool_hunter.get_latest_fragments(), challenge
+            )
+            self._current_bootstrap_insights = bootstrap_fragments
+
+            if hasattr(self, "commons_meta_agent") and getattr(self, "enable_commons_pull", True):
+                commons_strategies = self.commons_meta_agent.query_strategies(
+                    task_type="planning", domain=domain, limit=5
+                )
+                if commons_strategies:
+                    bootstrap_fragments.extend(commons_strategies)
+
+        # Rich prior context
+        recent_history = self.get_run_history(n=6)
+        grail_patterns = self._load_recent_grail_patterns()
+        wiki_deltas = self._apply_wiki_strategy(goal_md + "\n" + challenge, challenge.replace(" ", "_").lower())
+
+        # LLM-driven plan generation (core decision point)
+        planning_prompt = f"""You are Planning Arbos — master orchestrator for the SN63 Enigma Machine.
+GOAL CONTEXT:
+{goal_md[:4000]}
+CHALLENGE:
+{challenge}
+
+Commons strategies (use if relevant):
+{json.dumps(commons_strategies, indent=2) if 'commons_strategies' in locals() else "None"}
+
+Bootstrap insights from ToolHunter + Pattern Evolution:
+{json.dumps(getattr(self, "_current_bootstrap_insights", {}), indent=2)}
+
+Create a high-quality, precise plan for this challenge.
+Return ONLY valid JSON with this exact structure:
+{{
+  "decomposition": ["list of concrete subtasks"],
+  "reassembly_plan": "clear instructions for Synthesis Arbos on how to merge",
+  "dependency_graph": {{ "subtask1": ["depends_on_subtask2"] }},
+  "deterministic_first_paths": ["list of subtasks that should use deterministic reasoning"],
+  "heterogeneity_guidance": "specific recommendations for diversity across the swarm"
+}}"""
+
+        model_config = self.load_model_registry(role="planner")
+        raw_plan = self.harness.call_llm(planning_prompt, temperature=0.35, max_tokens=1400, model_config=model_config)
+        llm_plan = self._safe_parse_json(raw_plan)
+
+        # Merge with any deterministic results and prior context
+        plan = {
+            "decomposition": llm_plan.get("decomposition", []),
+            "reassembly_plan": llm_plan.get("reassembly_plan", ""),
+            "dependency_graph": llm_plan.get("dependency_graph", {}),
+            "deterministic_first_paths": llm_plan.get("deterministic_first_paths", []),
+            "heterogeneity_guidance": llm_plan.get("heterogeneity_guidance", "")
+        }
+
+        # Deterministic Reasoning Layer (applied to decomposition)
+        deterministic_results = {}
+        if getattr(self, "enable_deterministic_reasoning", True):
+            for subtask in plan.get("decomposition", []):
+                contract_slice = contract_result.get("final_verifiability_contract", {}).get(subtask, {})
+                det_result = self.deterministic_layer.route_to_backend(subtask, contract_slice, self)
+                if det_result.get("status") == "deterministic_success":
+                    deterministic_results[subtask] = det_result
+
+        # Weighted Hybrid Deterministic-First Score (DFS)
+        total_subtasks = len(plan.get("decomposition", []))
+        det_routed = len(deterministic_results)
+        self._current_deterministic_fraction = det_routed / max(1, total_subtasks)
+        self._current_deterministic_results = deterministic_results
+
+        # Structured handoff to Orchestrator Phase 2
+        orchestrator_input = {
+            "human_refinement": enhancement_prompt,
+            "verifiability_contract": contract_result["final_verifiability_contract"],
+            "decomposition": plan.get("decomposition", []),
+            "reassembly_plan": plan.get("reassembly_plan", ""),
+            "dependency_graph": plan.get("dependency_graph", {}),
+            "initial_verifier_snippets": contract_result.get("verifier_code_snippets", []),
+            "prior_lessons": {
+                "recent_history": recent_history,
+                "grail_patterns": grail_patterns,
+                "wiki_deltas": wiki_deltas
+            },
+            "deterministic_results": deterministic_results,
+            "bootstrap_insights": getattr(self, "_current_bootstrap_insights", {}),
+            "deterministic_fraction": self._current_deterministic_fraction,
+            "commons_strategies": getattr(self, "_current_commons_strategies", {})
+        }
+
+        # Hand off to Orchestrator Arbos
+        execution_result = self.orchestrate_subarbos(
+            task=challenge,
+            goal_md=goal_md,
+            orchestrator_input=orchestrator_input
+        )
+
+        self._current_strategy = self.analyzer.analyze("", challenge)
+        self.validator.adapt_scoring(self._current_strategy)
+
+        # Deep graph search + borrowing high-signal fragments
+        plan["borrowed_fragments"] = []
+        for subtask in plan.get("decomposition", []):
+            borrowed = self._borrow_fragment_for_subtask(subtask, orchestrator_input.get("verifiability_contract", {}))
+            if borrowed:
+                plan["borrowed_fragments"].append(borrowed)
+
+        # ToolHunter → Real Compute Engine registration
+        if hasattr(self, 'real_compute_engine'):
+            recommended_tools = []
+            if isinstance(execution_result, dict):
+                recommended_tools = (
+                    execution_result.get("recommended_tools", []) or
+                    execution_result.get("tools", []) or
+                    execution_result.get("proposals", [])
+                )
+            self.real_compute_engine.register_recommendations(recommended_tools)
+
+        # Auto-experiment + BusinessDev early sensing
+        if getattr(self, "enable_auto_experiment", True):
+            self.run_scientist_mode(intent=None)
+        self.trigger_business_dev_intelligence(
+            context="Pre-mission alpha demand sensing during planning",
+            force=True
+        )
+
+        # Targeted KAS hook for surrogate/MOPE strategy
+        kas_insight = self.kas_targeted_hunt("planning", plan, verification_spec)
+
+        # === NEW: Create fragment from this planning decision (locked fragment lifecycle) ===
+        self._create_fragment("planning", plan, {
+            "dvrp_passed": self.validator.dry_run_verification(plan, verification_spec),  # real DVRP call
+            "kas_insight": kas_insight,
+            "deterministic_fraction": self._current_deterministic_fraction,
+            "borrowed_fragments_count": len(plan.get("borrowed_fragments", [])),
+            "proxy_impact": 0.8 if self.validator.dry_run_verification(plan, verification_spec) else 0.4  # real proxy based on DVRP
+        })
+
+        return {
+            "phase1": contract_result,
+            "phase2": execution_result,
+            "adapted_strategy": self._current_strategy,
+            "dynamic_swarm_size": execution_result.get("dynamic_swarm_size", 6),
+            "human_refinement": enhancement_prompt,
+            "verifiability_contract": orchestrator_input["verifiability_contract"],
+            "structured_handoff": True,
+            "borrowed_fragments": plan.get("borrowed_fragments", []),
+            "deterministic_results": deterministic_results,
+            "bootstrap_insights": getattr(self, "_current_bootstrap_insights", {}),
+            "deterministic_subtasks_routed": len(deterministic_results),
+            "deterministic_fraction": round(self._current_deterministic_fraction * 100, 1),
+            "commons_strategies_pulled": len(getattr(self, "_current_commons_strategies", {}))
+        }
+
+    
     def orchestrate_subarbos(self, task: str, goal_md: str = "", previous_outputs: List[Any] = None,
                              orchestrator_input: Dict = None, verification_spec: str = "") -> Dict[str, Any]:
         """Maximum-intelligence Orchestrator Arbos — Full SAGE Commons + Encryption + Wizard Gate.
@@ -361,6 +599,68 @@
             "metrics": {"score": score, "efs": efs}
         }
 
+    def _end_of_run(self, run_data: Dict):
+        """End-of-run analysis — per-loop scoring, lineage tying, active sampling, push decision."""
+        final_candidate = run_data.get("best_solution", "")
+        current_loop_efs = self.validator.compute_authoritative_efs(final_candidate, verification_spec=run_data.get("verification_spec", ""))
+
+        # Per-loop EFS lift delta
+        efs_lift_delta = current_loop_efs - self.previous_loop_efs
+        self.previous_loop_efs = current_loop_efs
+
+        # Impact-based scoring of all stored fragments
+        for fragment in self.fragment_tracker:
+            impact = self.scoring_module.compute_impact(fragment, run_data) * (1 + 0.5 * efs_lift_delta)
+            fragment["final_impact_score"] = impact
+            fragment["provenance"]["lineage"].append(final_candidate)
+
+        # Active/adaptive sampling in escalation
+        if self._should_escalate_to_full_verification(run_data):
+            full_efs = self.validator.compute_authoritative_efs(final_candidate, full_spec=True)
+            run_data["validation_result"]["efs"] = full_efs
+
+        # Push decision to Synapse
+        high_impact_fragments = [f for f in self.fragment_tracker if f["final_impact_score"] >= 0.75]
+        gaps_and_telemetry = {"gaps": run_data.get("gaps", []), "telemetry": run_data, "efs_lift_delta": efs_lift_delta}
+
+        try:
+            synapse_client.sync_ingest_fragments(
+                fragments=high_impact_fragments,
+                telemetry=gaps_and_telemetry,
+                em_instance_id=self.em_instance_id,
+                run_id=run_data.get("run_id")
+            )
+            logger.info(f"✅ {len(high_impact_fragments)} high-impact fragments + gaps/telemetry pushed to Synapse")
+        except Exception as e:
+            logger.error(f"Failed to push to Synapse: {e}")
+
+        # Clear temporary storage
+        self.fragment_tracker = []
+
+    def _should_escalate_to_full_verification(self, run_data: Dict) -> bool:
+        """Active/adaptive sampling decision."""
+        uncertainty = run_data.get("surrogate_uncertainty", 0.5)
+        predicted_efs = run_data.get("surrogate_predicted_efs", 0.0)
+        return uncertainty > 0.4 or predicted_efs < 0.75
+
+    def kas_targeted_hunt(self, stage: str, data: Dict, verification_spec: str = "") -> Dict:
+        """Targeted KAS hook (called from planning or surrogate strategy)."""
+        # Placeholder for KAS call — returns insight for surrogate/MOPE strategy
+        return {"surrogate_strategy": "multi_fidelity", "recommended_kernel": "matern"}
+
+    # Legacy helper methods from old ArbosManager (kept for full compatibility)
+    def _run_flight_test(self): pass
+    def initial_setup_wizard(self, inputs): pass
+    def load_model_registry(self): pass
+    def _validate_compute_source(self, source: str) -> bool: pass
+    def _estimate_run_cost(self, max_budget: float) -> float: pass
+    def _load_model_registry(self) -> Dict: pass
+
+# end of grok skeleton
+
+# LEGACY CODE AND METHODS FROM HERE ON OUT
+
+    # Additional legacy methods can be added here as needed
 import os
 import subprocess
 import json
@@ -639,315 +939,7 @@ def __init__(self, goal_file: str = "goals/killer_base.md"):
     self.real_compute_engine.tool_hunter = self.tool_hunter
     self.real_compute_engine.memory_layers = self.memory_layers
 
-    logger.info("✅ v0.9.11 ArbosManager __init__ completed — full wiring done")
-
-# grok Skeleton 
-# core_arbos_manager.py
-# SAGE v0.9.14+ — Core Enigma Machine (EM) Instance
-# Monolithic reference for HumanArbosManager and AgentArbosManager
-# Locked fragment lifecycle + surrogate-expert layer + targeted KAS + full IOS integration
-
-import json
-import logging
-import time
-from datetime import datetime
-from typing import Dict, Any, List, Optional
-import numpy as np
-
-from solve_fragment_scoring import SolveFragmentScoringModule
-from validation_oracle import ValidationOracle
-from synapse_client import synapse_client
-
-logger = logging.getLogger(__name__)
-
-class CoreArbosManager:
-    def __init__(self):
-        self.fragment_tracker = []  # Temporary storage for birth-gate-passed fragments
-        self.scoring_module = SolveFragmentScoringModule()
-        self.validator = ValidationOracle()
-        self.extra_context = ""
-        self.previous_loop_efs = 0.0
-        self.em_instance_id = None
-        logger.info("✅ CoreArbosManager initialized — locked fragment lifecycle + surrogate layer active")
-
-    def _create_fragment(self, stage: str, decision_data: Dict, impact_metrics: Dict = None) -> Dict:
-        """Generate fragment from ANY stage. Birth gate + uncertainty calibration applied immediately."""
-        fragment = {
-            "fragment_id": f"frag_{int(time.time())}_{hash(str(decision_data)) % 100000}",
-            "stage": stage,
-            "decision_data": decision_data,
-            "impact_metrics": impact_metrics or {},
-            "timestamp": datetime.now().isoformat(),
-            "provenance": {"em_instance_id": self.em_instance_id or "unknown", "lineage": []}
-        }
-
-        # Birth gate + uncertainty calibration
-        if self.scoring_module.birth_gate_check(fragment) and self._uncertainty_heuristic(fragment):
-            self.fragment_tracker.append(fragment)
-            logger.debug(f"Fragment passed birth gate + uncertainty check — stage: {stage}")
-            return fragment
-        return None
-
-    def _uncertainty_heuristic(self, fragment: Dict) -> bool:
-        """Cheap uncertainty calibration for birth gate."""
-        decision_text = str(fragment["decision_data"])
-        entropy_proxy = len(set(decision_text.split())) / len(decision_text.split()) if decision_text else 0
-        return entropy_proxy > 0.3
-
-    def generate_verifiability_contract(self, challenge: str, enhancement_prompt: str = "", verification_spec: str = "") -> Dict:
-        """Contract generation — produces fragments."""
-        contract = {"challenge": challenge, "enhancement_prompt": enhancement_prompt, "verification_spec": verification_spec}
-        self._create_fragment("contract_generation", contract, {"composability": 0.95})
-        return contract
-
-    def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu", verification_spec: str = "") -> Dict[str, Any]:
-        """Best-version Planning Arbos — Full Continuous Intelligence + SAGE Commons Integration.
-        Pre-contract ToolHunter hunt + Knowledge Bootstrap + Deterministic Reasoning Layer +
-        Commons meta-strategy pull + encryption readiness + BusinessDev early sensing + locked fragment lifecycle.
-        LLM-driven plan generation is the core decision point. No simplifications."""
-
-        self.set_compute_source(compute_mode)
-     
-        if not challenge or len(challenge.strip()) < 10:
-            return {"error": "Challenge too short"}
-
-        # Wizard readiness gate (critical enforcement)
-        wizard_status = getattr(self, "_last_wizard_status", None)
-        if not wizard_status or not wizard_status.get("ready", False):
-            wizard_status = self.initial_setup_wizard({"compute_source": compute_mode})
-            self._last_wizard_status = wizard_status
-            if not wizard_status.get("ready", False):
-                return {"error": "Setup wizard readiness gate failed", "issues": wizard_status.get("issues", [])}
-
-        # Pre-contract knowledge bootstrap + Commons pull
-        domain = self._extract_domain_from_challenge(challenge)
-        if getattr(self, "enable_continuous_knowledge_acquisition", True):
-            hunt_result = self.tool_hunter.hunt_for_all_compute_tools(priority_domains=[domain])
-            self.memory_layers.record_deep_hunt_success({
-                "new_fragments": hunt_result.get("new_fragments", 0), 
-                "phase": "pre_contract"
-            })
-            bootstrap_fragments = self.pattern_evolution_arbos.evolve_from_new_knowledge(
-                self.tool_hunter.get_latest_fragments(), challenge
-            )
-            self._current_bootstrap_insights = bootstrap_fragments
-
-            if hasattr(self, "commons_meta_agent") and getattr(self, "enable_commons_pull", True):
-                commons_strategies = self.commons_meta_agent.query_strategies(
-                    task_type="planning", domain=domain, limit=5
-                )
-                if commons_strategies:
-                    bootstrap_fragments.extend(commons_strategies)
-
-        # Rich prior context
-        recent_history = self.get_run_history(n=6)
-        grail_patterns = self._load_recent_grail_patterns()
-        wiki_deltas = self._apply_wiki_strategy(goal_md + "\n" + challenge, challenge.replace(" ", "_").lower())
-
-        # LLM-driven plan generation (core decision point)
-        planning_prompt = f"""You are Planning Arbos — master orchestrator for the SN63 Enigma Machine.
-GOAL CONTEXT:
-{goal_md[:4000]}
-CHALLENGE:
-{challenge}
-
-Commons strategies (use if relevant):
-{json.dumps(commons_strategies, indent=2) if 'commons_strategies' in locals() else "None"}
-
-Bootstrap insights from ToolHunter + Pattern Evolution:
-{json.dumps(getattr(self, "_current_bootstrap_insights", {}), indent=2)}
-
-Create a high-quality, precise plan for this challenge.
-Return ONLY valid JSON with this exact structure:
-{{
-  "decomposition": ["list of concrete subtasks"],
-  "reassembly_plan": "clear instructions for Synthesis Arbos on how to merge",
-  "dependency_graph": {{ "subtask1": ["depends_on_subtask2"] }},
-  "deterministic_first_paths": ["list of subtasks that should use deterministic reasoning"],
-  "heterogeneity_guidance": "specific recommendations for diversity across the swarm"
-}}"""
-
-        model_config = self.load_model_registry(role="planner")
-        raw_plan = self.harness.call_llm(planning_prompt, temperature=0.35, max_tokens=1400, model_config=model_config)
-        llm_plan = self._safe_parse_json(raw_plan)
-
-        # Merge with any deterministic results and prior context
-        plan = {
-            "decomposition": llm_plan.get("decomposition", []),
-            "reassembly_plan": llm_plan.get("reassembly_plan", ""),
-            "dependency_graph": llm_plan.get("dependency_graph", {}),
-            "deterministic_first_paths": llm_plan.get("deterministic_first_paths", []),
-            "heterogeneity_guidance": llm_plan.get("heterogeneity_guidance", "")
-        }
-
-        # Deterministic Reasoning Layer (applied to decomposition)
-        deterministic_results = {}
-        if getattr(self, "enable_deterministic_reasoning", True):
-            for subtask in plan.get("decomposition", []):
-                contract_slice = contract_result.get("final_verifiability_contract", {}).get(subtask, {})
-                det_result = self.deterministic_layer.route_to_backend(subtask, contract_slice, self)
-                if det_result.get("status") == "deterministic_success":
-                    deterministic_results[subtask] = det_result
-
-        # Weighted Hybrid Deterministic-First Score (DFS)
-        total_subtasks = len(plan.get("decomposition", []))
-        det_routed = len(deterministic_results)
-        self._current_deterministic_fraction = det_routed / max(1, total_subtasks)
-        self._current_deterministic_results = deterministic_results
-
-        # Structured handoff to Orchestrator Phase 2
-        orchestrator_input = {
-            "human_refinement": enhancement_prompt,
-            "verifiability_contract": contract_result["final_verifiability_contract"],
-            "decomposition": plan.get("decomposition", []),
-            "reassembly_plan": plan.get("reassembly_plan", ""),
-            "dependency_graph": plan.get("dependency_graph", {}),
-            "initial_verifier_snippets": contract_result.get("verifier_code_snippets", []),
-            "prior_lessons": {
-                "recent_history": recent_history,
-                "grail_patterns": grail_patterns,
-                "wiki_deltas": wiki_deltas
-            },
-            "deterministic_results": deterministic_results,
-            "bootstrap_insights": getattr(self, "_current_bootstrap_insights", {}),
-            "deterministic_fraction": self._current_deterministic_fraction,
-            "commons_strategies": getattr(self, "_current_commons_strategies", {})
-        }
-
-        # Hand off to Orchestrator Arbos
-        execution_result = self.orchestrate_subarbos(
-            task=challenge,
-            goal_md=goal_md,
-            orchestrator_input=orchestrator_input
-        )
-
-        self._current_strategy = self.analyzer.analyze("", challenge)
-        self.validator.adapt_scoring(self._current_strategy)
-
-        # Deep graph search + borrowing high-signal fragments
-        plan["borrowed_fragments"] = []
-        for subtask in plan.get("decomposition", []):
-            borrowed = self._borrow_fragment_for_subtask(subtask, orchestrator_input.get("verifiability_contract", {}))
-            if borrowed:
-                plan["borrowed_fragments"].append(borrowed)
-
-        # ToolHunter → Real Compute Engine registration
-        if hasattr(self, 'real_compute_engine'):
-            recommended_tools = []
-            if isinstance(execution_result, dict):
-                recommended_tools = (
-                    execution_result.get("recommended_tools", []) or
-                    execution_result.get("tools", []) or
-                    execution_result.get("proposals", [])
-                )
-            self.real_compute_engine.register_recommendations(recommended_tools)
-
-        # Auto-experiment + BusinessDev early sensing
-        if getattr(self, "enable_auto_experiment", True):
-            self.run_scientist_mode(intent=None)
-        self.trigger_business_dev_intelligence(
-            context="Pre-mission alpha demand sensing during planning",
-            force=True
-        )
-
-        # Targeted KAS hook for surrogate/MOPE strategy
-        kas_insight = self.kas_targeted_hunt("planning", plan, verification_spec)
-
-        # === NEW: Create fragment from this planning decision (locked fragment lifecycle) ===
-        self._create_fragment("planning", plan, {
-            "dvrp_passed": self.validator.dry_run_verification(plan, verification_spec),  # real DVRP call
-            "kas_insight": kas_insight,
-            "deterministic_fraction": self._current_deterministic_fraction,
-            "borrowed_fragments_count": len(plan.get("borrowed_fragments", [])),
-            "proxy_impact": 0.8 if self.validator.dry_run_verification(plan, verification_spec) else 0.4  # real proxy based on DVRP
-        })
-
-        return {
-            "phase1": contract_result,
-            "phase2": execution_result,
-            "adapted_strategy": self._current_strategy,
-            "dynamic_swarm_size": execution_result.get("dynamic_swarm_size", 6),
-            "human_refinement": enhancement_prompt,
-            "verifiability_contract": orchestrator_input["verifiability_contract"],
-            "structured_handoff": True,
-            "borrowed_fragments": plan.get("borrowed_fragments", []),
-            "deterministic_results": deterministic_results,
-            "bootstrap_insights": getattr(self, "_current_bootstrap_insights", {}),
-            "deterministic_subtasks_routed": len(deterministic_results),
-            "deterministic_fraction": round(self._current_deterministic_fraction * 100, 1),
-            "commons_strategies_pulled": len(getattr(self, "_current_commons_strategies", {}))
-        }
-
-    
-    def orchestrate_subarbos(self, task: str, goal_md: str, orchestrator_input: Dict, verification_spec: str = "") -> Dict:
-        """Orchestration — produces fragments from every subtask and decision."""
-        # Subtask execution calls _create_fragment for every decision
-        result = {"merged_candidate": "synthesized_solution", "validation_result": {"efs": 0.85}}
-        self._create_fragment("orchestration", result, {"success_impact": 0.9})
-        return result
-
-    def _end_of_run(self, run_data: Dict):
-        """End-of-run analysis — per-loop scoring, lineage tying, active sampling, push decision."""
-        final_candidate = run_data.get("best_solution", "")
-        current_loop_efs = self.validator.compute_authoritative_efs(final_candidate, verification_spec=run_data.get("verification_spec", ""))
-
-        # Per-loop EFS lift delta
-        efs_lift_delta = current_loop_efs - self.previous_loop_efs
-        self.previous_loop_efs = current_loop_efs
-
-        # Impact-based scoring of all stored fragments
-        for fragment in self.fragment_tracker:
-            impact = self.scoring_module.compute_impact(fragment, run_data) * (1 + 0.5 * efs_lift_delta)
-            fragment["final_impact_score"] = impact
-            fragment["provenance"]["lineage"].append(final_candidate)
-
-        # Active/adaptive sampling in escalation
-        if self._should_escalate_to_full_verification(run_data):
-            full_efs = self.validator.compute_authoritative_efs(final_candidate, full_spec=True)
-            run_data["validation_result"]["efs"] = full_efs
-
-        # Push decision to Synapse
-        high_impact_fragments = [f for f in self.fragment_tracker if f["final_impact_score"] >= 0.75]
-        gaps_and_telemetry = {"gaps": run_data.get("gaps", []), "telemetry": run_data, "efs_lift_delta": efs_lift_delta}
-
-        try:
-            synapse_client.sync_ingest_fragments(
-                fragments=high_impact_fragments,
-                telemetry=gaps_and_telemetry,
-                em_instance_id=self.em_instance_id,
-                run_id=run_data.get("run_id")
-            )
-            logger.info(f"✅ {len(high_impact_fragments)} high-impact fragments + gaps/telemetry pushed to Synapse")
-        except Exception as e:
-            logger.error(f"Failed to push to Synapse: {e}")
-
-        # Clear temporary storage
-        self.fragment_tracker = []
-
-    def _should_escalate_to_full_verification(self, run_data: Dict) -> bool:
-        """Active/adaptive sampling decision."""
-        uncertainty = run_data.get("surrogate_uncertainty", 0.5)
-        predicted_efs = run_data.get("surrogate_predicted_efs", 0.0)
-        return uncertainty > 0.4 or predicted_efs < 0.75
-
-    def kas_targeted_hunt(self, stage: str, data: Dict, verification_spec: str = "") -> Dict:
-        """Targeted KAS hook (called from planning or surrogate strategy)."""
-        # Placeholder for KAS call — returns insight for surrogate/MOPE strategy
-        return {"surrogate_strategy": "multi_fidelity", "recommended_kernel": "matern"}
-
-    # Legacy helper methods from old ArbosManager (kept for full compatibility)
-    def _run_flight_test(self): pass
-    def initial_setup_wizard(self, inputs): pass
-    def load_model_registry(self): pass
-    def _validate_compute_source(self, source: str) -> bool: pass
-    def _estimate_run_cost(self, max_budget: float) -> float: pass
-    def _load_model_registry(self) -> Dict: pass
-
-# end of grok skeleton
-
-
-    # Additional legacy methods can be added here as needed
-    
+    logger.info("✅ v0.9.11 ArbosManager __init__ completed — full wiring done")    
     # ====================== MODEL REGISTRY (v5.1.3 - Cleaned) ======================
     def _load_model_registry(self) -> Dict:
         """EXACT legacy method + maximum intelligence upgrades.
