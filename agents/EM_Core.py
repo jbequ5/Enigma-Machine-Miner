@@ -1,3 +1,100 @@
+# grok Skeleton 
+# core_arbos_manager.py
+# SAGE v0.9.14+ — Core Enigma Machine (EM) Instance
+# Monolithic reference for HumanArbosManager and AgentArbosManager
+# Locked fragment lifecycle + surrogate-expert layer + targeted KAS + full IOS integration
+
+import json
+import logging
+import time
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+import numpy as np
+
+# ====================== v0.9.15 NEW PHYSICS BACKBONE IMPORTS ======================
+from sage.arbos.physics.neural_operator_bank import NeuralOperatorBank
+from sage.arbos.experts.mode import MoDE
+from sage.arbos.ios.team_composer import TeamComposer
+# =================================================================================
+
+from solve_fragment_scoring import SolveFragmentScoringModule
+from validation_oracle import ValidationOracle
+from synapse_client import synapse_client
+
+logger = logging.getLogger(__name__)
+
+class CoreArbosManager:
+    def __init__(self):
+        self.fragment_tracker = []  # Temporary storage for birth-gate-passed fragments
+        self.scoring_module = SolveFragmentScoringModule()
+        self.validator = ValidationOracle()
+        self.extra_context = ""
+        self.previous_loop_efs = 0.0
+        self.em_instance_id = None
+        logger.info("✅ CoreArbosManager initialized — locked fragment lifecycle + surrogate layer active")
+
+        # Locked fragment lifecycle components
+        self.fragment_tracker = []  # Temporary storage for birth-gate-passed fragments
+        self.scoring_module = SolveFragmentScoringModule()
+        self.validator = ValidationOracle()
+        self.extra_context = ""
+        self.previous_loop_efs = 0.0
+        self.em_instance_id = None
+        logger.info("✅ CoreArbosManager initialized — locked fragment lifecycle + surrogate layer + v0.9.15 physics backbone active")
+
+    # ====================== FRAGMENT LIFECYCLE (locked + v0.9.15 physics fields) ======================
+    def _create_fragment(self, stage: str, decision_data: Dict, impact_metrics: Dict = None) -> Dict:
+        """Generate fragment from ANY stage. Birth gate + uncertainty calibration applied immediately.
+        Now includes full v0.9.15 physics metadata."""
+        fragment = {
+            "fragment_id": f"frag_{int(time.time())}_{hash(str(decision_data)) % 100000}",
+            "stage": stage,
+            "decision_data": decision_data,
+            "impact_metrics": impact_metrics or {},
+            "timestamp": datetime.now().isoformat(),
+            "provenance": {"em_instance_id": self.em_instance_id or "unknown", "lineage": []},
+            # v0.9.15 physics fields (automatically populated when present)
+            "team_composition": decision_data.get("team_composition"),
+            "bank_engines_used": decision_data.get("bank_engines_used"),
+            "verifier_checklist_results": decision_data.get("verifier_checklist_results"),
+            "physics_residuals": decision_data.get("physics_residuals"),
+            "uncertainty_map": decision_data.get("uncertainty_map")
+        }
+
+        # Birth gate + uncertainty calibration
+        if self.scoring_module.birth_gate_check(fragment) and self._uncertainty_heuristic(fragment):
+            self.fragment_tracker.append(fragment)
+            logger.debug(f"Fragment passed birth gate + uncertainty check — stage: {stage}")
+            return fragment
+        return None
+
+    # ====================== v0.9.15 TEAM COMPOSER HELPERS (full intelligence) ======================
+    def _get_team_composition(self, task: str, challenge_context: Dict[str, Any]) -> Dict[str, Any]:
+        """v0.9.15 — Precise team recipe + verifier checklist via TeamComposer (full shadow test + KAS guidance)."""
+        context = {
+            "task": task,
+            "goal_md": challenge_context.get("goal_md", ""),
+            "recent_fragments": self.get_run_history(n=3),
+            "verification_spec": challenge_context.get("verification_spec", "")
+        }
+        return self.team_composer.compose_team(task, context)
+    
+    def _condition_subtask_with_team(self, subtask: str, contract_slice: Dict, team_recipe: Dict) -> Dict:
+        """v0.9.15 — Condition subtask with selected bank engines + MoDE specialists (full physics conditioning)."""
+        logger.info(f"🔧 Conditioning subtask '{subtask[:80]}...' with team {team_recipe.get('team_composition_id')}")
+        # Real bank + MoDE conditioning happens in the hybrid worker (called from orchestrate_subarbos)
+        conditioned = contract_slice.copy()
+        conditioned["team_recipe"] = team_recipe["recipe"]
+        conditioned["bank_engines"] = team_recipe["recipe"]["engines"]
+        conditioned["mode_specialists"] = team_recipe["recipe"]["mode_specialists"]
+        return conditioned
+
+    def _uncertainty_heuristic(self, fragment: Dict) -> bool:
+        """Cheap uncertainty calibration for birth gate."""
+        decision_text = str(fragment["decision_data"])
+        entropy_proxy = len(set(decision_text.split())) / len(decision_text.split()) if decision_text else 0
+        return entropy_proxy > 0.3
+
     def generate_verifiability_contract(self, task: str, goal_md: str = "", verification_spec: str = "") -> Dict:
         """v0.9.15 — Top-tier Verifiability Contract generator with Full SAGE Commons + Encryption + Wizard Gate
         + Physics Backbone (PINO/Neural Operator Bank + MoDE + TeamComposer).
@@ -162,158 +259,6 @@ After creating the contract, critique it internally for completeness and feasibi
             "shadow_test_results": final_contract.get("shadow_test_results")
         }
 
-import json
-import logging
-import time
-from datetime import datetime
-from typing import Dict, Any, List, Optional
-import numpy as np
-
-# ====================== v0.9.15 NEW PHYSICS BACKBONE IMPORTS ======================
-from sage.arbos.physics.neural_operator_bank import NeuralOperatorBank
-from sage.arbos.experts.mode import MoDE
-from sage.arbos.ios.team_composer import TeamComposer
-# =================================================================================
-
-from solve_fragment_scoring import SolveFragmentScoringModule
-from validation_oracle import ValidationOracle
-from synapse_client import synapse_client
-
-logger = logging.getLogger(__name__)
-
-class CoreArbosManager:
-    def __init__(self):
-        # ====================== v0.9.15 PHYSICS BACKBONE INITIALIZATION ======================
-        self.neural_operator_bank = NeuralOperatorBank()
-        self.mode = MoDE(bank=self.neural_operator_bank)          # parallel to existing MoPE
-        self.team_composer = TeamComposer(
-            neural_operator_bank=self.neural_operator_bank,
-            mode=self.mode
-        )
-        logger.info("✅ v0.9.15 Physics Backbone (PINO + MoDE + TeamComposer) initialized")
-        # ===============================================================================
-
-        # Locked fragment lifecycle components
-        self.fragment_tracker = []  # Temporary storage for birth-gate-passed fragments
-        self.scoring_module = SolveFragmentScoringModule()
-        self.validator = ValidationOracle()
-        self.extra_context = ""
-        self.previous_loop_efs = 0.0
-        self.em_instance_id = None
-        logger.info("✅ CoreArbosManager initialized — locked fragment lifecycle + surrogate layer + v0.9.15 physics backbone active")
-
-    # ====================== v0.9.15 TEAM COMPOSER HELPERS (full intelligence) ======================
-    def _get_team_composition(self, task: str, challenge_context: Dict[str, Any]) -> Dict[str, Any]:
-        """v0.9.15 — Precise team recipe + verifier checklist via TeamComposer (full shadow test + KAS guidance)."""
-        context = {
-            "task": task,
-            "goal_md": challenge_context.get("goal_md", ""),
-            "recent_fragments": self.get_run_history(n=3),
-            "verification_spec": challenge_context.get("verification_spec", "")
-        }
-        return self.team_composer.compose_team(task, context)
-
-    def _condition_subtask_with_team(self, subtask: str, contract_slice: Dict, team_recipe: Dict) -> Dict:
-        """v0.9.15 — Condition subtask with selected bank engines + MoDE specialists (full physics conditioning)."""
-        logger.info(f"🔧 Conditioning subtask '{subtask[:80]}...' with team {team_recipe.get('team_composition_id')}")
-        # Real bank + MoDE conditioning happens in the hybrid worker (called from orchestrate_subarbos)
-        conditioned = contract_slice.copy()
-        conditioned["team_recipe"] = team_recipe["recipe"]
-        conditioned["bank_engines"] = team_recipe["recipe"]["engines"]
-        conditioned["mode_specialists"] = team_recipe["recipe"]["mode_specialists"]
-        return conditioned
-
-    # ====================== FRAGMENT LIFECYCLE (locked + v0.9.15 physics fields) ======================
-    def _create_fragment(self, stage: str, decision_data: Dict, impact_metrics: Dict = None) -> Dict:
-        """Generate fragment from ANY stage. Birth gate + uncertainty calibration applied immediately.
-        Now includes full v0.9.15 physics metadata."""
-        fragment = {
-            "fragment_id": f"frag_{int(time.time())}_{hash(str(decision_data)) % 100000}",
-            "stage": stage,
-            "decision_data": decision_data,
-            "impact_metrics": impact_metrics or {},
-            "timestamp": datetime.now().isoformat(),
-            "provenance": {"em_instance_id": self.em_instance_id or "unknown", "lineage": []},
-            # v0.9.15 physics fields (automatically populated when present)
-            "team_composition": decision_data.get("team_composition"),
-            "bank_engines_used": decision_data.get("bank_engines_used"),
-            "verifier_checklist_results": decision_data.get("verifier_checklist_results"),
-            "physics_residuals": decision_data.get("physics_residuals"),
-            "uncertainty_map": decision_data.get("uncertainty_map")
-        }
-
-        # Birth gate + uncertainty calibration
-        if self.scoring_module.birth_gate_check(fragment) and self._uncertainty_heuristic(fragment):
-            self.fragment_tracker.append(fragment)
-            logger.debug(f"Fragment passed birth gate + uncertainty check — stage: {stage}")
-            return fragment
-        return None
-
-    def _uncertainty_heuristic(self, fragment: Dict) -> bool:
-        """Cheap uncertainty calibration for birth gate."""
-        decision_text = str(fragment["decision_data"])
-        entropy_proxy = len(set(decision_text.split())) / len(decision_text.split()) if decision_text else 0
-        return entropy_proxy > 0.3
-
-
-# grok Skeleton 
-# core_arbos_manager.py
-# SAGE v0.9.14+ — Core Enigma Machine (EM) Instance
-# Monolithic reference for HumanArbosManager and AgentArbosManager
-# Locked fragment lifecycle + surrogate-expert layer + targeted KAS + full IOS integration
-
-import json
-import logging
-import time
-from datetime import datetime
-from typing import Dict, Any, List, Optional
-import numpy as np
-
-from solve_fragment_scoring import SolveFragmentScoringModule
-from validation_oracle import ValidationOracle
-from synapse_client import synapse_client
-
-logger = logging.getLogger(__name__)
-
-class CoreArbosManager:
-    def __init__(self):
-        self.fragment_tracker = []  # Temporary storage for birth-gate-passed fragments
-        self.scoring_module = SolveFragmentScoringModule()
-        self.validator = ValidationOracle()
-        self.extra_context = ""
-        self.previous_loop_efs = 0.0
-        self.em_instance_id = None
-        logger.info("✅ CoreArbosManager initialized — locked fragment lifecycle + surrogate layer active")
-
-    def _create_fragment(self, stage: str, decision_data: Dict, impact_metrics: Dict = None) -> Dict:
-        """Generate fragment from ANY stage. Birth gate + uncertainty calibration applied immediately."""
-        fragment = {
-            "fragment_id": f"frag_{int(time.time())}_{hash(str(decision_data)) % 100000}",
-            "stage": stage,
-            "decision_data": decision_data,
-            "impact_metrics": impact_metrics or {},
-            "timestamp": datetime.now().isoformat(),
-            "provenance": {"em_instance_id": self.em_instance_id or "unknown", "lineage": []}
-        }
-
-        # Birth gate + uncertainty calibration
-        if self.scoring_module.birth_gate_check(fragment) and self._uncertainty_heuristic(fragment):
-            self.fragment_tracker.append(fragment)
-            logger.debug(f"Fragment passed birth gate + uncertainty check — stage: {stage}")
-            return fragment
-        return None
-
-    def _uncertainty_heuristic(self, fragment: Dict) -> bool:
-        """Cheap uncertainty calibration for birth gate."""
-        decision_text = str(fragment["decision_data"])
-        entropy_proxy = len(set(decision_text.split())) / len(decision_text.split()) if decision_text else 0
-        return entropy_proxy > 0.3
-
-    def generate_verifiability_contract(self, challenge: str, enhancement_prompt: str = "", verification_spec: str = "") -> Dict:
-        """Contract generation — produces fragments."""
-        contract = {"challenge": challenge, "enhancement_prompt": enhancement_prompt, "verification_spec": verification_spec}
-        self._create_fragment("contract_generation", contract, {"composability": 0.95})
-        return contract
 
     def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu", verification_spec: str = "") -> Dict[str, Any]:
         """Best-version Planning Arbos — Full Continuous Intelligence + SAGE Commons Integration.
