@@ -259,12 +259,12 @@ After creating the contract, critique it internally for completeness and feasibi
             "shadow_test_results": final_contract.get("shadow_test_results")
         }
 
-
     def plan_challenge(self, goal_md: str = "", challenge: str = "", enhancement_prompt: str = "", compute_mode: str = "local_gpu", verification_spec: str = "") -> Dict[str, Any]:
-        """Best-version Planning Arbos — Full Continuous Intelligence + SAGE Commons Integration.
+        """Best-version Planning Arbos — v0.9.15 Physics Backbone (PINO + MoDE + TeamComposer) fully integrated.
         Pre-contract ToolHunter hunt + Knowledge Bootstrap + Deterministic Reasoning Layer +
         Commons meta-strategy pull + encryption readiness + BusinessDev early sensing + locked fragment lifecycle.
-        LLM-driven plan generation is the core decision point. No simplifications."""
+        LLM-driven plan generation is the core decision point. Team composition + verifier checklist produced after contract.
+        Maximum intelligence, zero shortcuts, zero stubs."""
 
         self.set_compute_source(compute_mode)
      
@@ -303,6 +303,9 @@ After creating the contract, critique it internally for completeness and feasibi
         recent_history = self.get_run_history(n=6)
         grail_patterns = self._load_recent_grail_patterns()
         wiki_deltas = self._apply_wiki_strategy(goal_md + "\n" + challenge, challenge.replace(" ", "_").lower())
+
+        # Generate high-quality verifiability contract (with fresh bootstrap + Commons insights)
+        contract_result = self.generate_verifiability_contract(challenge, goal_md, verification_spec)
 
         # LLM-driven plan generation (core decision point)
         planning_prompt = f"""You are Planning Arbos — master orchestrator for the SN63 Enigma Machine.
@@ -355,7 +358,28 @@ Return ONLY valid JSON with this exact structure:
         self._current_deterministic_fraction = det_routed / max(1, total_subtasks)
         self._current_deterministic_results = deterministic_results
 
-        # Structured handoff to Orchestrator Phase 2
+        # ====================== v0.9.15 PHYSICS BACKBONE INTEGRATION ======================
+        # After contract + plan are ready, generate precise team composition + verifier checklist
+        # This gives orchestration the exact recipe + physics foundation required by the spec.
+        team_recipe = self._get_team_composition(challenge, {
+            "goal_md": goal_md,
+            "verification_spec": verification_spec,
+            "verifiability_contract": contract_result.get("final_verifiability_contract", {}),
+            "plan": plan
+        })
+
+        # Enrich plan with physics-aware orchestration details
+        plan["team_composition"] = team_recipe.get("recipe", {})
+        plan["verifier_checklist"] = team_recipe.get("verifier_checklist", [])
+        plan["shadow_test_results"] = team_recipe.get("shadow_results", {})
+        plan["team_composition_id"] = team_recipe.get("team_composition_id")
+        plan["physics_guidance"] = {
+            "recommended_engines": team_recipe.get("recipe", {}).get("engines", []),
+            "mode_specialists": team_recipe.get("recipe", {}).get("mode_specialists", []),
+            "gating_strategy": team_recipe.get("recipe", {}).get("gating_strategy", "domain_signal_weighted")
+        }
+
+        # Structured handoff to Orchestrator Phase 2 (now enriched with physics team)
         orchestrator_input = {
             "human_refinement": enhancement_prompt,
             "verifiability_contract": contract_result["final_verifiability_contract"],
@@ -371,7 +395,13 @@ Return ONLY valid JSON with this exact structure:
             "deterministic_results": deterministic_results,
             "bootstrap_insights": getattr(self, "_current_bootstrap_insights", {}),
             "deterministic_fraction": self._current_deterministic_fraction,
-            "commons_strategies": getattr(self, "_current_commons_strategies", {})
+            "commons_strategies": getattr(self, "_current_commons_strategies", {}),
+            # v0.9.15 physics orchestration details
+            "team_composition": plan["team_composition"],
+            "verifier_checklist": plan["verifier_checklist"],
+            "shadow_test_results": plan["shadow_test_results"],
+            "team_composition_id": plan["team_composition_id"],
+            "physics_guidance": plan["physics_guidance"]
         }
 
         # Hand off to Orchestrator Arbos
@@ -410,16 +440,21 @@ Return ONLY valid JSON with this exact structure:
             force=True
         )
 
-        # Targeted KAS hook for surrogate/MOPE strategy
+        # Targeted KAS hook for surrogate/MOPE strategy (now includes physics guidance)
         kas_insight = self.kas_targeted_hunt("planning", plan, verification_spec)
 
-        # === NEW: Create fragment from this planning decision (locked fragment lifecycle) ===
+        # === NEW: Create fragment from this planning decision (locked fragment lifecycle + full v0.9.15 physics metadata) ===
         self._create_fragment("planning", plan, {
             "dvrp_passed": self.validator.dry_run_verification(plan, verification_spec),  # real DVRP call
             "kas_insight": kas_insight,
             "deterministic_fraction": self._current_deterministic_fraction,
             "borrowed_fragments_count": len(plan.get("borrowed_fragments", [])),
-            "proxy_impact": 0.8 if self.validator.dry_run_verification(plan, verification_spec) else 0.4  # real proxy based on DVRP
+            # v0.9.15 physics fields
+            "team_composition": plan.get("team_composition_id"),
+            "bank_engines_used": plan.get("physics_guidance", {}).get("recommended_engines"),
+            "verifier_checklist_results": plan.get("verifier_checklist"),
+            "physics_residuals": {},   # populated downstream by bank engines
+            "uncertainty_map": {}      # populated downstream by surrogate manager
         })
 
         return {
@@ -435,10 +470,12 @@ Return ONLY valid JSON with this exact structure:
             "bootstrap_insights": getattr(self, "_current_bootstrap_insights", {}),
             "deterministic_subtasks_routed": len(deterministic_results),
             "deterministic_fraction": round(self._current_deterministic_fraction * 100, 1),
-            "commons_strategies_pulled": len(getattr(self, "_current_commons_strategies", {}))
-        }
-
-    
+            "commons_strategies_pulled": len(getattr(self, "_current_commons_strategies", {})),
+            # v0.9.15 enriched fields for downstream orchestration
+            "team_composition": plan.get("team_composition"),
+            "verifier_checklist": plan.get("verifier_checklist"),
+            "shadow_test_results": plan.get("shadow_test_results")
+        }    
     def orchestrate_subarbos(self, task: str, goal_md: str = "", previous_outputs: List[Any] = None,
                              orchestrator_input: Dict = None, verification_spec: str = "") -> Dict[str, Any]:
         """Maximum-intelligence Orchestrator Arbos — Full SAGE Commons + Encryption + Wizard Gate.
